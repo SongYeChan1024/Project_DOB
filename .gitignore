@@ -11,6 +11,11 @@
 /[Aa]ssets/_DOB/_Local/
 /[Aa]ssets/_DOB/_Local.meta
 
+# ── 외부 에셋 (README 「외부 에셋 설치 목록」으로 공유, 용량·라이선스 때문에 올리지 않음) ──
+/[Aa]ssets/_DOB/99.ThirdParty/
+/[Aa]ssets/_DOB/99.ThirdParty.meta
+# 자기 위치에 설치되는 패키지는 여기에 폴더를 추가 (예: /[Aa]ssets/PackageName/ 와 .meta)
+
 # ── Unity·도구가 만드는 임시 파일 ──
 .utmp/
 .gradle/
