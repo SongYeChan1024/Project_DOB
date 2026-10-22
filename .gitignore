@@ -7,6 +7,18 @@
 /[Mm]emoryCaptures/
 /[Rr]ecordings/
 
+# ── 개인 실험 폴더 (README 「에셋 규칙」: 게임에서 참조 금지) ──
+/[Aa]ssets/_DOB/_Local/
+/[Aa]ssets/_DOB/_Local.meta
+
+# ── Unity·도구가 만드는 임시 파일 ──
+.utmp/
+.gradle/
+*.log
+mono_crash.*
+*.DotSettings.user
+InitTestScene*.unity*
+
 # ── 빌드 결과물 (제출용 빌드는 GitHub Releases나 드라이브로 공유) ──
 /[Bb]uild/
 /[Bb]uilds/
@@ -45,6 +57,7 @@ crashlytics-buildsettings*
 sysinfo.txt
 ExportedObj/
 *.unitypackage
+*.unitypackage.meta
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
