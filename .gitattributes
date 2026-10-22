@@ -1,0 +1,53 @@
+# 줄바꿈을 저장소 안에서 통일한다 (Git LFS는 사용하지 않음)
+* text=auto
+
+# 코드와 문서
+*.cs      text eol=lf
+*.shader  text eol=lf
+*.hlsl    text eol=lf
+*.cginc   text eol=lf
+*.compute text eol=lf
+*.asmdef  text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+
+# Unity가 Force Text로 저장하는 YAML 에셋 (Unity는 LF로 쓰므로 LF로 고정)
+*.unity       text eol=lf
+*.prefab      text eol=lf
+*.asset       text eol=lf
+*.meta        text eol=lf
+*.mat         text eol=lf
+*.anim        text eol=lf
+*.controller  text eol=lf
+*.overrideController text eol=lf
+*.physicMaterial     text eol=lf
+*.inputactions       text eol=lf
+*.playable    text eol=lf
+*.mask        text eol=lf
+*.lighting    text eol=lf
+
+# 바이너리 (병합·줄바꿈 변환 금지)
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.tga  binary
+*.tif  binary
+*.tiff binary
+*.exr  binary
+*.hdr  binary
+*.gif  binary
+*.fbx  binary
+*.obj  binary
+*.glb  binary
+*.gltf binary
+*.wav  binary
+*.mp3  binary
+*.ogg  binary
+*.mp4  binary
+*.mov  binary
+*.ttf  binary
+*.otf  binary
+*.xlsx binary
+*.pdf  binary
