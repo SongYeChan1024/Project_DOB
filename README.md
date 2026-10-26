@@ -32,7 +32,7 @@ Project_DOB/
 ├─ Assets/
 │  └─ _DOB/                 우리 게임 에셋 (외부 에셋과 섞이지 않게 분리)
 │     ├─ 01.Scenes/
-│     ├─ 02.Scripts/        Data · Game · UI (6장)
+│     ├─ 02.Scripts/        Define · Utils · System · UI · Manager · Presenter (6장)
 │     ├─ 03.Prefabs/
 │     ├─ 04.Art/            Models · Textures · Materials · VFX
 │     ├─ 05.Animations/
@@ -195,20 +195,41 @@ feature/이름-기능 ──PR──▶ main ◀──PR── fix/이름-버그
 
 ## 6. 코드 규칙
 
-### 구조 — 3계층 💡
+### 구조 — 5계층 💡
+
+코드를 다섯 계층으로 나눕니다(엄격한 계층 구조, Strict Layered Architecture). 아래 계층은 위 계층을 모르고, 계층 사이는 이벤트로 소통합니다. 기존 3계층(Data · Game · UI)에서 Data를 Define과 Utils로, Game을 System과 Manager · Presenter로 나눈 구조입니다.
 
 ```text
-UI    (화면 표시와 입력)
- │ 참조
-Game  (사냥 · 메뉴 결정 · 영업 · 경제 · GameManager)
- │ 참조
-Data  (ScriptableObject 정의 · enum · 데이터 클래스)
+[4] Manager · Presenter   하위 계층을 조립하고 UI와 System 사이를 잇는다   → 0 · 1 · 2 · 3 참조
+[3] UI                    화면 표시와 입력만. 계산 없이 이벤트를 보낸다     → 0 · 1 참조
+[2] System                게임 규칙 · 판정 · 상태 머신                       → 0 · 1 참조
+[1] Utils                 공용 도구 · 확장 메서드 · 이벤트 버스             → 0 참조
+[0] Define                ScriptableObject 정의 · enum · 데이터 클래스       → 참조 없음
 ```
 
-- 위 계층은 아래 계층을 참조할 수 있고, **아래 계층은 위를 참조하지 않습니다.** `Game`은 `UI`를 모릅니다. 화면을 바꿔야 하면 이벤트를 내보내고 `UI`가 받습니다.
-- `UI`는 표시와 입력만 합니다. 게임 규칙(계산·판정)을 `UI`에 쓰지 않습니다.
-- `FindObjectOfType` 같은 `Find*` 계열은 쓰지 않고, 인스펙터 연결이나 `GameManager`를 통해 찾습니다.
-- 💡 계층마다 asmdef를 두면 Unity가 역참조를 컴파일 오류로 막아 줍니다. 1일차 세팅 때 넣을지 결정합니다.
+| 계층 | 폴더 (`02.Scripts/`) | 하는 일 | 예 |
+| --- | --- | --- | --- |
+| 0 Define | `Define/` | 데이터의 모양만 정의한다. 로직 없음 | 위험 축 enum, 레시피 · 층 · 손님 데이터 클래스 |
+| 1 Utils | `Utils/` | 어디서나 쓰는 도구와 전역 이벤트 버스 | `EventBus`, 난수 · 수학 도우미 |
+| 2 System | `System/` | 게임 규칙과 판정. 다른 계층과는 이벤트로만 소통 | 위험 판정, 손님 흐름, 조리 타이머, 정산 |
+| 3 UI | `UI/` | 화면 표시와 입력. 계산 · 판정을 하지 않음 | 대화창, 주방 카운터, 귀환 보고 화면 |
+| 4 Manager · Presenter | `Manager/`, `Presenter/` | 하위 계층을 조립하고 중재, 씬과 하루 진행 | `GameManager`, 화면별 Presenter |
+
+- **아래 계층은 위를 참조하지 않습니다.** 같은 계층끼리(System ↔ System, UI ↔ UI)도 직접 참조를 피하고 이벤트 버스로 신호를 주고받습니다.
+- **UI는 System을 모릅니다.** 입력은 이벤트로 보내고, System의 결과를 화면에 옮기는 일은 Presenter가 합니다. UI 담당과 로직 담당이 서로의 파일을 고치지 않아도 됩니다.
+- 판정 · 계산 같은 게임 규칙은 System에 쓰고, 가능하면 `MonoBehaviour`가 아닌 순수 C# 클래스로 만듭니다. 테스트와 화면 미리보기가 같은 코드를 쓰게 하기 위해서입니다.
+- `GameManager`는 날짜 · 골드 · 하루 진행 상태만 가집니다. 새 기능은 `GameManager`에 붙이지 말고 System에 클래스를 새로 만듭니다. 기능이 한곳에 몰리면 개발 중간에 쪼개는 비용이 크기 때문입니다.
+- `FindObjectOfType` 같은 `Find*` 계열은 쓰지 않고, 인스펙터 연결이나 Presenter를 통해 받습니다.
+- 💡 계층마다 asmdef를 둬서 역참조를 컴파일 오류로 막습니다. 이름은 `DOB.Define` · `DOB.Utils` · `DOB.Systems` · `DOB.UI` · `DOB.Manager`로 둡니다. System 계층만 `Systems`인 이유는 .NET의 `System` 네임스페이스와 겹치지 않게 하기 위해서입니다. 1일차 세팅 때 확정합니다.
+
+#### 이 구조에서 쓰지 않는 것
+
+| 쓰지 않는 것 | 대신 | 이유 |
+| --- | --- | --- |
+| 네트워크 동기화 · 서버 DB 계층 | 없음 | 싱글 · 오프라인 게임 |
+| master · develop · release · hotfix 브랜치 (git flow) | 3장의 main + feature + fix | 11일 범위에는 무거움 |
+| Excel → JSON 파싱 + Addressables | `08.Data`의 ScriptableObject. 💡 대사 조각처럼 양이 많은 데이터만 시트 → JSON을 검토 | 레시피 · 층 데이터가 적음 |
+| `_Deprecated` 폴더 | 쓰지 않음 (4장) | 지난 버전은 Git 기록에서 찾음 |
 
 ### 이름
 
@@ -285,7 +306,8 @@ GitHub **Issues**에 올리고, 고친 PR 본문에 `Fixes #번호`를 적습니
 | 하루 병합 시간 2번 | 🔴 |
 | `Docs/` vs 노션 우선순위 | 🔴 |
 | 원본 파일 공유 드라이브 | 🔴 |
-| asmdef 사용 여부 | 💡 |
+| 코드 구조 5계층 (6장) | 💡 |
+| 계층별 asmdef 사용 여부 | 💡 |
 | 이름 규칙·파일 크기 기준 | 💡 |
 
 ## 변경 기록
@@ -294,3 +316,4 @@ GitHub **Issues**에 올리고, 고친 PR 본문에 `Fixes #번호`를 적습니
 | --- | --- | --- |
 | 2026.10.22 | 송예찬 | 저장소 세팅, 팀 규칙 초안 작성 (.gitignore·.gitattributes 추가, LFS 미사용) |
 | 2026.10.22 | 송예찬 | 11일 개발 기준으로 규칙 정리. 브랜치를 main + feature + fix로, 커밋을 `타입(분야):` 형식으로 변경. 씬·프리팹 담당제, 에셋 위치·크기, 3계층 코드 구조, 문서 기준, 버그 리포트 규칙 추가 |
+| 2026.10.26 | 송예찬 | 💡 6장 코드 구조를 5계층(Define · Utils · System · UI · Manager/Presenter)으로 리빌딩하는 안. 쓰지 않는 항목, `GameManager` 범위, asmdef 이름 정리. 1 · 9장 연결 부분 수정 |
