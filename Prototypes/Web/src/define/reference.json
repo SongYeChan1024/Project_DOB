@@ -1,0 +1,661 @@
+{
+  "AXES": [
+    "poison",
+    "fire",
+    "cold",
+    "dark",
+    "vital",
+    "sense"
+  ],
+  "AX": {
+    "poison": {
+      "name": "독",
+      "eff": "해독",
+      "word": "독",
+      "words": "슬라임 점액 · 독 안개 · 따끔함"
+    },
+    "fire": {
+      "name": "열",
+      "eff": "내열",
+      "word": "열기",
+      "words": "뜨거운 바닥 · 불길 · 타는 목"
+    },
+    "cold": {
+      "name": "냉기",
+      "eff": "방한",
+      "word": "한기",
+      "words": "언 손가락 · 서리 · 오한"
+    },
+    "dark": {
+      "name": "어둠",
+      "eff": "야광",
+      "word": "어둠",
+      "words": "꺼진 횃불 · 보이지 않음"
+    },
+    "vital": {
+      "name": "체력",
+      "eff": "활력",
+      "word": "체력",
+      "words": "지침 · 허기 · 먼 길"
+    },
+    "sense": {
+      "name": "함정",
+      "eff": "감각",
+      "word": "함정",
+      "words": "발밑 · 울리는 바닥 · 눈치"
+    }
+  },
+  "FLOORS": {
+    "1": {
+      "name": "슬라임 숲",
+      "flavor": "젖은 이끼와 슬라임이 깔린 첫 번째 층",
+      "haz": {
+        "poison": 1,
+        "vital": 1
+      },
+      "loot": [
+        [
+          "jelly",
+          3
+        ],
+        [
+          "shroom",
+          3
+        ],
+        [
+          "herb",
+          3
+        ],
+        [
+          "carrot",
+          2
+        ]
+      ]
+    },
+    "2": {
+      "name": "곰팡이 동굴",
+      "flavor": "푸른 포자가 떠다니는 축축한 동굴",
+      "haz": {
+        "poison": 2,
+        "dark": 1,
+        "sense": 1
+      },
+      "loot": [
+        [
+          "moss",
+          3
+        ],
+        [
+          "bat",
+          3
+        ],
+        [
+          "mold",
+          2
+        ],
+        [
+          "herb",
+          1
+        ]
+      ]
+    },
+    "3": {
+      "name": "용암 균열",
+      "flavor": "바닥 틈마다 붉은 열이 새어 나오는 층",
+      "haz": {
+        "fire": 3,
+        "vital": 1,
+        "sense": 1
+      },
+      "loot": [
+        [
+          "pepper",
+          3
+        ],
+        [
+          "tail",
+          2
+        ],
+        [
+          "vsalt",
+          1
+        ]
+      ]
+    },
+    "4": {
+      "name": "서리 회랑",
+      "flavor": "벽이 하얗게 얼어붙은 긴 복도",
+      "haz": {
+        "cold": 3,
+        "dark": 1,
+        "vital": 1
+      },
+      "loot": [
+        [
+          "berry",
+          3
+        ],
+        [
+          "shrimp",
+          3
+        ],
+        [
+          "bloom",
+          2
+        ]
+      ]
+    },
+    "5": {
+      "name": "눈먼 심연",
+      "flavor": "5층의 어두운 일반 통로. 고립 구역은 별도 조사 대상이다.",
+      "haz": {
+        "dark": 3,
+        "poison": 1,
+        "cold": 1,
+        "vital": 1
+      },
+      "loot": [
+        [
+          "ink",
+          3
+        ],
+        [
+          "pearl",
+          1
+        ],
+        [
+          "bloom",
+          1
+        ],
+        [
+          "tail",
+          1
+        ]
+      ]
+    }
+  },
+  "ING": {
+    "flour": {
+      "n": "밀가루",
+      "base": true,
+      "price": 3
+    },
+    "potato": {
+      "n": "감자",
+      "base": true,
+      "price": 3
+    },
+    "meat": {
+      "n": "고기",
+      "base": true,
+      "price": 6
+    },
+    "jelly": {
+      "n": "슬라임 젤리",
+      "floor": 1,
+      "price": 3
+    },
+    "shroom": {
+      "n": "숲버섯",
+      "floor": 1,
+      "price": 2
+    },
+    "herb": {
+      "n": "들풀",
+      "floor": 1,
+      "price": 2
+    },
+    "carrot": {
+      "n": "숲 당근",
+      "floor": 1,
+      "price": 2
+    },
+    "moss": {
+      "n": "물이끼",
+      "floor": 2,
+      "price": 3
+    },
+    "bat": {
+      "n": "박쥐 날개",
+      "floor": 2,
+      "price": 3
+    },
+    "mold": {
+      "n": "푸른곰팡이",
+      "floor": 2,
+      "price": 3
+    },
+    "pepper": {
+      "n": "용암 고추",
+      "floor": 3,
+      "price": 4
+    },
+    "tail": {
+      "n": "불도마뱀 꼬리",
+      "floor": 3,
+      "price": 5
+    },
+    "vsalt": {
+      "n": "화산 소금",
+      "floor": 3,
+      "rare": true
+    },
+    "berry": {
+      "n": "서리 베리",
+      "floor": 4,
+      "price": 4
+    },
+    "shrimp": {
+      "n": "얼음 가재",
+      "floor": 4,
+      "price": 5
+    },
+    "bloom": {
+      "n": "달빛 서리꽃",
+      "floor": 4,
+      "price": 5
+    },
+    "ink": {
+      "n": "심연 먹물",
+      "floor": 5,
+      "price": 6
+    },
+    "pearl": {
+      "n": "심연 진주",
+      "floor": 5,
+      "rare": true
+    }
+  },
+  "SPICES": {
+    "garlic": {
+      "n": "마늘",
+      "ax": "poison",
+      "tag": "향긋",
+      "price": 2
+    },
+    "mint": {
+      "n": "박하",
+      "ax": "fire",
+      "tag": "시원",
+      "price": 2
+    },
+    "ginger": {
+      "n": "생강",
+      "ax": "cold",
+      "tag": "얼큰",
+      "price": 2
+    },
+    "carjuice": {
+      "n": "당근즙",
+      "ax": "dark",
+      "tag": "달콤",
+      "price": 3
+    },
+    "salt": {
+      "n": "소금",
+      "ax": "vital",
+      "tag": "짭짤",
+      "price": 2
+    },
+    "blackpepper": {
+      "n": "후추",
+      "ax": "sense",
+      "tag": "알싸",
+      "price": 2
+    }
+  },
+  "RECIPES": [
+    {
+      "id": "bread",
+      "n": "구운 빵",
+      "ing": {
+        "flour": 2
+      },
+      "eff": {
+        "vital": 1,
+        "sense": 1
+      },
+      "tags": [
+        "고소",
+        "담백"
+      ],
+      "price": 8
+    },
+    {
+      "id": "stew",
+      "n": "감자 스튜",
+      "ing": {
+        "potato": 1,
+        "meat": 1
+      },
+      "eff": {
+        "vital": 2
+      },
+      "tags": [
+        "진한"
+      ],
+      "price": 12
+    },
+    {
+      "id": "grill",
+      "n": "고기 구이",
+      "ing": {
+        "meat": 2
+      },
+      "eff": {
+        "vital": 3
+      },
+      "tags": [
+        "진한",
+        "바삭"
+      ],
+      "price": 16
+    },
+    {
+      "id": "jellysalad",
+      "n": "슬라임 젤리 샐러드",
+      "ing": {
+        "jelly": 1,
+        "herb": 1
+      },
+      "eff": {
+        "poison": 2,
+        "sense": 1
+      },
+      "tags": [
+        "상큼",
+        "시원"
+      ],
+      "price": 14
+    },
+    {
+      "id": "shroomsoup",
+      "n": "숲버섯 수프",
+      "ing": {
+        "shroom": 2,
+        "potato": 1
+      },
+      "eff": {
+        "vital": 2,
+        "poison": 1
+      },
+      "tags": [
+        "담백"
+      ],
+      "price": 13
+    },
+    {
+      "id": "herbpie",
+      "n": "들풀 파이",
+      "ing": {
+        "herb": 1,
+        "flour": 1
+      },
+      "eff": {
+        "sense": 2,
+        "vital": 1
+      },
+      "tags": [
+        "고소",
+        "향긋"
+      ],
+      "price": 11
+    },
+    {
+      "id": "carrotcake",
+      "n": "당근 케이크",
+      "ing": {
+        "carrot": 2,
+        "flour": 1
+      },
+      "eff": {
+        "dark": 2,
+        "vital": 1
+      },
+      "tags": [
+        "달콤"
+      ],
+      "price": 12
+    },
+    {
+      "id": "mosssoup",
+      "n": "물이끼 냉국",
+      "ing": {
+        "moss": 2
+      },
+      "eff": {
+        "fire": 2,
+        "vital": 1
+      },
+      "tags": [
+        "시원",
+        "담백"
+      ],
+      "price": 15
+    },
+    {
+      "id": "mossmuch",
+      "n": "물이끼 무침",
+      "ing": {
+        "moss": 1,
+        "herb": 1
+      },
+      "eff": {
+        "fire": 2,
+        "sense": 1
+      },
+      "tags": [
+        "시원",
+        "향긋"
+      ],
+      "price": 14
+    },
+    {
+      "id": "batfry",
+      "n": "박쥐 날개 튀김",
+      "ing": {
+        "bat": 2
+      },
+      "eff": {
+        "sense": 2,
+        "dark": 1
+      },
+      "tags": [
+        "바삭",
+        "고소"
+      ],
+      "price": 15
+    },
+    {
+      "id": "moldgratin",
+      "n": "푸른곰팡이 그라탱",
+      "ing": {
+        "mold": 1,
+        "potato": 1,
+        "meat": 1
+      },
+      "eff": {
+        "poison": 2,
+        "vital": 1
+      },
+      "tags": [
+        "쿰쿰",
+        "진한"
+      ],
+      "price": 16
+    },
+    {
+      "id": "pepperfry",
+      "n": "용암 고추 볶음",
+      "ing": {
+        "pepper": 2,
+        "meat": 1
+      },
+      "eff": {
+        "cold": 3
+      },
+      "tags": [
+        "얼큰",
+        "진한"
+      ],
+      "price": 22
+    },
+    {
+      "id": "tailgrill",
+      "n": "불도마뱀 꼬리구이",
+      "ing": {
+        "tail": 1,
+        "meat": 1
+      },
+      "eff": {
+        "vital": 2,
+        "cold": 1
+      },
+      "tags": [
+        "진한",
+        "얼큰"
+      ],
+      "price": 20
+    },
+    {
+      "id": "vsaltpotato",
+      "n": "화산 소금 감자",
+      "ing": {
+        "vsalt": 1,
+        "potato": 2
+      },
+      "eff": {
+        "vital": 2,
+        "cold": 1
+      },
+      "tags": [
+        "짭짤",
+        "고소"
+      ],
+      "price": 15
+    },
+    {
+      "id": "parfait",
+      "n": "서리 베리 파르페",
+      "ing": {
+        "berry": 2
+      },
+      "eff": {
+        "fire": 2,
+        "sense": 1
+      },
+      "tags": [
+        "달콤",
+        "시원"
+      ],
+      "price": 22
+    },
+    {
+      "id": "shrimpstew",
+      "n": "얼음 가재 스튜",
+      "ing": {
+        "shrimp": 1,
+        "potato": 1
+      },
+      "eff": {
+        "vital": 2,
+        "fire": 1
+      },
+      "tags": [
+        "진한",
+        "시원"
+      ],
+      "price": 24
+    },
+    {
+      "id": "bloomsalad",
+      "n": "서리꽃 샐러드",
+      "ing": {
+        "bloom": 2
+      },
+      "eff": {
+        "dark": 3
+      },
+      "tags": [
+        "향긋",
+        "쌉쌀"
+      ],
+      "price": 24
+    },
+    {
+      "id": "inkrisotto",
+      "n": "먹물 리조또",
+      "ing": {
+        "ink": 1,
+        "flour": 1,
+        "meat": 1
+      },
+      "eff": {
+        "dark": 3,
+        "vital": 1
+      },
+      "tags": [
+        "진한",
+        "쌉쌀"
+      ],
+      "price": 30
+    },
+    {
+      "id": "abyss",
+      "n": "심연 코스",
+      "ing": {
+        "pearl": 1,
+        "ink": 1,
+        "bloom": 1
+      },
+      "eff": {
+        "dark": 3,
+        "poison": 1,
+        "cold": 1,
+        "vital": 1
+      },
+      "tags": [
+        "쌉쌀",
+        "향긋"
+      ],
+      "price": 45
+    }
+  ],
+  "CLASSES": {
+    "warrior": {
+      "n": "전사",
+      "res": "vital",
+      "trait": "체력이 좋다"
+    },
+    "mage": {
+      "n": "마법사",
+      "res": "fire",
+      "trait": "불에 익숙하다"
+    },
+    "rogue": {
+      "n": "도적",
+      "res": "sense",
+      "trait": "함정에 밝다"
+    },
+    "priest": {
+      "n": "사제",
+      "res": "poison",
+      "trait": "정화의 가호가 있다"
+    },
+    "miner": {
+      "n": "광부",
+      "res": "dark",
+      "trait": "어둠에 익숙하다"
+    },
+    "archer": {
+      "n": "궁수",
+      "res": "cold",
+      "trait": "추위에 강하다"
+    }
+  },
+  "metadata": {
+    "author": "송예찬",
+    "status": "💡 웹 기획 검증용 수치. 팀 확정 아님",
+    "source": "기존 층계참 식당 HTML의 데이터 표를 재사용"
+  }
+}

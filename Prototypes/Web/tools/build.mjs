@@ -1,0 +1,18 @@
+import { build } from 'esbuild';
+import { mkdir, readFile, writeFile, copyFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+await mkdir(path.join(root, 'dist'), { recursive: true });
+await build({ entryPoints: [path.join(root, 'src/main.js')], outfile: path.join(root, 'dist/game.js'), bundle: true, format: 'iife', minify: true, legalComments: 'inline', target: 'es2020' });
+const license = await readFile(path.join(root, 'node_modules/three/LICENSE'), 'utf8');
+const html = (await readFile(path.join(root, 'index.html'), 'utf8')).replace('</head>', `<!-- Three.js license\n${license}\n--></head>`);
+const font=await readFile(path.join(root,'assets/fonts/Gaegu-Regular.ttf'));
+const fontLicense=await readFile(path.join(root,'assets/fonts/OFL.txt'),'utf8');
+const css = `/* Gaegu · SIL Open Font License 1.1\n${fontLicense}\n*/\n@font-face{font-family:Gaegu;src:url(data:font/ttf;base64,${font.toString('base64')}) format('truetype');font-display:swap;font-weight:400 700;}\n`+await readFile(path.join(root, 'src/style.css'), 'utf8');
+const js = await readFile(path.join(root, 'dist/game.js'), 'utf8');
+await writeFile(path.join(root, 'dist/index.html'), html.replace('<!-- STYLE -->', `<style>${css}</style>`).replace('<!-- SCRIPT -->', '<script src="game.js"></script>'));
+await writeFile(path.join(root, 'dist/restaurant-offline.html'), html.replace('<!-- STYLE -->', `<style>${css}</style>`).replace('<!-- SCRIPT -->', `<script>${js.replaceAll('</script', '<\\/script')}</script>`));
+await copyFile(path.join(root, 'node_modules/three/LICENSE'), path.join(root, 'dist/THREE-LICENSE.txt'));
+await copyFile(path.join(root,'assets/fonts/OFL.txt'),path.join(root,'dist/Gaegu-OFL.txt'));
+console.log('Built dist/index.html and self-contained dist/restaurant-offline.html');

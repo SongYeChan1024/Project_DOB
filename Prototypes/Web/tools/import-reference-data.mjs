@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+const html = fs.readFileSync('C:/Users/503-26/Downloads/층계참 식당.html', 'utf8');
+const source = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const context = { module: { exports: {} } };
+vm.runInNewContext(source, context, { timeout: 2000 });
+const e = context.module.exports;
+const data = Object.fromEntries(['AXES','AX','FLOORS','ING','SPICES','RECIPES','CLASSES'].map(k=>[k,e[k]]));
+data.AX.dark.eff = '야광';
+data.FLOORS[5].flavor = '5층의 어두운 일반 통로. 고립 구역은 별도 조사 대상이다.';
+data.metadata = { author: '송예찬', status: '💡 웹 기획 검증용 수치. 팀 확정 아님', source: '기존 층계참 식당 HTML의 데이터 표를 재사용' };
+fs.mkdirSync('src/define', { recursive: true });
+fs.writeFileSync('src/define/reference.json', JSON.stringify(data,null,2));
+console.log(`Imported ${data.RECIPES.length} recipes and six hazard axes`);
