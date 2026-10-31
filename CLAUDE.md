@@ -1,6 +1,6 @@
 # Project_DOB — Claude 작업 안내
 
-4인 팀 프로젝트 「오늘 밤, 던전 식당」의 Unity 프로젝트 겸 문서 저장소입니다. 팀 규칙의 기준은 README이며, 항상 먼저 따릅니다.
+4인 팀 프로젝트 「다녀왔어: 층계참 식당」의 프로젝트·문서 저장소입니다. 팀 규칙의 기준은 README이며, 항상 먼저 따릅니다. 담당 배정과 작업 경계는 README 4장, 개발 연결 예시는 Docs/개발/EngineeringGuide.md를 따릅니다.
 
 @README.md
 
