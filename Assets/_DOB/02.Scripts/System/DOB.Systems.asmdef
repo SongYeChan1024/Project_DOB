@@ -1,0 +1,17 @@
+{
+  "name": "DOB.Systems",
+  "rootNamespace": "DOB.Systems",
+  "references": [
+    "DOB.Define",
+    "DOB.Utils"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

@@ -1,0 +1,19 @@
+{
+  "name": "DOB.Manager",
+  "rootNamespace": "DOB.Manager",
+  "references": [
+    "DOB.Define",
+    "DOB.Utils",
+    "DOB.Systems",
+    "DOB.UI"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

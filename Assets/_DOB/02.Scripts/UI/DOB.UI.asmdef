@@ -1,0 +1,19 @@
+{
+  "name": "DOB.UI",
+  "rootNamespace": "DOB.UI",
+  "references": [
+    "DOB.Define",
+    "DOB.Utils",
+    "Unity.ugui",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
