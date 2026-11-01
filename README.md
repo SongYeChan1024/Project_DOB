@@ -35,7 +35,7 @@ Git에서는 [최신 결정](Docs/기획/CurrentDecisions.md)과 [메인 기획�
 
 문서는 `Docs/`, 기존 웹 시제품은 `Prototypes/Web/`에 둡니다.
 저장소 루트가 Unity 프로젝트입니다. Assets·Packages·ProjectSettings와 아래 기본 구조를 구성했습니다.
-초기 씬·참조·검증 결과는 [Unity 기반 구성](Docs/개발/UnityFoundation.md), 모델 교체 규격은 [캐릭터 프리팹 구조](Docs/개발/CharacterPrefabStructure.md)를 따릅니다.
+초기 구성 기록은 [Unity 기반 구성](Docs/개발/UnityFoundation.md), 현재 일곱 씬의 역할·조합 로드는 [씬 분리 설계](Docs/개발/SceneComposition.md), 모델 교체 규격은 [캐릭터 프리팹 구조](Docs/개발/CharacterPrefabStructure.md)를 따릅니다.
 
 ```text
 Project_DOB/
@@ -217,16 +217,20 @@ UI 입력 요청과 실제 게임 동작의 성공 결과를 구분하고, 성�
 
 | 대상·작업 범위 | 담당 |
 | --- | --- |
-| 타이틀·준비·귀환 보고의 화면과 UI 프리팹 | 홍준우 |
-| 식당의 이동·상호작용·손님/주방 연결과 실행 씬 통합 | 김언호 |
-| 식당·자리 소품·캐릭터의 아트 에셋과 외형 프리팹 | 이기혁 |
+| Title·Loading·ReturnReport의 화면과 UI 프리팹, 준비 화면 | 홍준우 |
+| Gameplay의 이동·상호작용·손님/주방 연결과 조합 로드 통합 | 김언호 |
+| Restaurant의 공간·조명·배치 기준점, 식당·캐릭터의 아트 에셋과 외형 프리팹 | 이기혁 |
+| Tutorial의 단계·트리거 통합 / 안내 화면·리소스 / 대사·완료 기준 | 김언호 / 홍준우·이기혁 / 송예찬 |
+| CharacterTest의 캐릭터 검증 씬 / 모델·애니메이션 전달 | 김언호 / 이기혁 |
 | 플레이어 기능 프리팹, 하루 진행·저장 연결 오브젝트 | 김언호 |
 | 공용 UI Canvas·대화·조리·보고·수첩 View/Presenter | 홍준우 |
 | 기획 데이터·대사·플레이 테스트 기록 | 송예찬 |
 
-위 항목은 역할별 수정 범위이며 새 씬·프리팹 이름을 강제하지 않습니다. `Title`·`Result` 등의 기존 이름은 구조 예시입니다.
-하나의 실행 씬에 로직·UI·아트가 함께 들어가면 김언호가 통합하고, 각 담당자는 자기 프리팹·리소스를 전달합니다.
-현재 씬은 Title·Restaurant·ReturnReport로 분리하고 씬 로드로 전환합니다. 준비·영업은 Restaurant의 상태·화면으로 구분합니다.
+위 항목은 씬의 주 편집자와 역할별 수정 범위입니다. 화면·외형 리소스는 프리팹으로 전달하고 김언호가 실행 연결을 통합합니다.
+씬은 Title·Loading·Restaurant·Gameplay·Tutorial·ReturnReport·CharacterTest의 일곱 개로 나눕니다.
+일반 영업은 Restaurant + Gameplay, 첫 플레이 구성은 Restaurant + Gameplay + Tutorial을 Additive로 함께 로드합니다. 준비·영업의 실제 상태는 Gameplay의 후속 세션 로직으로 연결합니다.
+Loading은 전환 화면이고, CharacterTest는 같은 캐릭터 프리팹을 확인하는 개발용 씬으로 플레이어 빌드에서 제외합니다. 씬 골격의 구성 확인 버튼은 실제 영업·튜토리얼 완료 저장을 수행하지 않습니다.
+에디터에서는 `DOB > Scenes` 메뉴로 일반 영업·튜토리얼 조합과 CharacterTest를 엽니다. 실행 진입점은 Title입니다.
 플레이어·손님·확장용 에너미 골격은 VisualRoot/ModelSlot과 로직 루트를 분리합니다. 바르코3D 모델은 슬롯에 넣고 리그·외형을 연결하며, 이동·상태 기능은 백엔드가 이어서 구현합니다.
 같은 `.unity`·`.prefab` 파일은 동시에 편집하지 않습니다. 작업 카드에 실제 경로와 현재 편집자를 남기고 인계 후 다음 사람이 수정합니다.
 
@@ -497,3 +501,4 @@ GitHub **Issues**에 올리고, 고친 PR 본문에 `Fixes #번호`를 적습니
 | 2026.11.01 | 송예찬 | 다섯 작업 분류를 유지하며 김언호의 사운드 시스템, 홍준우의 요청·음량 설정 연결, 담당 미정의 공통 음원 수급을 분리. 미구현 상태와 사운드 인계·검증 기준 명시 |
 | 2026.11.01 | 송예찬 | 이전 프리팹 규칙 브랜치를 통합하고 참조·데이터·배리언트·의존성 검증 기준 보완. 골격·외형·기능의 완료 상태와 현재 에셋 공유 규칙을 유지 |
 | 2026.11.01 | 송예찬 | 기존 브랜치 이력을 main에 통합한 뒤 backend·frontend·art 역할 브랜치로 제작 시작. 역할별 PR·main 경유 통합·병합 후 역할 브랜치 유지와 갱신 규칙 적용 |
+| 2026.11.01 | 송예찬 | 씬을 일곱 개로 분리하고 식당 공간·실행·튜토리얼 Additive 조합, 전환 Loading, 빌드에서 제외하는 CharacterTest와 담당 범위를 정리 |

@@ -5,7 +5,8 @@
     "DOB.Define",
     "DOB.Utils",
     "DOB.Systems",
-    "DOB.UI"
+    "DOB.UI",
+    "Unity.ugui"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

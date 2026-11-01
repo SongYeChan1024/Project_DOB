@@ -9,8 +9,17 @@ EditorBuildSettings:
     path: Assets/_DOB/01.Scenes/Title.unity
     guid: d4368090ceec0d74f9613587c0bdf386
   - enabled: 1
+    path: Assets/_DOB/01.Scenes/Loading.unity
+    guid: 8b359cb060a998443a55ea2d01fc294e
+  - enabled: 1
     path: Assets/_DOB/01.Scenes/Restaurant.unity
     guid: 872fa0d1513bfe641aef5943132a481a
+  - enabled: 1
+    path: Assets/_DOB/01.Scenes/Gameplay.unity
+    guid: 5618b5a3f77268a4a9dcfe600b76f1d9
+  - enabled: 1
+    path: Assets/_DOB/01.Scenes/Tutorial.unity
+    guid: 0f6d2cf63bec2af4db44b802368a5426
   - enabled: 1
     path: Assets/_DOB/01.Scenes/ReturnReport.unity
     guid: 9e9e7f733e9f98b42bf7e770226ae933

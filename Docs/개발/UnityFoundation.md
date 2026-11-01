@@ -1,11 +1,12 @@
-# Unity 초기 구조·씬 전환 설계
+# Unity 프로젝트 기반 구성 기록
 
 작성자: 송예찬 · 2026-11-01
 
 사용자 요청: Unity 프로젝트와 AD(Assembly Definition으로 해석), 씬 분리·씬 로드, 팀원별 우선순위 할 일 구성.
 게임 규칙·판정·저장·식당 플레이·사운드 시스템은 아직 구현하지 않는다.
+현재 씬 구성은 [씬 분리와 조합 로드 설계](SceneComposition.md)의 일곱 씬을 따른다. 아래 초기 세 씬 설계·검증은 기반을 처음 만든 당시 기록이다.
 
-## 구현 전 의사코드
+## 초기 세 씬의 구현 전 의사코드 — 이전 구성 기록
 
 ### 씬 이동 서비스 — Manager
 
@@ -31,7 +32,7 @@
 5. Build Settings에 Title → Restaurant → ReturnReport를 등록하고 씬을 저장한다.
 6. 배치 검증에서 세 씬의 버튼 연결·빌드 등록·URP·입력 설정·계층 참조를 확인한다.
 
-## 씬과 책임
+## 초기 씬과 책임 — 현재 구성은 별도 설계 참조
 
 | 씬 | 역할 | 담당·연결 |
 | --- | --- | --- |
@@ -41,6 +42,7 @@
 
 현재 버튼은 씬 이동을 확인하는 초기 골격이다. 식당 → 보고 이동이 실제 영업 종료·보상 정산 구현을 뜻하지 않는다.
 최초 세팅 씬 작성은 사용자 요청에 따른 공용 기반 구성이다. 이후 편집·인계는 README 담당 규칙을 따른다.
+이후 승인에 따라 Loading·Gameplay·Tutorial·CharacterTest를 추가하고 Restaurant의 공간과 실행 구성을 분리했다. 현재 역할·조합·검증 결과는 [씬 분리 설계](SceneComposition.md)를 우선한다.
 
 ## 계층 참조
 
@@ -50,13 +52,13 @@
 | DOB.Utils | DOB.Define |
 | DOB.Systems | DOB.Define·DOB.Utils |
 | DOB.UI | DOB.Define·DOB.Utils·Unity.ugui·Unity.InputSystem |
-| DOB.Manager | DOB.Define·DOB.Utils·DOB.Systems·DOB.UI |
+| DOB.Manager | DOB.Define·DOB.Utils·DOB.Systems·DOB.UI·Unity.ugui |
 | DOB.Editor (에디터 전용) | 위 런타임 어셈블리·Unity.ugui·Unity.InputSystem |
 
 Presenter 폴더는 asmref로 DOB.Manager에 포함한다. UI와 System은 서로 직접 참조하지 않는다.
 프레임워크 클래스는 준비 골격이며 게임 기능별 구현은 팀 할 일로 이어간다.
 
-## 검증 기록
+## 초기 기반 검증 기록 — 당시 세 씬 기준
 
 초기 생성: Unity 6000.4.0f1 URP 템플릿 배치 실행 정상 종료 확인.
 URP 17.4.0·Input System 1.19.0, Force Text·Visible Meta Files·새 입력 시스템 설정 확인.
