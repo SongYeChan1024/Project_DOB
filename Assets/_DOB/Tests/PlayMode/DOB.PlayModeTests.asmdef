@@ -1,0 +1,9 @@
+{
+  "name": "DOB.PlayModeTests",
+  "references": ["DOB.Manager", "Unity.ugui"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}

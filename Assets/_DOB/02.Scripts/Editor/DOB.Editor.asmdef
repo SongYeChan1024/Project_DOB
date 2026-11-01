@@ -1,0 +1,24 @@
+{
+  "name": "DOB.Editor",
+  "rootNamespace": "DOB.Editor",
+  "references": [
+    "DOB.Define",
+    "DOB.Utils",
+    "DOB.Systems",
+    "DOB.UI",
+    "DOB.Manager",
+    "Unity.ugui",
+    "Unity.InputSystem"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": false,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
