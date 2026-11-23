@@ -1,7 +1,10 @@
 using System;
 using System.IO;
+using DOB.Input;
+using DOB.Manager;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace DOB.Editor
 {
@@ -58,6 +61,13 @@ namespace DOB.Editor
                     controller.height = 1.8f;
                     controller.radius = 0.3f;
                     controller.center = new Vector3(0, 0.9f, 0);
+                    controller.minMoveDistance = 0;
+                    var input = root.AddComponent<PlayerInput>();
+                    input.actions = AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/_DOB/08.Data/DOB_PlayerControls.inputactions");
+                    input.defaultActionMap = "Player";
+                    input.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
+                    root.AddComponent<BasementPlayerInput>();
+                    root.AddComponent<PlayerMovementController>();
                 }
                 else
                 {
@@ -86,7 +96,7 @@ namespace DOB.Editor
                 UnityEngine.Object.DestroyImmediate(root);
             }
             AssetDatabase.SaveAssets();
-            Debug.Log("DOB_CHARACTER_SHELLS_CREATED: Player, Guest, Enemy (expansion shell only).");
+            Debug.Log("DOB_CHARACTER_SHELLS_CREATED: playable Player, Guest and Enemy shells.");
         }
     }
 }

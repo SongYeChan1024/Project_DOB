@@ -28,7 +28,8 @@ namespace DOB.Tests
 
             Assert.That(sceneNames.FirstOrDefault(), Is.EqualTo("Title"), "빌드는 타이틀에서 시작해야 합니다.");
             CollectionAssert.AreEquivalent(
-                new[] { "Title", "Loading", "Restaurant", "Gameplay", "Tutorial", "ReturnReport" },
+                new[] { "Title", "Loading", "Restaurant", "Gameplay", "Tutorial", "ReturnReport",
+                    "Basement", "BasementRestaurant", "BasementUI" },
                 sceneNames);
             Assert.That(sceneNames, Does.Not.Contain("CharacterTest"), "개발용 캐릭터 씬은 플레이어 빌드에서 제외합니다.");
         }
@@ -46,7 +47,7 @@ namespace DOB.Tests
         [UnityTest]
         public IEnumerator ButtonsCompleteRestaurantAndReportRoundTripWithoutResidualScenes()
         {
-            yield return SceneManager.LoadSceneAsync("Title");
+            yield return SceneManager.LoadSceneAsync("ReturnReport");
             yield return InvokeButtonAndWait("Restaurant", "Restaurant", "Restaurant", "Gameplay");
             yield return InvokeButtonAndWait("ReturnReport", "ReturnReport", "ReturnReport");
             yield return InvokeButtonAndWait("Restaurant", "Restaurant", "Restaurant", "Gameplay");
@@ -57,7 +58,8 @@ namespace DOB.Tests
         public IEnumerator TutorialUsesTheSharedRestaurantAndGameplayThenUnloadsItsOwnScene()
         {
             yield return SceneManager.LoadSceneAsync("Title");
-            yield return InvokeButtonAndWait("Tutorial", "Restaurant", "Restaurant", "Gameplay", "Tutorial");
+            yield return TransitionAndWait(() => SceneLoadService.RequestLoad("Tutorial"),
+                "Tutorial", "Restaurant", "Restaurant", "Gameplay", "Tutorial");
 
             var tutorialScene = SceneManager.GetSceneByName("Tutorial");
             var tutorialObjects = tutorialScene.GetRootGameObjects()
@@ -101,7 +103,11 @@ namespace DOB.Tests
             var button = buttons[0];
             Assert.That(button.onClick.GetPersistentEventCount(), Is.EqualTo(1));
             Assert.That(button.onClick.GetPersistentTarget(0), Is.Not.Null);
+            yield return TransitionAndWait(button.onClick.Invoke, destination, activeScene, sceneNames);
+        }
 
+        private static IEnumerator TransitionAndWait(System.Action request, string destination, string activeScene, params string[] sceneNames)
+        {
             var loadingObserved = false;
             var additiveTargetObserved = false;
             var lockedDuringLoading = false;
@@ -134,8 +140,8 @@ namespace DOB.Tests
             SceneManager.sceneLoaded += TryCompetingRequest;
             try
             {
-                button.onClick.Invoke();
-                button.onClick.Invoke();
+                request();
+                request();
                 Assert.That(SceneLoadService.IsLoading, Is.True);
                 Assert.That(Object.FindObjectsByType<SceneLoadService>(FindObjectsSortMode.None).Length, Is.EqualTo(1));
 

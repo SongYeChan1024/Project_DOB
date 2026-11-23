@@ -1,5 +1,11 @@
 # 씬 분리와 조합 로드 설계
 
+## Basement 브랜치의 타이틀 진입
+
+`Title`의 ‘새로 시작’과 ‘이어하기’는 `Loading`을 거쳐 `Basement`(플레이어·카메라·진행), `BasementRestaurant`(레벨), `BasementUI`(영업 화면)를 함께 연다. 새 게임은 1일차에서, 이어하기는 최근 유효한 자동·수동 슬롯에 저장된 일차에서 시작한다. ESC 메뉴에서 끝내기를 확인하면 `Title`로 복귀한다. 기존 `Restaurant + Gameplay` 및 `Tutorial` 조합은 아래 초기 설계의 개발·검증 경로로 유지한다.
+
+## 초기 씬 구성
+
 작성자: 송예찬 · 2026-11-01
 
 승인 범위: Title·Loading·Restaurant·Gameplay·Tutorial·ReturnReport·CharacterTest의 일곱 씬으로 나눈다.

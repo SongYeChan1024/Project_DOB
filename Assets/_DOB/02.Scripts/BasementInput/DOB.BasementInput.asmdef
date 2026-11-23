@@ -1,0 +1,9 @@
+{
+  "name": "DOB.BasementInput",
+  "rootNamespace": "DOB.Input",
+  "references": [
+    "DOB.Manager",
+    "Unity.InputSystem"
+  ],
+  "autoReferenced": false
+}
