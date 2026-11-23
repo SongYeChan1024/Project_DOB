@@ -1,8 +1,11 @@
 // FirstGuestService — 공용 Gameplay의 입력·손님·응대를 Restaurant의 자리와 연결한다.
-// 의사코드: 식당이 준비되면 입구에서 응대 위치까지 손님을 보낸다. WASD로 이동하고 가까이서 E를 누르면 응대를 연다.
-// 응대와 전환 동안 이동을 잠근다. 수락 시 따라오고 빈 자리 가까이서 E를 누르면 자리를 선점하고 의자로 걷는다.
+// 의사코드: 식당이 준비되면 입구에서 응대 위치까지 손님을 보낸다. WASD로 이동하고 가까이서 E를 누르면
+// 플레이어 위치와 무관하게 손님 얼굴 정면으로 카메라를 천천히 줌인하고, 줌인이 끝난 뒤에 응대를 연다.
+// 응대가 닫히면 전경으로 줌아웃한다. 줌인·응대·줌아웃·전환 동안 이동과 E를 잠근다.
+// 수락 시 따라오고 빈 자리 가까이서 E를 누르면 자리를 선점하고 의자로 걷는다.
 // 착석한 방문을 한 번 알린다. 돌려보내기 시 문으로 돌아간다. 씬 종료 시 좌석·카메라·화면을 정리한다.
 using System;
+using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -26,11 +29,21 @@ namespace DOB.Manager
         [Min(0.1f), SerializeField] private float interactionRange = 1.35f;
         [Min(0.1f), SerializeField] private float followDistance = 0.8f;
 
+        /// <summary>전경과 얼굴 클로즈업 사이를 오가는 블렌드 시간(초).</summary>
+        [Header("응대 줌인 조정 (가안)")]
+        [Min(0.05f), SerializeField] private float zoomSeconds = 0.6f;
+        /// <summary>클로즈업의 직교 크기(화면 세로 절반, 미터). 전경 카메라가 원근이면 쓰이지 않는다.</summary>
+        [Min(0.05f), SerializeField] private float closeUpSize = 0.45f;
+        /// <summary>손님 얼굴에서 클로즈업 카메라까지의 거리(미터).</summary>
+        [Min(0.05f), SerializeField] private float closeUpDistance = 0.5f;
+
         private CharacterController controller;
         private FirstGuestControls controls;
         private PlayerMovementController movement;
-        private Transform playerEyes;
         private Transform guestFace;
+        private CinemachineCamera closeUp;
+        private float zoomTimer;
+        private bool pendingOpen;
         private RestaurantLayout layout;
         private Scene restaurantScene;
         private Scene uiScene;
@@ -38,8 +51,6 @@ namespace DOB.Manager
         private Stage stage;
         private string guestId;
         private bool observing;
-        private Pose overview;
-        private bool overviewOrthographic;
 
         /// <summary>매 영업 진입 시 새로 부여하는 첫 손님의 방문 ID.</summary>
         public string VisitId { get; private set; }
@@ -80,14 +91,14 @@ namespace DOB.Manager
             controls = player.GetComponent<FirstGuestControls>();
             movement = player.GetComponent<PlayerMovementController>();
             // 공용 캐릭터 프리팹의 모델 교체와 독립적인 앵커 계약이다.
-            playerEyes = player.Find("Anchors/FacePoint");
             guestFace = guest.Find("Anchors/FacePoint");
-            if (!controller || !controls || !movement || !playerEyes || !guestFace)
+            if (!controller || !controls || !movement || !guestFace)
             {
                 Debug.LogError("[DOB] 캐릭터 프리팹의 이동·입력 컴포넌트와 FacePoint를 확인하세요.", this);
                 enabled = false;
                 return;
             }
+            BuildCameraRig();
 
             dialogue.BindActions(RequestFollow, RequestSendHome);
             uiScene = dialogue.gameObject.scene;
@@ -163,6 +174,8 @@ namespace DOB.Manager
             if (layout)
                 layout.Release(seatIndex, VisitId);
             RestoreCamera();
+            zoomTimer = 0f;
+            pendingOpen = false;
             if (guidance)
                 guidance.text = string.Empty;
             layout = null;
@@ -176,12 +189,32 @@ namespace DOB.Manager
         {
             if (!layout || Time.timeScale <= 0f || SceneLoadService.IsLoading)
                 return;
+            if (zoomTimer > 0f)
+            {
+                zoomTimer -= Time.deltaTime;
+                guidance.text = string.Empty;
+                if (zoomTimer > 0f)
+                    return;
+                if (pendingOpen)
+                {
+                    pendingOpen = false;
+                    // 줌인을 마친 뒤에야 응대 화면을 연다. 열 수 없으면 전경으로 되돌린다.
+                    if (!dialogue.TryOpenGuest(guestId))
+                        RestoreCamera();
+                    return;
+                }
+            }
             if (dialogue.BlocksWorldInput || KitchenIsOpen?.Invoke() == true)
             {
                 guidance.text = string.Empty;
                 return;
             }
-            RestoreCamera();
+            if (observing)
+            {
+                // 응대가 닫혔다. 줌아웃이 끝날 때까지 한 번 더 잠근다.
+                RestoreCamera();
+                return;
+            }
             AdvanceGuest();
             RefreshGuidance();
 
@@ -189,8 +222,10 @@ namespace DOB.Manager
                 TryInteract();
         }
 
+        // 이동 방향이 카메라 정면 기준이라 카메라가 블렌드되는 동안에도 이동을 막는다.
         private bool CanMovePlayer() =>
-            layout && !SceneLoadService.IsLoading && !dialogue.BlocksWorldInput && KitchenIsOpen?.Invoke() != true;
+            layout && !SceneLoadService.IsLoading && zoomTimer <= 0f && !observing && !dialogue.BlocksWorldInput
+            && KitchenIsOpen?.Invoke() != true;
 
         private void AdvanceGuest()
         {
@@ -252,11 +287,11 @@ namespace DOB.Manager
         public bool TryInteract()
         {
             if (!isActiveAndEnabled || !layout || Time.timeScale <= 0f || SceneLoadService.IsLoading || dialogue.BlocksWorldInput
-                || KitchenIsOpen?.Invoke() == true)
+                || zoomTimer > 0f || observing || KitchenIsOpen?.Invoke() == true)
                 return false;
             if (stage == Stage.Seated)
                 return MealInteraction?.Invoke() == true;
-            if (stage == Stage.Waiting && Near(player, guest, interactionRange) && dialogue.TryOpenGuest(guestId))
+            if (stage == Stage.Waiting && Near(player, guest, interactionRange))
             {
                 ObserveGuest();
                 guidance.text = string.Empty;
@@ -315,30 +350,58 @@ namespace DOB.Manager
             return offset.x * offset.x + offset.z * offset.z <= range * range;
         }
 
+        // ponytail: 리그를 런타임에 만들어 씬·프리팹을 건드리지 않는다. 씬에서 샷을 직접 잡아야 하면
+        // 두 CinemachineCamera를 씬에 두고 직렬화 참조로 받도록 바꾼다.
+        private void BuildCameraRig()
+        {
+            if (closeUp)
+                return;
+            if (!worldCamera.TryGetComponent<CinemachineBrain>(out var brain))
+                brain = worldCamera.gameObject.AddComponent<CinemachineBrain>();
+            brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, zoomSeconds);
+
+            // 전경은 지금의 메인 카메라 그대로다. 평소 화면이 달라지지 않는다.
+            var lens = LensSettings.FromCamera(worldCamera);
+            var overview = NewCamera("OverviewCamera", lens);
+            overview.transform.SetPositionAndRotation(worldCamera.transform.position, worldCamera.transform.rotation);
+
+            // 직교↔원근은 부드럽게 블렌드되지 않으므로 투영 방식은 전경과 같게 두고 크기·위치만 좁힌다.
+            lens.OrthographicSize = closeUpSize;
+            // 얼굴 바로 앞에 서므로 기본 근평면이면 얼굴이 잘린다.
+            lens.NearClipPlane = 0.01f;
+            closeUp = NewCamera("GuestCloseUpCamera", lens);
+            closeUp.gameObject.SetActive(false);
+        }
+
+        private CinemachineCamera NewCamera(string cameraName, LensSettings lens)
+        {
+            var shot = new GameObject(cameraName).AddComponent<CinemachineCamera>();
+            shot.transform.SetParent(transform, false);
+            shot.Lens = lens;
+            return shot;
+        }
+
         private void ObserveGuest()
         {
-            overview = new Pose(worldCamera.transform.position, worldCamera.transform.rotation);
-            overviewOrthographic = worldCamera.orthographic;
+            // 플레이어가 선 곳과 무관하게 항상 손님 얼굴 정면에서 바라본다.
+            closeUp.transform.SetPositionAndRotation(
+                guestFace.position + guest.forward * closeUpDistance, Quaternion.LookRotation(-guest.forward));
+            // 우선순위가 같으면 나중에 켜진 카메라가 선택되어 Brain이 전경에서 블렌드한다.
+            closeUp.gameObject.SetActive(true);
             observing = true;
-            var direction = guestFace.position - playerEyes.position;
-            if (direction.sqrMagnitude < 0.001f)
-                direction = player.forward;
-            // 플레이어 자신의 머리 안쪽을 비추지 않도록 눈앞에서 손님의 얼굴을 바라본다.
-            var eye = playerEyes.position + direction.normalized * controller.radius;
-            worldCamera.orthographic = false;
-            worldCamera.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(direction));
+            pendingOpen = true;
+            zoomTimer = zoomSeconds;
         }
 
         private void RestoreCamera()
         {
             if (!observing)
                 return;
-            if (worldCamera)
-            {
-                worldCamera.orthographic = overviewOrthographic;
-                worldCamera.transform.SetPositionAndRotation(overview.position, overview.rotation);
-            }
+            if (closeUp)
+                closeUp.gameObject.SetActive(false);
             observing = false;
+            pendingOpen = false;
+            zoomTimer = zoomSeconds;
         }
 
         private void RefreshGuidance()
