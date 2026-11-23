@@ -27,7 +27,7 @@ namespace DOB.Tests
     {
         private const string DemoPath = "Assets/_DOB/01.Scenes/Basement.unity";
         private const string PlayerPrefabPath = "Assets/_DOB/03.Prefabs/Characters/PF_Player.prefab";
-        private const string ProjectActionsPath = "Assets/InputSystem_Actions.inputactions";
+        private const string PlayerActionsPath = "Assets/_DOB/08.Data/DOB_PlayerControls.inputactions";
         private const string PlayerMap = "Player";
         // 이동 판정용 허용 오차다. 기획 수치가 아니라 테스트가 방향·정지를 구분하는 기준이다.
         private const float MinimumStep = 0.25f;
@@ -42,7 +42,7 @@ namespace DOB.Tests
         private Keyboard otherKeyboard;
         private float initialTimeScale;
 
-        // 배치 실행 PC에는 실제 마우스가 없을 수 있다. Keyboard&Mouse 스킴은 두 장치를 모두 요구하므로
+        // 배치 실행에서도 PC와 같은 Keyboard&Mouse 조합과 장치 짝짓기를 검증하도록
         // 게임 씬이나 PF_Player를 켜기 전에 가상 키보드와 마우스를 먼저 만든다.
         [SetUp]
         public void SetUp()
@@ -81,7 +81,7 @@ namespace DOB.Tests
         // 의사코드:
         // 1. 빈 테스트 씬만 남기고 다른 씬을 내린다. 손님 서비스가 없음을 확인한다.
         // 2. 바닥 콜라이더를 깔고 PF_Player 프리팹을 그 위에 단독으로 생성한다.
-        // 3. 루트의 CharacterController, PlayerInput(프로젝트 액션·Player 맵), VisualRoot/ModelSlot 아래 보이는 렌더러를 확인한다.
+        // 3. 루트의 CharacterController, PlayerInput(전용 액션·Player 맵), VisualRoot/ModelSlot 아래 보이는 렌더러를 확인한다.
         // 4. PlayerInput 사용자를 테스트 키보드·마우스의 Keyboard&Mouse 스킴에만 짝짓고 자동 장치 전환을 끈다.
         // 5. 다른 키보드의 D는 무시되는지, 테스트 키보드의 W는 +z, D는 +x로 움직이는지, 키를 떼면 몇 프레임 동안 멈춰 있는지 수평 이동량으로 확인한다.
         [UnityTest]
@@ -111,7 +111,7 @@ namespace DOB.Tests
             Assert.That(player.GetComponent<CharacterController>(), Is.Not.Null, "루트 CharacterController");
             var playerInput = player.GetComponent<PlayerInput>();
             Assert.That(playerInput, Is.Not.Null, "루트 PlayerInput");
-            AssertProjectPlayerActions(playerInput);
+            AssertPlayerActions(playerInput);
             Assert.That(VisibleRenderer(player.transform), Is.Not.Null, "VisualRoot/ModelSlot 아래 보이는 캡슐 렌더러");
 
             PairWithTestDevices(playerInput);
@@ -128,6 +128,8 @@ namespace DOB.Tests
 
             yield return PressAndMeasure(keyboard, Key.W, player.transform, Vector3.forward, "W 전진");
             yield return PressAndMeasure(keyboard, Key.D, player.transform, Vector3.right, "D 오른쪽");
+            yield return PressAndMeasure(keyboard, Key.S, player.transform, Vector3.back, "S 후진");
+            yield return PressAndMeasure(keyboard, Key.A, player.transform, Vector3.left, "A 왼쪽");
         }
 
         [UnityTest]
@@ -144,7 +146,7 @@ namespace DOB.Tests
             AssertVisibleFromMainCamera(player);
             var playerInput = player.GetComponent<PlayerInput>();
             Assert.That(playerInput, Is.Not.Null, "게임 플레이어의 PlayerInput");
-            AssertProjectPlayerActions(playerInput);
+            AssertPlayerActions(playerInput);
             try
             {
                 PairWithTestDevices(playerInput);
@@ -310,14 +312,15 @@ namespace DOB.Tests
             yield return SceneManager.LoadSceneAsync(SceneComposition.Title);
         }
 
-        private static void AssertProjectPlayerActions(PlayerInput playerInput)
+        private static void AssertPlayerActions(PlayerInput playerInput)
         {
-            var projectActions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(ProjectActionsPath);
-            Assert.That(projectActions, Is.Not.Null, ProjectActionsPath);
+            var playerActions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(PlayerActionsPath);
+            Assert.That(playerActions, Is.Not.Null, PlayerActionsPath);
             Assert.That(playerInput.actions, Is.Not.Null, "PlayerInput 액션 자산 연결");
+            Assert.That(playerInput.actions, Is.Not.SameAs(InputSystem.actions), "UI와 플레이어의 액션 수명을 분리한다");
             // PlayerInput은 여러 플레이어를 위해 자산을 복제할 수 있으므로 같은 원본의 맵 ID로 비교한다.
-            Assert.That(playerInput.actions.FindActionMap(PlayerMap, true).id, Is.EqualTo(projectActions.FindActionMap(PlayerMap, true).id),
-                "프로젝트 InputSystem_Actions 사용");
+            Assert.That(playerInput.actions.FindActionMap(PlayerMap, true).id, Is.EqualTo(playerActions.FindActionMap(PlayerMap, true).id),
+                "플레이어 전용 액션 사용");
             Assert.That(playerInput.defaultActionMap, Is.EqualTo(PlayerMap));
             Assert.That(playerInput.currentActionMap?.name, Is.EqualTo(PlayerMap));
         }

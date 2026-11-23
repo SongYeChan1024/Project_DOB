@@ -4,7 +4,7 @@
 
 목표: 바르코3D로 제작한 모델을 정해진 슬롯에 넣고 연결하여 사용한다.
 게임 로직이 참조하는 루트와 기준점은 유지하고, 모델만 교체한다.
-`Basement`의 `PF_Player`는 캡슐 외형과 이동 기능을 포함한다. 루트의 `PlayerInput`이 `InputSystem_Actions`의 `Player` 맵을 활성화하고, `BasementPlayerInput`이 이동·상호작용 입력을 읽는다. `PlayerMovementController`가 `CharacterController`를 통해 이동과 회전을 적용한다.
+`Basement`의 `PF_Player`는 캡슐 외형과 이동 기능을 포함한다. 루트의 `PlayerInput`이 전용 액션 자산 `DOB_PlayerControls`의 `Player` 맵을 활성화하고, `BasementPlayerInput`이 이동·상호작용 입력을 읽는다. `PlayerMovementController`가 `CharacterController`를 통해 이동과 회전을 적용한다. 타이틀과 영업 UI는 프로젝트 공용 액션 자산을 사용한다.
 
 프리팹 하나를 빈 씬에 배치해도 WASD로 이동한다. 메인 카메라가 있으면 화면 방향, 없으면 월드 XZ축을 기준으로 움직인다. 영업에 진입하면 식당 바닥 경계와 대화·조리 화면의 이동 잠금이 적용되고, E로 손님이나 주방과 상호작용한다.
 실행 조합의 Gameplay와 개발용 CharacterTest에서 같은 프리팹을 사용한다. 캐릭터 시험 씬을 런타임에 불러와 캐릭터를 옮기는 구조는 사용하지 않는다.

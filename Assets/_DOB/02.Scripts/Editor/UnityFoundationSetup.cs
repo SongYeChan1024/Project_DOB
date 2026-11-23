@@ -63,7 +63,7 @@ namespace DOB.Editor
                     controller.center = new Vector3(0, 0.9f, 0);
                     controller.minMoveDistance = 0;
                     var input = root.AddComponent<PlayerInput>();
-                    input.actions = AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/InputSystem_Actions.inputactions");
+                    input.actions = AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/_DOB/08.Data/DOB_PlayerControls.inputactions");
                     input.defaultActionMap = "Player";
                     input.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
                     root.AddComponent<BasementPlayerInput>();
