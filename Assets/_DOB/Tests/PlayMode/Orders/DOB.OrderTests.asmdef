@@ -1,0 +1,9 @@
+{
+  "name": "DOB.OrderTests",
+  "references": ["DOB.Systems"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"]
+}

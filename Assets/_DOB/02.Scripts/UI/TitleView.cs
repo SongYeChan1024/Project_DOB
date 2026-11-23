@@ -19,6 +19,7 @@ namespace DOB.UI
         [Header("메뉴"), SerializeField] private Button newGameButton;
         /// <summary>이어하기 버튼. 저장이 없으면 숨긴다.</summary>
         [SerializeField] private Button continueButton;
+        [SerializeField] private Text continueLabel;
         /// <summary>설정 창을 여는 버튼.</summary>
         [SerializeField] private Button settingsButton;
         /// <summary>게임 종료 버튼.</summary>
@@ -66,8 +67,10 @@ namespace DOB.UI
         }
 
         /// <summary>저장 여부에 맞춰 메뉴를 구성한다. 저장이 없으면 이어하기를 숨긴다.</summary>
-        public void ShowMenu(bool hasSave)
+        public void ShowMenu(bool hasSave, string checkpointLabel = null)
         {
+            if (continueLabel)
+                continueLabel.text = string.IsNullOrEmpty(checkpointLabel) ? "이어하기" : $"이어하기\n<size=20>{checkpointLabel}</size>";
             continueButton.gameObject.SetActive(hasSave);
             SetBusy(false);
         }

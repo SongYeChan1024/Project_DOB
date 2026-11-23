@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 884762dcddc54259abd06a00bfcff722, type: 3}
+  m_Name: SO_Guest_Haru
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.GuestDialogueProfile
+  guestId: tutorial_guest_01
+  guestName: 하루
+  raceJob: 인간 · 마법사
+  destinationLabel: 1층 슬라임 숲
+  canSendHome: 0
+  orderLine: "오늘은 1층 슬라임 숲. [[슬라임 점액]]이 튀면 [[따끔]]하더라. 돌아오는 [[길도 멀고]]."
+  serveLine: 이 정도면 끝까지 버틸 수 있겠어.
+  plainBreadLine: 든든하긴 한데… 뭔가 하나 모자란 느낌이야.
+  observations:
+  - description: 지팡이, 소매 끝이 살짝 그을린 로브
+    position: {x: -170, y: -40}
+  - description: 허리를 펴고 서 있다, 땀방울 없음
+    position: {x: 150, y: -170}
+  dictionaryEntries:
+  - phrase: 슬라임 점액
+    meaning: 독을 가리키는 표현
+  - phrase: 따끔
+    meaning: 독을 가리키는 표현
+  - phrase: 길도 멀고
+    meaning: 체력을 가리키는 표현

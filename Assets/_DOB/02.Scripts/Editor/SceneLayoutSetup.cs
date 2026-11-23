@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using DOB.Manager;
+using DOB.UI;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
 using UnityEditor.Events;
@@ -22,19 +23,24 @@ namespace DOB.Editor
         private const string CharacterFolder = "Assets/_DOB/03.Prefabs/Characters/";
         private const string FontPath = "Assets/_DOB/07.UI/Fonts/Gaegu-Regular.ttf";
         private static readonly string[] AllScenes = SceneComposition.RuntimeSceneNames.Concat(new[] { SceneComposition.CharacterTest }).ToArray();
+        private static readonly string[] AuthoredScenes = {
+            SceneComposition.Title, BasementComposition.BaseScene, BasementComposition.RestaurantScene, BasementComposition.UiScene
+        };
 
         /// <summary>이미 작성한 씬을 덮어쓰지 않는 최초 생성 진입점.</summary>
         public static void Create()
         {
-            foreach (var name in AllScenes)
+            foreach (var name in AllScenes.Except(AuthoredScenes))
                 Require(!File.Exists(ScenePath(name)), "기존 씬 보존: " + name);
             Rebuild();
         }
 
-        /// <summary>백업한 프로젝트에서 명시적으로 호출해 일곱 지정 씬만 다시 작성한다.</summary>
+        /// <summary>배경·전환용 골격을 다시 작성하고, 타이틀과 첫 영업 씬은 기존 에셋을 등록한다.</summary>
         public static void Rebuild()
         {
             Require(!EditorApplication.isPlaying, "플레이 중에는 씬을 재구성할 수 없습니다.");
+            foreach (var name in AuthoredScenes)
+                Require(File.Exists(ScenePath(name)), "직접 작성한 씬 누락: " + name);
             foreach (var kind in new[] { "Player", "Guest", "Enemy" })
                 Require(AssetDatabase.LoadAssetAtPath<GameObject>(CharacterFolder + "PF_" + kind + ".prefab") != null, "공용 캐릭터 프리팹 누락: " + kind);
             Require(AssetDatabase.LoadAssetAtPath<Font>(FontPath) != null, "공용 한글 폰트 누락");
@@ -43,7 +49,6 @@ namespace DOB.Editor
             PlayerSettings.companyName = "DOB Team";
             PlayerSettings.productName = "다녀왔어: 층계참 식당";
             EditorSettings.serializationMode = SerializationMode.ForceText;
-            CreateScreen(SceneComposition.Title, "다녀왔어: 층계참 식당", new[] { ("식당으로", SceneComposition.Restaurant), ("튜토리얼 시작", SceneComposition.Tutorial) });
             CreateLoading();
             CreateRestaurant();
             CreateGameplay();
@@ -53,7 +58,7 @@ namespace DOB.Editor
             EditorBuildSettings.scenes = SceneComposition.RuntimeSceneNames.Select(n => new EditorBuildSettingsScene(ScenePath(n), true)).ToArray();
             AssetDatabase.SaveAssets();
             Validate();
-            Debug.Log("DOB_SCENE_LAYOUT_CREATED: 7 scenes, 6 runtime build scenes; CharacterTest is editor-only.");
+            Debug.Log($"DOB_SCENE_LAYOUT_CREATED: {SceneComposition.RuntimeSceneNames.Count} runtime build scenes.");
         }
 
         private static Scene NewScene()
@@ -343,14 +348,32 @@ namespace DOB.Editor
                 var scene = EditorSceneManager.OpenScene(ScenePath(name));
                 var cameras = Components<Camera>(scene).Length;
                 var inputs = Components<EventSystem>(scene).Length;
-                var needsCamera = name != SceneComposition.Restaurant && name != SceneComposition.Tutorial;
-                var needsInput = name == SceneComposition.Title || name == SceneComposition.Gameplay || name == SceneComposition.ReturnReport;
+                var needsCamera = name != SceneComposition.Restaurant && name != SceneComposition.Tutorial
+                    && name != BasementComposition.RestaurantScene && name != BasementComposition.UiScene;
+                var needsInput = name == SceneComposition.Title || name == SceneComposition.Gameplay
+                    || name == SceneComposition.ReturnReport || name == BasementComposition.UiScene;
                 Require(cameras == (needsCamera ? 1 : 0), "카메라 역할 불일치: " + name);
                 Require(inputs == (needsInput ? 1 : 0), "입력 역할 불일치: " + name);
                 foreach (var module in Components<InputSystemUIInputModule>(scene))
                     Require(module.actionsAsset != null && module.point != null && module.leftClick != null && module.submit != null, "프로젝트 입력 연결 누락: " + name);
-                foreach (var button in Components<Button>(scene))
-                    Require(button.onClick.GetPersistentEventCount() == 1 && button.onClick.GetPersistentTarget(0) != null, "버튼 연결 누락: " + name);
+                if (name == SceneComposition.Title)
+                {
+                    var presenter = Components<TitlePresenter>(scene).SingleOrDefault();
+                    Require(presenter != null, "타이틀 Presenter 누락");
+                    var view = new SerializedObject(presenter).FindProperty("view").objectReferenceValue as TitleView;
+                    Require(view != null, "타이틀 화면 연결 누락");
+                    var menu = new SerializedObject(view);
+                    foreach (var field in new[] { "newGameButton", "continueButton" })
+                    {
+                        var button = menu.FindProperty(field).objectReferenceValue as Button;
+                        Require(button && button.onClick.GetPersistentEventCount() == 0, "타이틀 버튼 누락 또는 중복 전환: " + field);
+                    }
+                }
+                else if (name == BasementComposition.UiScene)
+                    Require(Components<BasementHud>(scene).SingleOrDefault()?.IsReady == true, "영업 UI 연결 누락");
+                else
+                    foreach (var button in Components<Button>(scene))
+                        Require(button.onClick.GetPersistentEventCount() == 1 && button.onClick.GetPersistentTarget(0) != null, "버튼 연결 누락: " + name);
 
                 if (name == SceneComposition.Restaurant)
                 {
@@ -387,7 +410,7 @@ namespace DOB.Editor
             ValidateComposition(false);
             ValidateComposition(true);
             EditorSceneManager.OpenScene(ScenePath(SceneComposition.Title));
-            Debug.Log("DOB_SCENE_COMPOSITION_VALIDATED: 7 scenes; 6 runtime build entries; normal/tutorial compositions, shared prefabs and navigation bindings.");
+            Debug.Log($"DOB_SCENE_COMPOSITION_VALIDATED: {AllScenes.Length} scenes; {buildScenes.Length} runtime build entries.");
         }
 
         private static void ValidateComposition(bool tutorial)
