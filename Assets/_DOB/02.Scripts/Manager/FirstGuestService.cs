@@ -5,6 +5,7 @@
 // 수락 시 따라오고 빈 자리 가까이서 E를 누르면 자리를 선점하고 의자로 걷는다.
 // 착석한 방문을 한 번 알린다. 돌려보내기 시 문으로 돌아간다. 씬 종료 시 좌석·카메라·화면을 정리한다.
 using System;
+using DOB.Define;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -29,13 +30,9 @@ namespace DOB.Manager
         [Min(0.1f), SerializeField] private float interactionRange = 1.35f;
         [Min(0.1f), SerializeField] private float followDistance = 0.8f;
 
-        /// <summary>전경과 얼굴 클로즈업 사이를 오가는 블렌드 시간(초).</summary>
-        [Header("응대 줌인 조정 (가안)")]
-        [Min(0.05f), SerializeField] private float zoomSeconds = 0.6f;
-        /// <summary>클로즈업의 직교 크기(화면 세로 절반, 미터). 전경 카메라가 원근이면 쓰이지 않는다.</summary>
-        [Min(0.05f), SerializeField] private float closeUpSize = 0.45f;
-        /// <summary>손님 얼굴에서 클로즈업 카메라까지의 거리(미터).</summary>
-        [Min(0.05f), SerializeField] private float closeUpDistance = 0.5f;
+        /// <summary>응대 줌인의 시간과 클로즈업 크기·거리 기준값(08.Data).</summary>
+        [Header("기획 데이터")]
+        [SerializeField] private GuestCloseUpSettings zoom;
 
         private CharacterController controller;
         private FirstGuestControls controls;
@@ -80,9 +77,9 @@ namespace DOB.Manager
 
         private void OnEnable()
         {
-            if (!player || !guest || !worldCamera || !guidance || !dialogue)
+            if (!player || !guest || !worldCamera || !guidance || !dialogue || !zoom)
             {
-                Debug.LogError("[DOB] 첫 손님 응대에 필요한 Gameplay 연결 또는 프로젝트 입력이 없습니다.", this);
+                Debug.LogError("[DOB] 첫 손님 응대에 필요한 Gameplay 연결, 클로즈업 데이터 또는 프로젝트 입력이 없습니다.", this);
                 enabled = false;
                 return;
             }
@@ -358,7 +355,7 @@ namespace DOB.Manager
                 return;
             if (!worldCamera.TryGetComponent<CinemachineBrain>(out var brain))
                 brain = worldCamera.gameObject.AddComponent<CinemachineBrain>();
-            brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, zoomSeconds);
+            brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, zoom.ZoomSeconds);
 
             // 전경은 지금의 메인 카메라 그대로다. 평소 화면이 달라지지 않는다.
             var lens = LensSettings.FromCamera(worldCamera);
@@ -366,7 +363,7 @@ namespace DOB.Manager
             overview.transform.SetPositionAndRotation(worldCamera.transform.position, worldCamera.transform.rotation);
 
             // 직교↔원근은 부드럽게 블렌드되지 않으므로 투영 방식은 전경과 같게 두고 크기·위치만 좁힌다.
-            lens.OrthographicSize = closeUpSize;
+            lens.OrthographicSize = zoom.OrthographicSize;
             // 얼굴 바로 앞에 서므로 기본 근평면이면 얼굴이 잘린다.
             lens.NearClipPlane = 0.01f;
             closeUp = NewCamera("GuestCloseUpCamera", lens);
@@ -385,12 +382,12 @@ namespace DOB.Manager
         {
             // 플레이어가 선 곳과 무관하게 항상 손님 얼굴 정면에서 바라본다.
             closeUp.transform.SetPositionAndRotation(
-                guestFace.position + guest.forward * closeUpDistance, Quaternion.LookRotation(-guest.forward));
+                guestFace.position + guest.forward * zoom.Distance, Quaternion.LookRotation(-guest.forward));
             // 우선순위가 같으면 나중에 켜진 카메라가 선택되어 Brain이 전경에서 블렌드한다.
             closeUp.gameObject.SetActive(true);
             observing = true;
             pendingOpen = true;
-            zoomTimer = zoomSeconds;
+            zoomTimer = zoom.ZoomSeconds;
         }
 
         private void RestoreCamera()
@@ -401,7 +398,7 @@ namespace DOB.Manager
                 closeUp.gameObject.SetActive(false);
             observing = false;
             pendingOpen = false;
-            zoomTimer = zoomSeconds;
+            zoomTimer = zoom.ZoomSeconds;
         }
 
         private void RefreshGuidance()
