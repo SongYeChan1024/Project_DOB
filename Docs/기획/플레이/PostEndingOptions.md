@@ -1,6 +1,6 @@
 # 엔딩 이후 영업 방식 후보
 
-> 최신 결정은 [CurrentDecisions.md](CurrentDecisions.md)가 우선한다.
+> 최신 결정은 [CurrentDecisions.md](../CurrentDecisions.md)가 우선한다.
 > 카엘·모라·시에의 3인 파티와 엔딩 후 AfterReturn 영업 재개를 적용한다.
 > 아래 A/B/C 비교·과거 변경 기록은 검토 경위를 보존한 것이다.
 

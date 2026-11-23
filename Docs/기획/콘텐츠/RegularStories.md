@@ -1,10 +1,10 @@
 # 단골 사연 목록 명세
 
-현행 공통 규칙은 [최신 결정](CurrentDecisions.md)·[메인 기획서](MainPlanning.md)를 따른다. 이름·개인 취약점은 guestId별로 유지하고 단골 자격과 사연 배정은 분리한다.
+현행 공통 규칙은 [최신 결정](../CurrentDecisions.md)·[메인 기획서](../MainPlanning.md)를 따른다. 이름·개인 취약점은 guestId별로 유지하고 단골 자격과 사연 배정은 분리한다.
 
 작성자: 송예찬 · 작성일: 2026.10.29
 
-대사 원문은 「단골 사연 조각」(`RegularStoryFragments.md`)에 있다. 이 문서는 사연의 목록, 배정·해금 규칙, 데이터를 정한다.
+대사 원문은 [단골 사연 조각](RegularStoryFragments.md)에 있다. 이 문서는 사연의 목록, 배정·해금 규칙, 데이터를 정한다.
 
 ## 0 기획 의도
 

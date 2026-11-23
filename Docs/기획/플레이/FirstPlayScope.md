@@ -5,7 +5,7 @@
 상태: 💡 기획 초안. 노션 작업 보드 「제작 | 01 첫 플레이 범위·완료 기준 확정」 카드 본문의 Git 동기화본이다.
 카드 본문이 기준이며, ➕ 표시는 카드에 없던 항목을 Git 정리 중 덧붙인 것이다. 구현 완료나 실행 검증 결과가 아니다.
 
-참고: 팀 노션 「기획」 17장, [최신 결정](CurrentDecisions.md), [메인 기획서 동기화본](MainPlanning.md), tutorial-spec V0.01(노션 첨부), [씬 분리 설계](../개발/SceneComposition.md).
+참고: 팀 노션 「기획」 17장, [최신 결정](../CurrentDecisions.md), [메인 기획서 동기화본](../MainPlanning.md), tutorial-spec V0.01(노션 첨부), [씬 분리 설계](../../개발/SceneComposition.md).
 
 ---
 
