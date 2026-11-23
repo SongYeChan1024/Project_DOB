@@ -23,5 +23,14 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_DOB/01.Scenes/ReturnReport.unity
     guid: 9e9e7f733e9f98b42bf7e770226ae933
+  - enabled: 1
+    path: Assets/_DOB/01.Scenes/Basement.unity
+    guid: 75d5ffcbf164c644886519fffbc36cee
+  - enabled: 1
+    path: Assets/_DOB/01.Scenes/BasementRestaurant.unity
+    guid: 89a2cfd79f4f18b4fb2b90ced868f010
+  - enabled: 1
+    path: Assets/_DOB/01.Scenes/BasementUI.unity
+    guid: e7a798153a54ed34c8ab50fc5d314648
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}

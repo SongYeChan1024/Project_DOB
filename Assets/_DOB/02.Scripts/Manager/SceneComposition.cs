@@ -17,7 +17,8 @@ namespace DOB.Manager
         /// <summary>플레이어 빌드에 포함할 씬 순서. CharacterTest는 에디터 검증용으로 제외한다.</summary>
         public static IReadOnlyList<string> RuntimeSceneNames { get; } = Array.AsReadOnly(new[]
         {
-            Title, Loading, Restaurant, Gameplay, Tutorial, ReturnReport
+            Title, Loading, Restaurant, Gameplay, Tutorial, ReturnReport,
+            BasementComposition.BaseScene, BasementComposition.RestaurantScene, BasementComposition.UiScene
         });
 
         /// <summary>지원하는 진입 경로의 씬 조합을 반환한다. 호출자는 반환 배열을 독립적으로 사용한다.</summary>

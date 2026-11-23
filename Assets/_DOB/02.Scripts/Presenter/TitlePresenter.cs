@@ -2,9 +2,12 @@
 // TitlePresenter — 타이틀 화면과 씬 전환을 잇는다
 // 역할   : TitleView의 입력을 받아 저장 여부 확인, 새로 시작 확인, 씬 전환 요청, 종료를 처리한다.
 // 호출자 : TitleView 이벤트 (NewGameClicked, NewGameConfirmed, ContinueClicked, QuitClicked)
-// 호출   : SceneLoadService.RequestLoad, TitleView 표시 메서드
+// 호출   : 일차 저장소, BasementComposition.EnterDay, TitleView 표시 메서드
 // 상태   : 전환 요청을 보냈는지(isRequesting)만 가진다. 저장·세션 상태는 갖지 않는다.
 // =====================================================================
+using System;
+using System.IO;
+using DOB.Systems;
 using DOB.UI;
 using UnityEngine;
 
@@ -15,12 +18,6 @@ namespace DOB.Manager
     {
         /// <summary>연결할 타이틀 화면.</summary>
         [SerializeField] private TitleView view;
-
-        /// <summary>새로 시작의 진입 경로. 오프닝 스토리 위치가 정해지면 바뀐다.</summary>
-        [SerializeField] private string newGameDestination = "Tutorial";
-
-        /// <summary>이어하기의 진입 경로. 저장 계약이 정해지면 저장 데이터 기준으로 바뀐다.</summary>
-        [SerializeField] private string continueDestination = "Restaurant";
 
         private bool isRequesting;
 
@@ -42,27 +39,38 @@ namespace DOB.Manager
 
         private void Start()
         {
-            view.ShowMenu(HasSaveData());
+            view.ShowMenu(false);
+            if (TryReadLatest(out var saved))
+                view.ShowMenu(saved != null, saved == null ? null : BasementPauseMenu.Format(saved));
         }
 
         private void OnNewGameClicked()
         {
-            // 저장이 있으면 기록이 사라지므로 한 번 확인받는다.
-            if (HasSaveData())
+            if (isRequesting || !TryReadLatest(out var saved))
+                return;
+            if (saved != null)
                 view.ShowConfirm(true);
             else
-                RequestLoad(newGameDestination);
+                EnterDay(null);
         }
 
         private void OnNewGameConfirmed()
         {
             view.ShowConfirm(false);
-            RequestLoad(newGameDestination);
+            EnterDay(null);
         }
 
         private void OnContinueClicked()
         {
-            RequestLoad(continueDestination);
+            if (isRequesting || !TryReadLatest(out var saved))
+                return;
+            if (saved == null)
+            {
+                view.ShowMenu(false);
+                view.ShowLoadFailed();
+                return;
+            }
+            EnterDay(saved);
         }
 
         private void OnQuitClicked()
@@ -77,18 +85,14 @@ namespace DOB.Manager
 #endif
         }
 
-        private void RequestLoad(string destination)
+        private void EnterDay(FirstServiceSaveData checkpoint)
         {
             if (isRequesting || SceneLoadService.IsLoading)
                 return;
 
             isRequesting = true;
             view.SetBusy(true);
-            SceneLoadService.RequestLoad(destination);
-
-            // RequestLoad는 결과를 돌려주지 않는다. 받아들여지면 IsLoading이 바로 참이 되므로,
-            // 거짓이면 사전 검사(경로·빌드 등록)에서 거절된 것으로 보고 메뉴를 되돌린다.
-            if (!SceneLoadService.IsLoading)
+            if (!BasementComposition.EnterDay(checkpoint))
             {
                 isRequesting = false;
                 view.SetBusy(false);
@@ -96,10 +100,21 @@ namespace DOB.Manager
             }
         }
 
-        // 저장 기능은 아직 없다. 김언호와 저장 계약을 정하면 백엔드 요청으로 바꾼다.
-        private bool HasSaveData()
+        // 표시와 실제 클릭 사이에 바뀐 슬롯도 반영한다. 저장이 없을 때는 새 게임을 열 수 있다.
+        private bool TryReadLatest(out FirstServiceSaveData saved)
         {
-            return false;
+            try
+            {
+                BasementComposition.OpenSaves().TryLoadLatest(out saved);
+                return true;
+            }
+            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
+            {
+                saved = null;
+                Debug.LogWarning("[DOB] 타이틀에서 저장 기록을 읽을 수 없습니다. " + e.Message, this);
+                view.ShowLoadFailed();
+                return false;
+            }
         }
     }
 }

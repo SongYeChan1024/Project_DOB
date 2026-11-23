@@ -24,7 +24,7 @@ namespace DOB.Editor
         [MenuItem("DOB/Basement/Windows 시험 빌드")]
         public static void BuildPreview()
         {
-            string[] scenes = { "BasementTitle", "Loading", "Basement", "BasementRestaurant", "BasementUI" };
+            string[] scenes = { DOB.Manager.SceneComposition.Title, "Loading", "Basement", "BasementRestaurant", "BasementUI" };
             const string output = "Builds/Basement/Basement.exe";
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output));
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions

@@ -20,7 +20,7 @@ namespace DOB.Manager
     public sealed class BasementComposition : MonoBehaviour
     {
         public const string BaseScene = "Basement";
-        public const string TitleScene = "BasementTitle";
+        public const string TitleScene = SceneComposition.Title;
         public const string RestaurantScene = "BasementRestaurant";
         public const string UiScene = "BasementUI";
         private const string SceneFolder = "Assets/_DOB/01.Scenes/";
