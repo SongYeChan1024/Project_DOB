@@ -1,15 +1,15 @@
 // =====================================================================
 // LoadingScreenView — 로딩 화면 표시
-// 역할   : 목적지 그림·팁 한 줄·나무 진행 바(냄비 아이콘)·검은 페이드·실패 안내를 보여 준다.
+// 역할   : 금테 액자 속 목적지 그림·빛나는 목적지 제목·팁 한 줄·금색 진행 선(끝의 불씨)·검은 페이드·실패 안내를 보여 준다.
 //          로드를 직접 하지 않고, 진행률과 표시 내용은 Presenter가 넘겨준다.
 // 호출자 : LoadingScreenPresenter (Show, SetProgress, FadeTo, ShowFailure)
 // 호출   : 없음 (실패 안내 버튼은 이벤트로만 알림)
 // 상태   : 화면에 보이는 진행률(부드럽게 따라가는 값)만 가진다.
 //
 // 의사코드 (구현 전 작성 · 2026-11-23 홍준우와 합의)
-// [보이기]   목적지 그림을 화면 전체에, 아래 어두운 띠에 팁 한 줄 (로딩 중 바뀌지 않음)
+// [보이기]   검은 바탕 가운데 금테 액자에 목적지 그림, 위에 목적지 제목, 아래에 팁 한 줄 (로딩 중 바뀌지 않음)
 // [진행]     실제 진행률을 받으면 바가 부드럽게 따라 차오르고 절대 줄어들지 않는다
-//            냄비 아이콘은 채워진 끝을 따라 이동하며 살짝 들썩인다. 숫자(%)는 보이지 않는다
+//            불씨는 채워진 끝을 따라 이동한다. 숫자(%)는 보이지 않는다
 // [페이드]   검은 덮개의 투명도를 정해진 시간 동안 바꾼다 (Presenter가 끝날 때까지 기다릴 수 있게 코루틴)
 // [실패]     "불러오지 못했어요" 안내 + [타이틀로] (타이틀도 실패면 [게임 종료]) 버튼을 띄우고 누르면 알린다
 // =====================================================================
@@ -24,7 +24,13 @@ namespace DOB.UI
     /// <summary>로딩 화면 표시. 로드·씬 전환은 하지 않는다.</summary>
     public sealed class LoadingScreenView : MonoBehaviour
     {
-        [Header("그림·팁"), SerializeField] private Image illustration;
+        [Header("그림·제목·팁"), SerializeField] private Image illustration;
+        /// <summary>목적지 제목 (예: 층계참 식당, 아침 귀환).</summary>
+        [SerializeField] private TMP_Text headingText;
+        /// <summary>목적지 제목 글씨 그림 (타이틀 로고처럼 빛 번짐이 들어간 PNG). 있으면 headingText 대신 보인다.</summary>
+        [SerializeField] private Image headingImage;
+        /// <summary>제목 그림 크기 배율. 그림은 2배 해상도로 만들었으므로 0.5.</summary>
+        [SerializeField] private float headingImageScale = 0.5f;
         [SerializeField] private TMP_Text tipText;
 
         /// <summary>진행 바 채움 (9-slice 그림). 진행률만큼 오른쪽 끝을 늘인다.</summary>
@@ -69,8 +75,28 @@ namespace DOB.UI
         }
 
         /// <summary>목적지 그림과 팁 한 줄을 보여 주고 진행 바를 0부터 시작한다.</summary>
-        public void Show(Sprite picture, string tip)
+        public void Show(Sprite picture, string tip) => Show(picture, null, null, tip);
+
+        /// <summary>목적지 그림·제목(글자)·팁 한 줄을 보여 주고 진행 바를 0부터 시작한다.</summary>
+        public void Show(Sprite picture, string heading, string tip) => Show(picture, null, heading, tip);
+
+        /// <summary>목적지 그림·제목·팁 한 줄을 보여 주고 진행 바를 0부터 시작한다.
+        /// 제목 그림(headingArt)이 있으면 그림을, 없으면 제목 글자를 보여 준다.</summary>
+        public void Show(Sprite picture, Sprite headingArt, string heading, string tip)
         {
+            bool useArt = headingArt != null && headingImage != null;
+            if (headingImage != null)
+            {
+                headingImage.sprite = headingArt;
+                headingImage.gameObject.SetActive(useArt);
+                if (useArt)
+                    headingImage.rectTransform.sizeDelta = headingArt.rect.size * headingImageScale;
+            }
+            if (headingText != null)
+            {
+                headingText.text = heading ?? string.Empty;
+                headingText.gameObject.SetActive(!useArt && !string.IsNullOrEmpty(heading));
+            }
             illustration.sprite = picture;
             illustration.enabled = picture != null;
             tipText.text = tip ?? string.Empty;

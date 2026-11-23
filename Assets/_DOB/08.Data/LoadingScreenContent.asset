@@ -14,6 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.Define::DOB.Define.LoadingScreenContent
   entries:
   - destination: Restaurant
+    heading: "\uCE35\uACC4\uCC38 \uC2DD\uB2F9"
+    headingImage: {fileID: 21300000, guid: ed53e9d0c15d08547ae7d166d5e3e472, type: 3}
     illustration: {fileID: 21300000, guid: 48cd2fb7945f60a4da4eb1947e158051, type: 3}
     tips:
     - "\uC190\uB2D8 \uB9D0 \uC911 \uBC11\uC904 \uCE5C \uBD80\uBD84\uC744 \uB204\uB974\uBA74
@@ -21,17 +23,23 @@ MonoBehaviour:
     - "\uC704\uD5D8 \uCE78\uC758 '?'\uB294 \uC544\uC9C1 \uBAA8\uB974\uB294 \uC815\uBCF4\uC608\uC694.
       \uBA54\uBAA8\uB85C \uC9D0\uC791\uC744 \uC801\uC5B4 \uB450\uC138\uC694."
   - destination: Tutorial
+    heading: "\uCCAB \uC601\uC5C5"
+    headingImage: {fileID: 21300000, guid: 4211381ee4f1c6c4a8fcaee60719cd62, type: 3}
     illustration: {fileID: 21300000, guid: 62b88ecc9ea742d4994f2e61ab6518e7, type: 3}
     tips:
     - "\uCC98\uC74C\uC5D4 \uD654\uBA74 \uC704 \uC548\uB0B4\uB97C \uB530\uB77C\uAC00
       \uBCF4\uC138\uC694. [?]\uB97C \uB204\uB974\uBA74 \uB2E4\uC2DC \uBCFC \uC218
       \uC788\uC5B4\uC694."
   - destination: ReturnReport
+    heading: "\uC544\uCE68 \uADC0\uD658"
+    headingImage: {fileID: 21300000, guid: 24c6ce907b17fa946b1c45217ec23cde, type: 3}
     illustration: {fileID: 21300000, guid: 90ec53fdfe6f0024492d5d025a344d26, type: 3}
     tips:
     - "\uB3CC\uC544\uC628 \uC190\uB2D8\uC758 \uBCF4\uACE0\uC11C\uC5D0\uC11C \uC5B4\uB5A4
       \uC704\uD5D8\uC774 \uB9DE\uC558\uB294\uC9C0 \uD655\uC778\uD574 \uBCF4\uC138\uC694."
   - destination: Title
+    heading: "\uB2E4\uB140\uC654\uC5B4"
+    headingImage: {fileID: 21300000, guid: f7df4a176113ae942b9bee9cb0bc84f2, type: 3}
     illustration: {fileID: 21300000, guid: a521156c3452d3d4d83dc064645f8634, type: 3}
     tips:
     - "\uC624\uB298\uB3C4 \uBAA8\uB450 \uBB34\uC0AC\uD788 \uB3CC\uC544\uC624\uAE38."
