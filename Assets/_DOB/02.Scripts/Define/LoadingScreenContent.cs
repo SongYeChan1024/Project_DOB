@@ -2,8 +2,14 @@
 // LoadingScreenContent — 로딩 화면에 보여 줄 그림·팁 데이터 (ScriptableObject)
 // 역할   : 목적지(Title·Restaurant·Tutorial·ReturnReport)마다 제목·그림 1장·팁 목록을 담는다.
 //          팁 문구는 기획(송예찬), 그림은 아트(이기혁)가 에셋에서 직접 채운다. 코드에 문구를 쓰지 않는다.
-// 호출자 : 로딩 화면 Presenter (GetHeadingImage, GetHeading, GetIllustration, GetTips)
+//          로딩 화면의 최소 표시 시간과 페이드 시간도 기획 값으로 함께 담는다.
+// 호출자 : 로딩 화면 Presenter (GetHeadingImage, GetHeading, GetIllustration, GetTips, GetRandomTip,
+//          MinimumDisplaySeconds, FadeSeconds)
 // 상태   : 없음 (에디터에서 채운 값을 읽기만 한다)
+//
+// 의사코드
+// [팁 하나]  목적지 팁 목록(없으면 공통 팁)에서 무작위로 하나를 고른다. 목록이 비면 빈 문자열
+// [시간]     음수 입력은 0으로 다룬다
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -40,6 +46,23 @@ namespace DOB.Define
         [SerializeField] private Sprite fallbackIllustration;
         /// <summary>목적지 팁이 없을 때 쓸 공통 팁.</summary>
         [SerializeField, TextArea(1, 3)] private string[] commonTips;
+
+        /// <summary>로딩 화면이 완전히 보인 뒤 최소한 머무는 시간(초). 로드가 빨라도 그림·팁을 읽을 수 있게 한다.</summary>
+        [Header("시간"), SerializeField, Min(0f)] private float minimumDisplaySeconds = 1.5f;
+        /// <summary>로딩 화면이 검은 화면에서 나타나거나 검게 사라지는 시간(초).</summary>
+        [SerializeField, Min(0f)] private float fadeSeconds = 0.35f;
+
+        /// <summary>로딩 화면 최소 표시 시간(초).</summary>
+        public float MinimumDisplaySeconds => Mathf.Max(0f, minimumDisplaySeconds);
+        /// <summary>로딩 화면 페이드 시간(초).</summary>
+        public float FadeSeconds => Mathf.Max(0f, fadeSeconds);
+
+        /// <summary>목적지 팁 하나를 무작위로 고른다. 팁이 하나도 없으면 빈 문자열.</summary>
+        public string GetRandomTip(string destination)
+        {
+            var tips = GetTips(destination);
+            return tips.Count > 0 ? tips[UnityEngine.Random.Range(0, tips.Count)] ?? string.Empty : string.Empty;
+        }
 
         /// <summary>목적지 제목. 없으면 빈 문자열.</summary>
         public string GetHeading(string destination)

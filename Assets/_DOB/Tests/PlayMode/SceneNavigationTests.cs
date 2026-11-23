@@ -94,6 +94,90 @@ namespace DOB.Tests
             }
         }
 
+        [UnityTest]
+        public IEnumerator LoadingScreenStaysForTheMinimumTimeAndFadesToBlackBeforeClosing()
+        {
+            yield return SceneManager.LoadSceneAsync("Title");
+
+            var loadingSeenAt = -1f;
+            var minimumSeconds = -1f;
+            var lastFadeAlpha = -1f;
+            var tipShown = false;
+            void OnLoaded(Scene scene, LoadSceneMode mode)
+            {
+                if (scene.name == "Loading")
+                    loadingSeenAt = Time.realtimeSinceStartup;
+            }
+
+            SceneManager.sceneLoaded += OnLoaded;
+            try
+            {
+                Assert.That(SceneLoadService.RequestLoad("ReturnReport"), Is.True);
+                var deadline = Time.realtimeSinceStartup + TransitionTimeoutSeconds;
+                while (SceneLoadService.IsLoading && Time.realtimeSinceStartup < deadline)
+                {
+                    var loading = SceneManager.GetSceneByName("Loading");
+                    if (loading.isLoaded)
+                    {
+                        var images = LoadingComponents<Image>(loading);
+                        var fade = images.SingleOrDefault(image => image.name == "FadeOverlay");
+                        if (fade) lastFadeAlpha = fade.color.a;
+                        var presenter = LoadingComponents<LoadingScreenPresenter>(loading).SingleOrDefault();
+                        if (presenter) minimumSeconds = presenter.MinimumDisplaySeconds;
+                        var tip = LoadingComponents<TMPro.TMP_Text>(loading).SingleOrDefault(text => text.name == "TipText");
+                        tipShown |= tip && !string.IsNullOrEmpty(tip.text);
+                    }
+                    yield return null;
+                }
+            }
+            finally
+            {
+                SceneManager.sceneLoaded -= OnLoaded;
+            }
+
+            var shownSeconds = Time.realtimeSinceStartup - loadingSeenAt;
+            Assert.That(SceneLoadService.IsLoading, Is.False, "전환이 제한 시간 안에 끝나야 합니다.");
+            Assert.That(loadingSeenAt, Is.GreaterThan(0f), "전환은 Loading 씬을 거쳐야 합니다.");
+            Assert.That(minimumSeconds, Is.GreaterThan(0f), "Loading 씬에 로딩 화면 Presenter와 내용 데이터가 연결되어야 합니다.");
+            Assert.That(shownSeconds, Is.GreaterThanOrEqualTo(minimumSeconds), "로딩 화면은 최소 표시 시간 동안 머물러야 합니다.");
+            Assert.That(lastFadeAlpha, Is.EqualTo(1f).Within(0.01f), "Loading을 닫기 전에 검은 페이드가 끝나야 합니다.");
+            Assert.That(tipShown, Is.True, "목적지 팁이 표시되어야 합니다.");
+            yield return null;
+            AssertLoadedComposition("ReturnReport", "ReturnReport");
+        }
+
+        [UnityTest]
+        public IEnumerator LoadingFailureNoticeIsClickableAndReturnsToTitle()
+        {
+            yield return SceneManager.LoadSceneAsync("Loading");
+            var loading = SceneManager.GetSceneByName("Loading");
+            Assert.That(LoadingComponents<EventSystem>(loading), Is.Empty, "Loading 씬은 평소 EventSystem을 두지 않습니다.");
+            yield return UIManager.OpenLoading("Restaurant");
+
+            Assert.That(UIManager.ShowLoadingFailure(true), Is.True);
+            var panel = LoadingComponents<Transform>(loading).Single(item => item.name == "FailurePanel");
+            Assert.That(panel.gameObject.activeInHierarchy, Is.True, "실패 안내가 보여야 합니다.");
+            Assert.That(EventSystem.current, Is.Not.Null, "실패 안내 버튼을 누를 수 있게 EventSystem이 있어야 합니다.");
+            Assert.That(EventSystem.current.gameObject.scene, Is.EqualTo(loading), "임시 EventSystem은 Loading과 함께 사라져야 합니다.");
+
+            var button = LoadingComponents<Button>(loading).Single(item => item.name == "FailureButton");
+            Assert.That(button.onClick.GetPersistentEventCount(), Is.EqualTo(1));
+            Assert.That(button.onClick.GetPersistentTarget(0), Is.Not.Null);
+            button.onClick.Invoke();
+            button.onClick.Invoke();
+
+            var deadline = Time.realtimeSinceStartup + TransitionTimeoutSeconds;
+            while ((SceneLoadService.IsLoading || !SceneManager.GetSceneByName("Title").isLoaded) && Time.realtimeSinceStartup < deadline)
+                yield return null;
+            yield return null;
+            AssertLoadedComposition("Title", "Title");
+        }
+
+        private static T[] LoadingComponents<T>(Scene scene) where T : Component
+        {
+            return scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<T>(true)).ToArray();
+        }
+
         private static IEnumerator InvokeButtonAndWait(string destination, string activeScene, params string[] sceneNames)
         {
             var buttons = Object.FindObjectsByType<Button>(FindObjectsSortMode.None)
