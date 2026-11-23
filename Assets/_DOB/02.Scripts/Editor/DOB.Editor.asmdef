@@ -7,6 +7,7 @@
     "DOB.Systems",
     "DOB.UI",
     "DOB.Manager",
+    "DOB.BasementInput",
     "Unity.ugui",
     "Unity.InputSystem"
   ],

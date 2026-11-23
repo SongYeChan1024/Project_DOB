@@ -120,10 +120,10 @@ namespace DOB.Editor
             var camera = CameraObject(new Vector3(0,10,-10), new Vector3(0,0,.25f));
             var systems = new GameObject("Systems");
             var flow = Child("GuestFlowConnections",systems.transform);
-            var controls = ComponentOn(player, "BasementPlayerInput");
+            player.GetComponent<DOB.Manager.PlayerMovementController>().enabled = false;
             var service = (Behaviour)ComponentOn(flow, "FirstGuestService");
             service.enabled = false;
-            Wire(service, ("player",player.transform), ("guest",guest.transform), ("worldCamera",camera), ("controls",controls));
+            Wire(service, ("player",player.transform), ("guest",guest.transform), ("worldCamera",camera));
             var kitchen = (Behaviour)ComponentOn(Child("CookingConnections", systems.transform),"FirstGuestKitchen");
             kitchen.enabled = false;
             Wire(kitchen, ("service",service), ("recipe",Asset<ScriptableObject>("08.Data/SO_FirstService_Bread.asset")), ("guest", Asset<ScriptableObject>("08.Data/SO_Guest_Haru.asset")));

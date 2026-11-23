@@ -1,12 +1,17 @@
 // FirstGuestServiceTests — 실제 식당·Gameplay 구성에서 첫 방문에 대한 공간 상호작용을 검증한다.
 // 의사코드: 모든 자리를 점유하고 먼 거리와 빈 자리 없는 응대를 거절한다. 하나를 비운 뒤 같은 방문으로 재시도한다.
 // 응대 페이드/카메라 복귀, 점유석과 손님의 도착 거리, 정확한 좌석 하나와 한 번의 착석 알림·퇴장을 확인한다.
+// PF_Player 단독 검사: 손님 서비스 없이 프리팹만 생성해 PlayerInput·Player 맵·보이는 캡슐과 WASD 이동·정지를 확인한다.
+// 키 입력은 PlayerInput 사용자를 테스트 키보드·마우스의 Keyboard&Mouse 스킴에만 짝지어 실제(또는 다른) 키보드가 이동을 가로채지 못하게 한다.
+// 장치는 씬·프리팹보다 먼저 SetUp에서 만들고, TearDown에서 생성물·씬·장치를 모두 정리한다.
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using DOB.Manager;
 using NUnit.Framework;
 #if UNITY_EDITOR
+using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -21,6 +26,109 @@ namespace DOB.Tests
     public sealed class FirstGuestServiceTests
     {
         private const string DemoPath = "Assets/_DOB/01.Scenes/Basement.unity";
+        private const string PlayerPrefabPath = "Assets/_DOB/03.Prefabs/Characters/PF_Player.prefab";
+        private const string ProjectActionsPath = "Assets/InputSystem_Actions.inputactions";
+        private const string PlayerMap = "Player";
+        // 이동 판정용 허용 오차다. 기획 수치가 아니라 테스트가 방향·정지를 구분하는 기준이다.
+        private const float MinimumStep = 0.25f;
+        private const float DirectionDot = 0.9f;
+        private const float StillTolerance = 0.001f;
+        private const string KeyboardMouseScheme = "Keyboard&Mouse";
+
+        private readonly List<GameObject> spawned = new List<GameObject>();
+        private BasementTestKeyboard input;
+        private Keyboard keyboard;
+        private Mouse mouse;
+        private Keyboard otherKeyboard;
+        private float initialTimeScale;
+
+        // 배치 실행 PC에는 실제 마우스가 없을 수 있다. Keyboard&Mouse 스킴은 두 장치를 모두 요구하므로
+        // 게임 씬이나 PF_Player를 켜기 전에 가상 키보드와 마우스를 먼저 만든다.
+        [SetUp]
+        public void SetUp()
+        {
+            initialTimeScale = Time.timeScale;
+            spawned.Clear();
+            input = new BasementTestKeyboard();
+            keyboard = input.Keyboard;
+            mouse = InputSystem.AddDevice<Mouse>("TestMouse");
+        }
+
+        // 생성한 오브젝트와 로드한 씬을 Title로 정리한 뒤 추가한 장치와 입력 설정을 되돌린다.
+        [UnityTearDown]
+        public IEnumerator TearDown()
+        {
+            try
+            {
+                foreach (var item in spawned)
+                    if (item) UnityEngine.Object.Destroy(item);
+                spawned.Clear();
+                yield return SceneManager.LoadSceneAsync(SceneComposition.Title, LoadSceneMode.Single);
+            }
+            finally
+            {
+                Time.timeScale = initialTimeScale;
+                if (otherKeyboard != null && otherKeyboard.added) InputSystem.RemoveDevice(otherKeyboard);
+                if (mouse != null && mouse.added) InputSystem.RemoveDevice(mouse);
+                input?.Dispose();
+                otherKeyboard = null;
+                mouse = null;
+                keyboard = null;
+                input = null;
+            }
+        }
+
+        // 의사코드:
+        // 1. 빈 테스트 씬만 남기고 다른 씬을 내린다. 손님 서비스가 없음을 확인한다.
+        // 2. 바닥 콜라이더를 깔고 PF_Player 프리팹을 그 위에 단독으로 생성한다.
+        // 3. 루트의 CharacterController, PlayerInput(프로젝트 액션·Player 맵), VisualRoot/ModelSlot 아래 보이는 렌더러를 확인한다.
+        // 4. PlayerInput 사용자를 테스트 키보드·마우스의 Keyboard&Mouse 스킴에만 짝짓고 자동 장치 전환을 끈다.
+        // 5. 다른 키보드의 D는 무시되는지, 테스트 키보드의 W는 +z, D는 +x로 움직이는지, 키를 떼면 몇 프레임 동안 멈춰 있는지 수평 이동량으로 확인한다.
+        [UnityTest]
+        public IEnumerator StandalonePlayerPrefabMovesWithItsOwnPlayerInput()
+        {
+            // 실제 키보드처럼 플레이어보다 먼저 존재하는 다른 키보드다. 자동 짝짓기가 이 장치를 고를 수 있는 상황을 만든다.
+            otherKeyboard = InputSystem.AddDevice<Keyboard>("OtherKeyboardStandIn");
+            var scene = SceneManager.CreateScene("StandalonePlayerTest");
+            SceneManager.SetActiveScene(scene);
+            for (int i = SceneManager.sceneCount - 1; i >= 0; i--)
+            {
+                var other = SceneManager.GetSceneAt(i);
+                if (other != scene && other.isLoaded)
+                    yield return SceneManager.UnloadSceneAsync(other);
+            }
+            Assert.That(UnityEngine.Object.FindAnyObjectByType<FirstGuestService>(), Is.Null, "손님 서비스 없이 단독 검사");
+
+            var ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            spawned.Add(ground);
+            ground.transform.localScale = new Vector3(10f, 1f, 10f);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
+            Assert.That(prefab, Is.Not.Null, PlayerPrefabPath);
+            var player = UnityEngine.Object.Instantiate(prefab, new Vector3(0f, 0.05f, 0f), Quaternion.identity);
+            spawned.Add(player);
+            yield return null;
+
+            Assert.That(player.GetComponent<CharacterController>(), Is.Not.Null, "루트 CharacterController");
+            var playerInput = player.GetComponent<PlayerInput>();
+            Assert.That(playerInput, Is.Not.Null, "루트 PlayerInput");
+            AssertProjectPlayerActions(playerInput);
+            Assert.That(VisibleRenderer(player.transform), Is.Not.Null, "VisualRoot/ModelSlot 아래 보이는 캡슐 렌더러");
+
+            PairWithTestDevices(playerInput);
+            var standIn = otherKeyboard;
+            Vector3 start = player.transform.position;
+            InputSystem.QueueStateEvent(standIn, new KeyboardState(Key.D));
+            yield return Until(() => standIn.dKey.isPressed, "다른 키보드의 D 전달");
+            yield return null;
+            yield return null;
+            Assert.That(Horizontal(player.transform.position - start).magnitude, Is.LessThan(StillTolerance), "다른 키보드는 이동을 가로채지 못함");
+            AssertPairedToTestDevices(playerInput, "다른 키보드 입력 뒤에도 짝지은 장치 유지");
+            InputSystem.QueueStateEvent(standIn, new KeyboardState());
+            yield return null;
+
+            yield return PressAndMeasure(keyboard, Key.W, player.transform, Vector3.forward, "W 전진");
+            yield return PressAndMeasure(keyboard, Key.D, player.transform, Vector3.right, "D 오른쪽");
+        }
 
         [UnityTest]
         public IEnumerator KeyboardWDAndEControlTheActualPlayerAndDialogue()
@@ -33,15 +141,17 @@ namespace DOB.Tests
             var dialogue = UnityEngine.Object.FindAnyObjectByType<FirstGuestDialogue>();
             var service = UnityEngine.Object.FindAnyObjectByType<FirstGuestService>();
             var controls = UnityEngine.Object.FindAnyObjectByType<FirstGuestControls>();
-            var input = new BasementTestKeyboard();
-            var keyboard = input.Keyboard;
-            float initialTimeScale = Time.timeScale;
+            AssertVisibleFromMainCamera(player);
+            var playerInput = player.GetComponent<PlayerInput>();
+            Assert.That(playerInput, Is.Not.Null, "게임 플레이어의 PlayerInput");
+            AssertProjectPlayerActions(playerInput);
             try
             {
-                var moveAction = InputSystem.actions.FindAction("Player/Move", true);
-                Assert.That(moveAction.enabled, Is.True, "런타임 Player/Move 액션 활성화");
-                Assert.That(InputSystem.actions.FindAction("Player/Interact", true).enabled, Is.True,
-                    "런타임 Player/Interact 액션 활성화");
+                PairWithTestDevices(playerInput);
+                var moveAction = playerInput.actions.FindAction("Player/Move", true);
+                Assert.That(moveAction.enabled, Is.True, "플레이어 Player/Move 액션 활성화");
+                Assert.That(playerInput.actions.FindAction("Player/Interact", true).enabled, Is.True,
+                    "플레이어 Player/Interact 액션 활성화");
                 InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.W));
                 yield return Until(() => keyboard.wKey.isPressed, "가상 키보드의 W 입력 전달");
                 Assert.That(controls.Move.y, Is.GreaterThan(0.9f), "W 바인딩에서 전진 입력 읽기");
@@ -86,7 +196,6 @@ namespace DOB.Tests
             finally
             {
                 Time.timeScale = initialTimeScale;
-                input.Dispose();
             }
             yield return SceneManager.LoadSceneAsync(SceneComposition.Title);
             yield return null;
@@ -199,6 +308,68 @@ namespace DOB.Tests
             yield return Until(() => !guest.gameObject.activeSelf, "계단으로 퇴장");
             Assert.That(Vector3.Distance(guest.position, layout.StairsExit.position), Is.LessThan(0.01f));
             yield return SceneManager.LoadSceneAsync(SceneComposition.Title);
+        }
+
+        private static void AssertProjectPlayerActions(PlayerInput playerInput)
+        {
+            var projectActions = AssetDatabase.LoadAssetAtPath<InputActionAsset>(ProjectActionsPath);
+            Assert.That(projectActions, Is.Not.Null, ProjectActionsPath);
+            Assert.That(playerInput.actions, Is.Not.Null, "PlayerInput 액션 자산 연결");
+            // PlayerInput은 여러 플레이어를 위해 자산을 복제할 수 있으므로 같은 원본의 맵 ID로 비교한다.
+            Assert.That(playerInput.actions.FindActionMap(PlayerMap, true).id, Is.EqualTo(projectActions.FindActionMap(PlayerMap, true).id),
+                "프로젝트 InputSystem_Actions 사용");
+            Assert.That(playerInput.defaultActionMap, Is.EqualTo(PlayerMap));
+            Assert.That(playerInput.currentActionMap?.name, Is.EqualTo(PlayerMap));
+        }
+
+        // 테스트 키보드·마우스만 이 플레이어의 Keyboard&Mouse 장치로 남긴다. 자동 전환을 끄지 않으면 다른 키보드 입력이 장치를 바꿀 수 있다.
+        private void PairWithTestDevices(PlayerInput playerInput)
+        {
+            Assert.That(playerInput.user.valid, Is.True, "PlayerInput user valid");
+            playerInput.neverAutoSwitchControlSchemes = true;
+            playerInput.SwitchCurrentControlScheme(KeyboardMouseScheme, keyboard, mouse);
+            Assert.That(playerInput.currentControlScheme, Is.EqualTo(KeyboardMouseScheme));
+            AssertPairedToTestDevices(playerInput, "테스트 키보드·마우스만 짝지음");
+        }
+
+        private void AssertPairedToTestDevices(PlayerInput playerInput, string step) =>
+            CollectionAssert.AreEquivalent(new InputDevice[] { keyboard, mouse }, playerInput.user.pairedDevices.ToArray(), step);
+
+        private static IEnumerator PressAndMeasure(Keyboard keyboard, Key key, Transform player, Vector3 direction, string step)
+        {
+            Vector3 start = player.position;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(key));
+            yield return Until(() => keyboard[key].isPressed, step + " 키 전달");
+            yield return Until(() => Horizontal(player.position - start).magnitude > MinimumStep, step + " 이동");
+            Assert.That(Vector3.Dot(Horizontal(player.position - start).normalized, direction), Is.GreaterThan(DirectionDot), step + " 방향");
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return Until(() => !keyboard[key].isPressed, step + " 키 뗌");
+            yield return null;
+            Vector3 released = player.position;
+            for (int i = 0; i < 5; i++)
+                yield return null;
+            Assert.That(Horizontal(player.position - released).magnitude, Is.LessThan(StillTolerance), step + " 뗀 뒤 정지");
+        }
+
+        private static Vector3 Horizontal(Vector3 delta) => new Vector3(delta.x, 0f, delta.z);
+
+        private static Renderer VisibleRenderer(Transform player)
+        {
+            var slot = player.Find("VisualRoot/ModelSlot");
+            return slot ? slot.GetComponentsInChildren<Renderer>().FirstOrDefault(item => item.enabled && item.gameObject.activeInHierarchy) : null;
+        }
+
+        // 시작 위치에서 캡슐이 메인 카메라 시야 안에 있고, 카메라와 캡슐 중심 사이를 다른 충돌체가 가리지 않는지 본다.
+        private static void AssertVisibleFromMainCamera(Transform player)
+        {
+            var camera = Camera.main;
+            Assert.That(camera, Is.Not.Null, "메인 카메라");
+            var renderer = VisibleRenderer(player);
+            Assert.That(renderer, Is.Not.Null, "게임 플레이어의 보이는 렌더러");
+            Assert.That(GeometryUtility.TestPlanesAABB(GeometryUtility.CalculateFrustumPlanes(camera), renderer.bounds), Is.True,
+                "시작 위치의 플레이어가 카메라 시야 안");
+            if (Physics.Linecast(camera.transform.position, renderer.bounds.center, out var hit, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                Assert.That(hit.transform.IsChildOf(player), Is.True, "카메라와 플레이어 사이를 가리는 물체: " + hit.collider.name);
         }
 
         private static void PlacePlayer(CharacterController controller, Vector3 position)

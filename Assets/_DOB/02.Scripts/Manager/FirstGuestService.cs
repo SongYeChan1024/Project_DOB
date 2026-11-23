@@ -20,16 +20,15 @@ namespace DOB.Manager
         [SerializeField] private Camera worldCamera;
         [SerializeField] private Text guidance;
         [SerializeField] private FirstGuestDialogue dialogue;
-        [SerializeField] private FirstGuestControls controls;
 
         [Header("그레이박스 이동 조정")]
-        [Min(0.1f), SerializeField] private float playerSpeed = 3.5f;
         [Min(0.1f), SerializeField] private float guestSpeed = 3f;
         [Min(0.1f), SerializeField] private float interactionRange = 1.35f;
         [Min(0.1f), SerializeField] private float followDistance = 0.8f;
 
         private CharacterController controller;
-        private float? previousMinimumMove;
+        private FirstGuestControls controls;
+        private PlayerMovementController movement;
         private Transform playerEyes;
         private Transform guestFace;
         private RestaurantLayout layout;
@@ -70,7 +69,7 @@ namespace DOB.Manager
 
         private void OnEnable()
         {
-            if (!player || !guest || !worldCamera || !guidance || !dialogue || !controls)
+            if (!player || !guest || !worldCamera || !guidance || !dialogue)
             {
                 Debug.LogError("[DOB] 첫 손님 응대에 필요한 Gameplay 연결 또는 프로젝트 입력이 없습니다.", this);
                 enabled = false;
@@ -78,19 +77,18 @@ namespace DOB.Manager
             }
 
             controller = player.GetComponent<CharacterController>();
+            controls = player.GetComponent<FirstGuestControls>();
+            movement = player.GetComponent<PlayerMovementController>();
             // 공용 캐릭터 프리팹의 모델 교체와 독립적인 앵커 계약이다.
             playerEyes = player.Find("Anchors/FacePoint");
             guestFace = guest.Find("Anchors/FacePoint");
-            if (!controller || !playerEyes || !guestFace)
+            if (!controller || !controls || !movement || !playerEyes || !guestFace)
             {
-                Debug.LogError("[DOB] 캐릭터 프리팹의 CharacterController 또는 FacePoint를 연결할 수 없습니다.", this);
+                Debug.LogError("[DOB] 캐릭터 프리팹의 이동·입력 컴포넌트와 FacePoint를 확인하세요.", this);
                 enabled = false;
                 return;
             }
 
-            // 프레임별 변위가 프리팹의 최소 이동 거리보다 작더라도 키를 누른 시간만큼 이동한다.
-            previousMinimumMove = controller.minMoveDistance;
-            controller.minMoveDistance = 0f;
             dialogue.BindActions(RequestFollow, RequestSendHome);
             uiScene = dialogue.gameObject.scene;
             SceneManager.sceneLoaded += OnSceneLoaded;
@@ -106,9 +104,6 @@ namespace DOB.Manager
             SceneManager.sceneUnloaded -= OnSceneUnloaded;
             if (dialogue)
                 dialogue.BindActions(null, null);
-            if (controller && previousMinimumMove.HasValue)
-                controller.minMoveDistance = previousMinimumMove.Value;
-            previousMinimumMove = null;
             EndVisit();
             uiScene = default;
         }
@@ -151,6 +146,7 @@ namespace DOB.Manager
                 controller.enabled = false;
                 player.SetPositionAndRotation(layout.PlayerSpawn.position, layout.PlayerSpawn.rotation);
                 controller.enabled = true;
+                movement.EnterRestaurant(worldCamera, layout, CanMovePlayer);
                 guest.SetPositionAndRotation(layout.GuestEntrance.position, layout.GuestEntrance.rotation);
                 guest.gameObject.SetActive(true);
                 return true;
@@ -160,6 +156,8 @@ namespace DOB.Manager
 
         private void EndVisit()
         {
+            if (movement)
+                movement.LeaveRestaurant();
             if (VisitId != null && dialogue)
                 dialogue.CancelDialogue();
             if (layout)
@@ -184,7 +182,6 @@ namespace DOB.Manager
                 return;
             }
             RestoreCamera();
-            MovePlayer(controls.Move);
             AdvanceGuest();
             RefreshGuidance();
 
@@ -192,17 +189,8 @@ namespace DOB.Manager
                 TryInteract();
         }
 
-        private void MovePlayer(Vector2 input)
-        {
-            if (input.sqrMagnitude == 0f)
-                return;
-            var forward = Vector3.ProjectOnPlane(worldCamera.transform.forward, Vector3.up).normalized;
-            var right = Vector3.Cross(Vector3.up, forward);
-            var direction = Vector3.ClampMagnitude(right * input.x + forward * input.y, 1f);
-            var target = player.position + direction * (playerSpeed * Time.deltaTime);
-            controller.Move(layout.ClampToFloor(target, controller.radius) - player.position);
-            player.rotation = Quaternion.LookRotation(direction);
-        }
+        private bool CanMovePlayer() =>
+            layout && !SceneLoadService.IsLoading && !dialogue.BlocksWorldInput && KitchenIsOpen?.Invoke() != true;
 
         private void AdvanceGuest()
         {
