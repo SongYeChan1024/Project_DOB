@@ -173,6 +173,41 @@ namespace DOB.Tests
             AssertLoadedComposition("Title", "Title");
         }
 
+        [UnityTest]
+        public IEnumerator EachDestinationShowsItsOwnLoadingHeadingAndIllustration()
+        {
+            yield return SceneManager.LoadSceneAsync("Loading");
+            var loading = SceneManager.GetSceneByName("Loading");
+            var images = LoadingComponents<Image>(loading);
+            var illustration = images.Single(image => image.name == "Illustration");
+            var heading = images.Single(image => image.name == "HeadingImage");
+            var tip = LoadingComponents<TMPro.TMP_Text>(loading).Single(text => text.name == "TipText");
+
+            var destinations = new[] { "Title", "Restaurant", "Tutorial", "ReturnReport" };
+            var illustrations = new Dictionary<string, Sprite>();
+            var headings = new Dictionary<string, Sprite>();
+            foreach (var destination in destinations)
+            {
+                yield return UIManager.OpenLoading(destination);
+                Assert.That(illustration.enabled && illustration.sprite, Is.True, destination + " 그림이 보여야 합니다.");
+                Assert.That(heading.gameObject.activeInHierarchy && heading.sprite, Is.True, destination + " 제목 그림이 보여야 합니다.");
+                Assert.That(tip.text, Is.Not.Empty, destination + " 팁이 보여야 합니다.");
+                illustrations[destination] = illustration.sprite;
+                headings[destination] = heading.sprite;
+            }
+
+            Assert.That(illustrations.Values.Distinct().Count(), Is.EqualTo(destinations.Length), "목적지마다 다른 그림이어야 합니다.");
+            Assert.That(headings.Values.Distinct().Count(), Is.EqualTo(destinations.Length), "목적지마다 다른 제목 그림이어야 합니다.");
+
+            // 데이터에 없는 목적지는 기본 그림과 공통 팁을 쓰고, 제목 그림은 숨긴다.
+            yield return UIManager.OpenLoading("UnknownDestination");
+            Assert.That(illustration.enabled && illustration.sprite, Is.True, "없는 목적지도 기본 그림을 보여야 합니다.");
+            Assert.That(heading.gameObject.activeInHierarchy, Is.False, "없는 목적지는 제목 그림을 숨겨야 합니다.");
+            Assert.That(tip.text, Is.Not.Empty, "없는 목적지도 공통 팁을 보여야 합니다.");
+
+            yield return SceneManager.LoadSceneAsync("Title");
+        }
+
         private static T[] LoadingComponents<T>(Scene scene) where T : Component
         {
             return scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<T>(true)).ToArray();
