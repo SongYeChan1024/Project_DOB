@@ -73,3 +73,6 @@ desktop.ini
 *.kra
 *.aup3
 *.slnx
+
+# ThirdParty는 전부 제외 예정, 작업한 프리팹을 제외한 원본 에셋들은 여기로 모을 것
+/[Aa]ssets/_DOB/99.ThirdParty/
