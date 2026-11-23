@@ -1,8 +1,8 @@
 // =====================================================================
 // LoadingScreenContent — 로딩 화면에 보여 줄 그림·팁 데이터 (ScriptableObject)
-// 역할   : 목적지(Title·Restaurant·Tutorial·ReturnReport)마다 그림 1장과 팁 목록을 담는다.
+// 역할   : 목적지(Title·Restaurant·Tutorial·ReturnReport)마다 제목·그림 1장·팁 목록을 담는다.
 //          팁 문구는 기획(송예찬), 그림은 아트(이기혁)가 에셋에서 직접 채운다. 코드에 문구를 쓰지 않는다.
-// 호출자 : 로딩 화면 Presenter (GetIllustration, GetTips)
+// 호출자 : 로딩 화면 Presenter (GetHeadingImage, GetHeading, GetIllustration, GetTips)
 // 상태   : 없음 (에디터에서 채운 값을 읽기만 한다)
 // =====================================================================
 using System;
@@ -21,10 +21,16 @@ namespace DOB.Define
         {
             /// <summary>SceneComposition의 진입 경로 이름 (Title, Restaurant, Tutorial, ReturnReport).</summary>
             [SerializeField] private string destination;
+            /// <summary>로딩 화면 위에 크게 보이는 목적지 제목 (예: 층계참 식당).</summary>
+            [SerializeField] private string heading;
+            /// <summary>제목 글씨 그림 (빛 번짐 포함 PNG). 있으면 글자 대신 이 그림을 보여 준다.</summary>
+            [SerializeField] private Sprite headingImage;
             [SerializeField] private Sprite illustration;
             [SerializeField, TextArea(1, 3)] private string[] tips;
 
             public string Destination => destination;
+            public string Heading => heading;
+            public Sprite HeadingImage => headingImage;
             public Sprite Illustration => illustration;
             public IReadOnlyList<string> Tips => tips ?? Array.Empty<string>();
         }
@@ -34,6 +40,19 @@ namespace DOB.Define
         [SerializeField] private Sprite fallbackIllustration;
         /// <summary>목적지 팁이 없을 때 쓸 공통 팁.</summary>
         [SerializeField, TextArea(1, 3)] private string[] commonTips;
+
+        /// <summary>목적지 제목. 없으면 빈 문자열.</summary>
+        public string GetHeading(string destination)
+        {
+            var entry = Find(destination);
+            return entry != null ? entry.Heading ?? string.Empty : string.Empty;
+        }
+
+        /// <summary>목적지 제목 글씨 그림. 없으면 null (그때는 제목 글자를 쓴다).</summary>
+        public Sprite GetHeadingImage(string destination)
+        {
+            return Find(destination)?.HeadingImage;
+        }
 
         /// <summary>목적지 그림. 없으면 기본 그림.</summary>
         public Sprite GetIllustration(string destination)
