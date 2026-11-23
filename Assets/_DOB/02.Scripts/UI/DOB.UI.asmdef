@@ -5,7 +5,8 @@
     "DOB.Define",
     "DOB.Utils",
     "Unity.ugui",
-    "Unity.InputSystem"
+    "Unity.InputSystem",
+    "Unity.TextMeshPro"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
