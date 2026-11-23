@@ -7,6 +7,7 @@
 // 상태   : 화면에 보이는 것만 가진다. 게임 상태는 갖지 않는다.
 // =====================================================================
 using System;
+using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,7 +20,7 @@ namespace DOB.UI
         [Header("메뉴"), SerializeField] private Button newGameButton;
         /// <summary>이어하기 버튼. 저장이 없으면 숨긴다.</summary>
         [SerializeField] private Button continueButton;
-        [SerializeField] private Text continueLabel;
+        [SerializeField] private TMP_Text continueLabel;
         /// <summary>설정 창을 여는 버튼.</summary>
         [SerializeField] private Button settingsButton;
         /// <summary>게임 종료 버튼.</summary>
