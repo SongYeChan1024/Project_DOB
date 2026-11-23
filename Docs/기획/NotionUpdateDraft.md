@@ -42,9 +42,9 @@
 ## 연결할 원문
 
 - [공유 기획서](https://docs.google.com/document/d/1nFDNT7zw3tflOq4N4xJNqzioT0eQcbbVXVVCzUswXOE): 3-6 스토리, 4-10 트리거. 기존 댓글 유지.
-- [스토리·사건 트리거 명세](StoryBTriggers.md)
-- [손님 이름 명세](GuestNames.md)
-- [엔딩 이후 운영 후보](PostEndingOptions.md)
+- [스토리·사건 트리거 명세](콘텐츠/StoryBTriggers.md)
+- [손님 이름 명세](시스템/GuestNames.md)
+- [엔딩 이후 운영 후보](플레이/PostEndingOptions.md)
 - [3D 개발 참고도](../References/3D/README.md)
 
 노션에는 접근 가능한 실제 문서·이미지 참조로 연결하며 로컬 상대 경로를 웹 링크처럼 올리지 않는다. 기존 ‘이전 기획 V0.2’ 하위 페이지·댓글·팀 역할은 보존한다.
