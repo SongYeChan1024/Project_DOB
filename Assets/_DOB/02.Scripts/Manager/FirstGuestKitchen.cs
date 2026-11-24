@@ -41,6 +41,8 @@ namespace DOB.Manager
         {
             startingGold = goldAtOpening;
             startingGarlic = garlicAtOpening;
+            // 주방은 영업 단계에서야 켜지므로, 아침보고·준비 화면도 저장된 금화를 보도록 여기서 맞춘다.
+            gold = goldAtOpening;
         }
 
         // Additive UI가 로드되면 해당 씬이 소유한 버튼과 표시창을 한 번 연결한다.
