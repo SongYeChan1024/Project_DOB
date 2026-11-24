@@ -319,6 +319,7 @@ GameObject:
   - component: {fileID: 338973285}
   - component: {fileID: 338973284}
   - component: {fileID: 338973286}
+  - component: {fileID: 338973287}
   m_Layer: 0
   m_Name: Systems
   m_TagString: Untagged
@@ -370,6 +371,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.GameManager
   service: {fileID: 993346891}
   kitchen: {fileID: 2035097304}
+  relationship: {fileID: 338973287}
+  settings: {fileID: 11400000, guid: 63cc637be448bd7488900a45bf867c9d, type: 2}
+--- !u!114 &338973287
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 338973283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6c2f1d2b28db3642b6913bd97ebed82, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.Manager::DOB.Manager.RelationshipManager
 --- !u!1001 &617800609
 PrefabInstance:
   m_ObjectHideFlags: 0

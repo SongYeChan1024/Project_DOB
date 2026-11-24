@@ -125,7 +125,7 @@ namespace DOB.Manager
 
             if (!game.Prepare(OpenSaves(), start, newTimeline, hud))
             {
-                Fail("GameManager의 응대·주방 또는 영업 UI의 일시 정지 메뉴 연결을 확인하세요.");
+                Fail("GameManager의 응대·주방·관계·하루 진행 설정 또는 영업 UI의 일시 정지 메뉴·하루 진행 화면 연결을 확인하세요.");
                 yield break;
             }
             ShowProgress(1f);

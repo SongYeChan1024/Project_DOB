@@ -4,6 +4,7 @@
 // 응대가 닫히면 전경으로 줌아웃한다. 줌인·응대·줌아웃·전환 동안 이동과 E를 잠근다.
 // 수락 시 따라오고 빈 자리 가까이서 E를 누르면 자리를 선점하고 의자로 걷는다.
 // 착석한 방문을 한 번 알린다. 돌려보내기 시 문으로 돌아간다. 씬 종료 시 좌석·카메라·화면을 정리한다.
+// 손님이 떠났는지(HasLeft)를 GameManager가 하루 마감 판정에 읽는다.
 using System;
 using DOB.Define;
 using Unity.Cinemachine;
@@ -51,6 +52,10 @@ namespace DOB.Manager
 
         /// <summary>매 영업 진입 시 새로 부여하는 첫 손님의 방문 ID.</summary>
         public string VisitId { get; private set; }
+        /// <summary>현재 방문 손님의 고정 ID. 방명록·호감은 이 값으로 구분한다.</summary>
+        public string GuestId => guestId;
+        /// <summary>손님이 식당을 떠났다 (돌려보냄 또는 던전 출발). 하루 마감 판정에 쓴다.</summary>
+        public bool HasLeft => stage == Stage.SentHome || stage == Stage.InDungeon;
         /// <summary>입장을 마쳐 손님 가까이에서 응대를 열 수 있는 상태.</summary>
         public bool IsWaitingToGreet => layout && stage == Stage.Waiting;
         /// <summary>손님이 실제로 배정된 의자에 도착했는지 확인한다.</summary>

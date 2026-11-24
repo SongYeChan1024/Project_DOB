@@ -1,4 +1,5 @@
 // 새 프리뷰 씬을 한 번 생성한다. EventSystem은 기존 Gameplay의 입력 바인딩을 복사해 사용한다.
+// 이미 있는 씬에는 'DOB/Basement/하루 진행 연결 추가' 메뉴로 하루 진행(F1) 연결과 임시 화면만 추가한다.
 using System;
 using System.Linq;
 using UnityEditor;
@@ -131,7 +132,7 @@ namespace DOB.Editor
             var plate = ComponentOn(player,"FirstGuestPlateView");
             Wire(plate, ("kitchen", kitchen), ("carryAnchor",player.transform.Find("Anchors/PlatePoint")));
             var game = ComponentOn(systems,"GameManager");
-            Wire(game,("service",service),("kitchen",kitchen));
+            Wire(game,("service",service),("kitchen",kitchen),("relationship",ComponentOn(systems,"RelationshipManager")),("settings",DayCycleSettings()));
             var composer = ComponentOn(systems,"BasementComposition");
             Wire(composer,("game",game));
             Save("Basement");
@@ -214,7 +215,7 @@ namespace DOB.Editor
             var guidance=Label(bar.transform,"ServiceGuidance","",28,new Vector2(830,54),Vector2.zero);
             var receipt=Label(canvas.transform,"Receipt","",25,new Vector2(820,78),new Vector2(0,25));
             Anchor(receipt.rectTransform,new Vector2(.5f,0));
-            var settle=Action(canvas.transform,"SettleDay","시험 영업 정산",new Vector2(190,44),new Vector2(-18,20));
+            var settle=Action(canvas.transform,"SettleDay",SettleCaption,new Vector2(190,44),new Vector2(-18,20));
             Anchor((RectTransform)settle.transform,Vector2.right);
             var panel=Panel(canvas.transform,"KitchenRecipePanel",Vector2.zero,Vector2.zero,new Color(.04f,.07f,.07f,.82f));
             var cover=(RectTransform)panel.transform; cover.anchorMin=Vector2.zero; cover.anchorMax=Vector2.one; cover.offsetMin=cover.offsetMax=Vector2.zero;
@@ -228,10 +229,69 @@ namespace DOB.Editor
             Wire(dialogue,("viewPrefab",view),("guests", Asset<ScriptableObject>("08.Data/SO_Guest_Haru.asset")));
             var hud=ComponentOn(canvas,"BasementHud");
             Wire(hud,("guidance",guidance),("dialogue",dialogue),("recipePanel",panel),("ingredients",recipe),("receipt",receipt),("confirm",confirm),("cancel",cancel),("settle",settle));
+            AddDayFlowScreens(canvas.transform,hud);
             var pause=ComponentOn(canvas,"BasementPauseMenu");
             Wire(pause,("font",Font));
             ComponentOn(canvas,"BasementPauseInput");
             Save("BasementUI");
+        }
+
+        private const string SettleCaption = "마감 확인";
+        private const string DayCyclePath = "08.Data/SO_DayCycle.asset";
+
+        // 이미 있는 Basement·BasementUI 씬에 하루 진행(F1) 연결만 추가한다. 이미 연결돼 있으면 건드리지 않는다.
+        [MenuItem("DOB/Basement/하루 진행 연결 추가")]
+        public static void AddDayFlow()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var game = EditorSceneManager.OpenScene(Scenes + "Basement.unity", OpenSceneMode.Single).GetRootGameObjects()
+                .Select(root => root.GetComponentInChildren<DOB.Manager.GameManager>(true)).Single(found => found);
+            // Unity 오브젝트는 ?? 로 없음을 판정할 수 없어 명시적으로 확인한다.
+            var relationship = game.GetComponent<DOB.Manager.RelationshipManager>();
+            if (!relationship) relationship = game.gameObject.AddComponent<DOB.Manager.RelationshipManager>();
+            Wire(game,("relationship",relationship),("settings",DayCycleSettings()));
+            Save("Basement");
+
+            var hud = EditorSceneManager.OpenScene(Scenes + "BasementUI.unity", OpenSceneMode.Single).GetRootGameObjects()
+                .Select(root => root.GetComponentInChildren<DOB.Manager.BasementHud>(true)).Single(found => found);
+            if (!hud.HasDayFlowViews)
+                AddDayFlowScreens(hud.transform,hud);
+            hud.Settle.GetComponentInChildren<Text>().text = SettleCaption;
+            EditorUtility.SetDirty(hud.Settle.GetComponentInChildren<Text>());
+            Save("BasementUI");
+            Debug.Log("DOB_BASEMENT_DAY_FLOW_READY");
+        }
+
+        private static ScriptableObject DayCycleSettings()
+        {
+            var settings = Asset<ScriptableObject>(DayCyclePath);
+            if (settings)
+                return settings;
+            settings = ScriptableObject.CreateInstance<DOB.Define.DayCycleSettings>();
+            AssetDatabase.CreateAsset(settings, Root + DayCyclePath);
+            return settings;
+        }
+
+        // 임시 아침보고·준비·방명록 카드. 실제 화면은 같은 추상 View를 상속해 BasementHud의 같은 칸에 연결하면 된다.
+        private static void AddDayFlowScreens(Transform canvas, Component hud)
+        {
+            var report=TempCard(canvas,"MorningReport","ConfirmMorningReport","보고 확인","TempMorningReportView","confirm",Vector2.zero);
+            var prep=TempCard(canvas,"Preparation","StartService","영업 시작","TempPreparationView","start",Vector2.zero);
+            // 방명록은 영업 화면 위쪽에 띄워 마감 확인 버튼과 주방 안내를 가리지 않는다.
+            var book=TempCard(canvas,"Guestbook","CloseGuestbook","닫기","TempGuestbookView","close",new Vector2(0,120));
+            Wire(hud,("morningReport",report),("preparation",prep),("guestbook",book));
+        }
+
+        private static Component TempCard(Transform canvas, string name, string buttonName, string caption, string viewClass, string buttonField, Vector2 pos)
+        {
+            var card=Panel(canvas,name,new Vector2(560,300),pos,Card);
+            var body=Label(card.transform,"Body","",28,new Vector2(520,190),new Vector2(0,40));
+            var button=Action(card.transform,buttonName,caption,new Vector2(196,52),new Vector2(0,-105));
+            card.SetActive(false);
+            var view=ComponentOn(canvas.gameObject,viewClass);
+            Wire(view,("panel",card),("body",body),(buttonField,button));
+            return view;
         }
 
         private static void CreateTitle()

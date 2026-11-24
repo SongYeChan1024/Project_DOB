@@ -146,6 +146,16 @@ namespace DOB.Tests
             Assert.That(kitchen.GarlicStock, Is.EqualTo(1));
             Assert.That(kitchen.HasServed, Is.False);
             AssertCheckpoint("autosave", 2, 59, 1);
+
+            // 2일차는 아침보고 → 준비 → 영업 순서로 열리고, 영업 전에는 손님이 들어오지 않는다.
+            var game = BasementComposition.Current.Game;
+            Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.MorningReport));
+            Assert.That(UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().enabled, Is.False);
+            yield return Click("ConfirmMorningReport");
+            Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.Preparation));
+            yield return Click("StartService");
+            Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.Service));
+            yield return Until(() => UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId != null, "2일차 영업에서 손님 입장");
         }
 
         [UnityTest]
