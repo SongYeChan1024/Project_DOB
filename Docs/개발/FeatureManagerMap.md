@@ -200,6 +200,31 @@
     
     **검토 범위**　기준 커밋의 Docs/기획 전체 27개 파일(목차·CSV·흐름도 5장 포함), 개발 기능표·연결 지침·관련 코드, 팀 노션 기획 및 분야별 페이지, 기획 첨부 core-spec·guest-camera-cooking·tutorial-spec·story-candidates를 대조했다. 구현 표는 지정 커밋의 소스와 기존 실측 자료를 기준으로 작성했다.
     
+<details>
+<summary><b>원안 · 총괄 Manager와 System 분담 (김언호, 2026-11-24)</b></summary>
+
+기능마다 총괄 Manager 하나를 두고, 실제 상태 변경은 그 아래의 작은 System 스크립트가 맡는다 (README 6장: 상태 변경은 System, Manager는 조립·중재). System 이름은 책임 설명용 예시이며 실제 클래스 이름은 구현할 때 맞춘다. 현재 구현 경로는 위 「누가 무엇을 연결하는가」를 따른다.
+
+| Manager | 총괄 기능 | 아래 둘 System (예) | 담당 |
+| --- | --- | --- | --- |
+| GameManager | F1·F2 하루 단계 전환, Manager 연결·초기화 순서 | DayCycle, PauseReasons | 김언호 |
+| SceneLoadService · UIManager | 씬 조합·로딩·공용 화면 | SceneComposition | 김언호 · 홍준우 |
+| GuestManager | F3·F4 손님 생성·입장·좌석·응대·돌려보내기 | GuestArrivalPool, GuestDialogueGenerator, GuestDialogueVisit | 김언호 |
+| KitchenManager | F6 주문·화구·조리·접시 소유·서빙 | OrderBook, CookingStation, PlateRegistry, TasteScore | 김언호 |
+| EconomyManager | F8 금화·재고·시장·가게 개량 | Wallet, Inventory, UpgradeState | 김언호 |
+| SettlementManager | F7·F9 판정·마감 정산·귀환 보고·전리품·층 개방 | RiskCalculator(순수 C#), ReturnResolver, FloorProgress | 김언호 |
+| RelationshipManager | F10·F11 호감·단골·사연·방명록·수첩 기록 | Affinity, RegularStory, NotebookRecords | 김언호 |
+| StoryManager | F12·F14 스토리 트리거·양피지 독백·튜토리얼 단계 | StoryTriggerSystem, TutorialSteps | 김언호 |
+| SaveManager | F13 스냅샷 저장·복구·처리 ID·난수 상태 | FirstServiceSaveStore 일반화 | 김언호 (데이터 계약은 홍준우와 공동) |
+| SoundManager | F15 BGM·효과음 재생·음량·씬 전환 시 중복 방지 | — | 김언호 |
+
+- 화면 쪽은 기능별 Presenter(응대·주방·보고·준비·수첩·일시 정지)가 Manager의 요청·결과를 잇는다. 담당은 홍준우.
+- F5 자리 처방은 GuestManager(좌석 배정)와 SettlementManager(효과 합산)가 나눠 쓴다. 효과 스냅샷 시점은 🔴 검토 대기.
+- GameManager 범위는 README 6장을 따른다. 금화는 EconomyManager 아래 System이 소유한다.
+- 저장 기준은 Git 최신 결정의 일차 시작 스냅샷이다.
+
+</details>
+
 - 변경 기록
     
     
@@ -214,3 +239,4 @@
     | 2026.11.24 | 송예찬 | 데모 기준을 실제 서빙 12명 이상인 날의 마감·정산 후 엔딩으로 확정. 엔딩 후 이어하기는 해당 일차 한정, 후속 스토리 버전은 계속 영업. 돌려보낸 방문의 호감 변화는 −4점. |
     | 2026.11.24 | 송예찬 | 팀 노션 「기획」 하위 공식 페이지로 게시. 기획 3·4·9장의 옛 입소문 산식·돌려보냄 −1·던전 결과 0점 표기를 이 페이지 기준으로 정리. |
     | 2026.11.24 | 송예찬 | GitHub 이슈 #30 답변 반영. 대기 이탈 −4(본영업, 방문당 한 번)과 입소문 N 포함, 돌려보냄 −4는 그날 일일 정산에서 반영, 입장 간격 무작위, 호감 음수 손님 영구 미방문 방향(의견 요청 중). 돌려보낸 손님의 N 포함은 답변 대기. 새 게임 씬 서술을 main과 미병합 PR #29로 구분. |
+    | 2026.11.24 | 김언호 | 노션 팀 공유본으로 교체하며 빠진 원안의 총괄 Manager·System 분담 부록을 이전 Git 문서에서 복구 |
