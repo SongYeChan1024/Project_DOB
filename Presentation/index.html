@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="다녀왔어: 층계참 식당의 팀 기획 자료. 손님의 단서를 읽고 요리하는 첫 영업부터 다음 아침의 귀환까지 다섯 장의 흐름도로 살펴봅니다.">
+  <title>다녀왔어: 층계참 식당 · 게임 기획</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="slides.css">
+  <script src="content.js" defer></script>
+  <script src="reader.js" defer></script>
+  <script src="slides.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#chapters">기획 목차로 건너뛰기</a>
+  <header class="site-header">
+    <a class="brand" href="#intro">층계참 식당</a>
+    <nav class="site-nav" aria-label="주요 메뉴">
+      <a href="#intro">게임 소개</a>
+      <a href="#chapters">기획 읽기</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="intro" aria-labelledby="game-title">
+      <div class="hero-copy">
+        <h1 id="game-title">다녀왔어:<br>층계참 식당</h1>
+        <p class="hero-summary">던전으로 내려가는 손님의 말과 차림새에서 단서를 찾아 한 끼를 차립니다. 그 음식이 어떤 도움이 됐는지는 다음 아침, 식당으로 돌아온 손님에게 듣습니다.</p>
+        <div class="hero-actions">
+          <button class="button button-primary" type="button" data-present="">발표 시작</button>
+          <a class="button button-secondary" href="#chapters">기획 읽기</a>
+        </div>
+      </div>
+      <figure class="hero-art">
+        <img src="assets/restaurant-layout.png" alt="던전의 위아래 계단 사이, 식탁의 손님에게 주인이 음식을 나르는 층계참 식당" width="1586" height="992" fetchpriority="high">
+        <figcaption>식당 공간 콘셉트</figcaption>
+      </figure>
+    </section>
+
+    <section class="chapters" id="chapters" aria-labelledby="chapters-title">
+      <div class="section-heading">
+        <h2 id="chapters-title">기획 읽기</h2>
+      </div>
+      <div class="chapter-layout">
+        <nav class="chapter-nav" aria-label="기획 목차"></nav>
+        <article class="chapter-panel" id="chapter-panel" aria-labelledby="chapter-title" hidden>
+          <div class="chapter-content">
+            <p class="chapter-status"></p>
+            <h3 class="chapter-title" id="chapter-title" aria-live="polite"></h3>
+            <p class="chapter-question"></p>
+            <p class="chapter-summary"></p>
+            <div class="chapter-actions">
+              <a class="chapter-original" target="_blank" rel="noopener">원본 확대</a>
+              <button class="button button-secondary" type="button" data-present="">이 장에서 발표</button>
+            </div>
+          </div>
+          <figure class="chapter-figure">
+            <a target="_blank" rel="noopener"><img class="chapter-image" alt=""></a>
+          </figure>
+        </article>
+      </div>
+      <noscript>
+        <p>발표와 장 선택에는 자바스크립트가 필요합니다. 흐름도 원본은 아래에서 열 수 있습니다.</p>
+        <ul>
+          <li><a href="assets/05-game-overview.png">게임 전체 흐름</a></li>
+          <li><a href="assets/01-first-service.png">첫 영업</a></li>
+          <li><a href="assets/02-guest-clues.png">손님의 단서</a></li>
+          <li><a href="assets/03-expedition-result.png">탐험 판정</a></li>
+          <li><a href="assets/04-guest-reactions.png">손님의 반응</a></li>
+        </ul>
+      </noscript>
+    </section>
+  </main>
+</body>
+</html>
