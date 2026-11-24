@@ -77,7 +77,7 @@ namespace DOB.Tests
         }
 
         [UnityTest]
-        public IEnumerator NewGameGoesThroughLoadingToBasementRestaurantAndUi()
+        public IEnumerator NewGameGoesThroughLoadingToRestaurantAndUi()
         {
             yield return StartFromTitle();
             Assert.That(SceneManager.GetSceneByName(TitleScene).isLoaded, Is.False, "Title은 게임 진입 후 남지 않는다");
@@ -105,7 +105,7 @@ namespace DOB.Tests
             Assert.That(visit.GuestId, Is.EqualTo(service.GuestId).And.Not.EqualTo(hud.Dialogue.FirstGuestId));
             Assert.That(visit.GuestName, Is.Not.Empty);
             string servedVisit = null, servedName = null, servedLine = null;
-            kitchen.Served += (id, name, line) => { servedVisit = id; servedName = name; servedLine = line; };
+            kitchen.Served += meal => { servedVisit = meal.VisitId; servedName = meal.GuestName; servedLine = meal.Line; };
             Assert.That(kitchen.Gold, Is.EqualTo(50));
             Assert.That(kitchen.GarlicStock, Is.EqualTo(2));
             Assert.That(hud.Settle.IsInteractable(), Is.False);
@@ -120,7 +120,7 @@ namespace DOB.Tests
             var fade = SceneManager.GetSceneByName(BasementComposition.UiScene).GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<Image>(true)).Single(image => image.name == "FadeOverlay");
             yield return Until(() => FindActiveButton("FollowButton") && !fade.raycastTarget, "동행 버튼 입력 가능");
-            Assert.That(FindActiveButton("SendHomeButton"), Is.Null, "첫날의 튜토리얼 제한 유지");
+            Assert.That(FindActiveButton("SendHomeButton"), Is.Not.Null, "본영업에서는 첫날부터 손님을 돌려보낼 수 있다");
             var view = UnityEngine.Object.FindAnyObjectByType<GuestDialogueView>();
             Assert.That(view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "NameText").text, Is.EqualTo(visit.GuestName));
             var lineClue = visit.Clues.First(c => c.Channel == DialogueClueChannel.Dialogue);
@@ -180,9 +180,21 @@ namespace DOB.Tests
             Assert.That(servedName, Is.EqualTo(visit.GuestName));
             Assert.That(hud.Receipt.text, Does.Contain(servedName).And.Contain(servedLine));
             var bread = UnityEditor.AssetDatabase.LoadAssetAtPath<FirstServiceRecipe>("Assets/_DOB/08.Data/SO_FirstService_Bread.asset");
-            int shortfall = bread.GetShortfall(visit.ActualRisk, true);
+            var shortfalls = ExpeditionJudge.Shortfalls(visit.ActualRisk, axis => bread.Protection(axis, true));
+            int shortfall = ExpeditionJudge.Total(shortfalls);
             Assert.That(servedLine, Is.EqualTo(visit.TasteLine(true)));
             Assert.That(hud.Receipt.text, Does.Contain(visit.DepartureLine(shortfall)));
+            // 서빙한 순간 그 방문의 탐험 결과가 한 번 확정되고, 등급은 출발 한마디와 같은 부족 합에서 나온다.
+            var served = UnityEngine.Object.FindAnyObjectByType<SettlementManager>().TodayResults.Single();
+            Assert.That(served.VisitId, Is.EqualTo(visit.VisitId));
+            Assert.That(served.GuestId, Is.EqualTo(visit.GuestId));
+            Assert.That(served.Shortfalls, Is.EqualTo(shortfalls));
+            Assert.That(served.Grade, Is.EqualTo(ExpeditionJudge.Grade(shortfall)));
+            // 대성공이면 30% 확률로 희귀 재료(숲 송로)가 하나 더 붙으므로 일반 재료만 센다.
+            Assert.That(served.Loot.Count(material => material != "숲 송로"), Is.EqualTo(new[] { 3, 2, 1, 0 }[(int)served.Grade]));
+            Assert.That(served.Loot.Count(material => material == "숲 송로"),
+                Is.LessThanOrEqualTo(served.Grade == ExpeditionGrade.GreatSuccess ? 1 : 0));
+            Assert.That(UnityEngine.Object.FindAnyObjectByType<EconomyManager>().Materials.All(), Is.Empty, "전리품은 다음 아침에 받는다");
             Canvas.ForceUpdateCanvases();
             var receipt = hud.Receipt;
             var settings = receipt.GetGenerationSettings(receipt.rectTransform.rect.size);
@@ -210,8 +222,23 @@ namespace DOB.Tests
             var game = BasementComposition.Current.Game;
             Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.MorningReport));
             Assert.That(UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().enabled, Is.False);
+            // 어제의 방문이 오늘 아침의 미처리 귀환 보고로 넘어오고, 보고가 끝나면 전리품이 한 번 반영된다.
+            var settlement = UnityEngine.Object.FindAnyObjectByType<SettlementManager>();
+            var economy = UnityEngine.Object.FindAnyObjectByType<EconomyManager>();
+            var report = settlement.Reports.Single();
+            Assert.That(report.VisitId, Is.EqualTo(firstVisit));
+            Assert.That(report.Grade, Is.EqualTo(served.Grade));
+            Assert.That(report.Loot, Is.EqualTo(served.Loot));
+            Assert.That(settlement.IsReportConfirmed(firstVisit), Is.False);
+            Assert.That(settlement.TodayResults, Is.Empty);
+            Assert.That(economy.Materials.All(), Is.Empty);
             yield return Click("ConfirmMorningReport");
             Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.Preparation));
+            Assert.That(settlement.IsReportConfirmed(firstVisit), Is.True);
+            Assert.That(economy.Materials.All().Sum(m => m.Count), Is.EqualTo(report.Loot.Count));
+            Assert.That(settlement.ConfirmReport(firstVisit), Is.EqualTo(ReportConfirmResult.AlreadyConfirmed));
+            Assert.That(economy.Materials.All().Sum(m => m.Count), Is.EqualTo(report.Loot.Count));
+            Assert.That(kitchen.Gold, Is.EqualTo(59), "귀환 보고는 금화를 바꾸지 않는다");
             yield return Click("StartService");
             Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.Service));
             yield return Until(() => UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId != null, "2일차 영업에서 손님 입장");
@@ -322,6 +349,63 @@ namespace DOB.Tests
             Assert.That(kitchen.Gold, Is.EqualTo(59));
             Assert.That(kitchen.GarlicStock, Is.EqualTo(1));
             Assert.That(kitchen.HasServed, Is.False);
+        }
+
+        [UnityTest]
+        public IEnumerator ReloadingRestartsTheMorningReportAndReceivedLootCarriesToTheNextDay()
+        {
+            var report = new VisitResult("guest-1", "visit-1", "하루", 1, "구운 빵", true, new[] { 0, 0, 0, 0, 0, 0 },
+                ExpeditionGrade.GreatSuccess, new[] { "들풀", "들풀", "숲버섯" });
+            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1,
+                new[] { new MaterialCount("숲버섯", 1) }, new[] { report });
+
+            SettlementManager settlement = null;
+            EconomyManager economy = null;
+            // 보고 도중에는 저장하지 않는다. 다시 이어하면 같은 일차의 시작으로 돌아가 보고를 처음부터 받는다.
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                yield return LoadTitle();
+                yield return Click("ContinueButton");
+                yield return Until(() => ReadyDay(2), "이어하기로 2일차 진입 " + attempt);
+                settlement = UnityEngine.Object.FindAnyObjectByType<SettlementManager>();
+                economy = UnityEngine.Object.FindAnyObjectByType<EconomyManager>();
+                Assert.That(settlement.Reports.Single().VisitId, Is.EqualTo("visit-1"));
+                Assert.That(settlement.Reports.Single().Grade, Is.EqualTo(ExpeditionGrade.GreatSuccess));
+                Assert.That(settlement.IsReportConfirmed("visit-1"), Is.False, "불러오면 보고는 미처리 " + attempt);
+                Assert.That(economy.Materials.Count("숲버섯"), Is.EqualTo(1), "불러오면 재료는 일차 시작 값 " + attempt);
+                Assert.That(economy.Materials.Count("들풀"), Is.Zero);
+
+                // 첫 진입에서는 화면이 보고를 하나 먼저 확정한 경우를 흉내 낸다. 아침 보고를 끝내도 다시 지급되지 않는다.
+                if (attempt == 0)
+                    Assert.That(settlement.ConfirmReport("visit-1"), Is.EqualTo(ReportConfirmResult.Confirmed));
+                yield return Click("ConfirmMorningReport");
+                Assert.That(settlement.IsReportConfirmed("visit-1"), Is.True);
+                Assert.That(economy.Materials.Count("숲버섯"), Is.EqualTo(2));
+                Assert.That(economy.Materials.Count("들풀"), Is.EqualTo(2));
+            }
+
+            // 2일차 손님을 돌려보내면 탐험 결과가 남지 않고, 아침에 받은 재료는 정산을 거쳐 3일차로 넘어간다.
+            yield return Click("StartService");
+            var layout = UnityEngine.Object.FindAnyObjectByType<RestaurantLayout>();
+            var hud = UnityEngine.Object.FindAnyObjectByType<BasementHud>();
+            var actors = SceneManager.GetSceneByName(BasementComposition.BaseScene).GetRootGameObjects()
+                .Single(obj => obj.name == "RuntimeCharacters").transform;
+            var guest = actors.Find("PF_Guest");
+            yield return Until(() => guest.position == layout.GreetingPoint.position, "2일차 손님 입장");
+            Place(actors.Find("PF_Player").GetComponent<CharacterController>(), layout.GreetingPoint.position + Vector3.right * .9f);
+            yield return Until(() => hud.Guidance.text.Contains("손님을 맞이"), "E 응대 가능 안내");
+            yield return Press(Key.E);
+            yield return Until(DialogueReady, "응대 화면 입력 가능");
+            yield return Click("SendHomeButton");
+            yield return Click("YesButton");
+            yield return Until(() => hud.Settle.IsInteractable(), "돌려보낸 뒤 정산 버튼 활성화");
+            Assert.That(settlement.TodayResults, Is.Empty, "돌려보낸 손님은 탐험 결과가 없다");
+            yield return Click("SettleDay");
+            yield return Until(() => ReadyDay(3), "3일차 로드");
+            Assert.That(UnityEngine.Object.FindAnyObjectByType<SettlementManager>().Reports, Is.Empty);
+            economy = UnityEngine.Object.FindAnyObjectByType<EconomyManager>();
+            Assert.That(economy.Materials.Count("숲버섯"), Is.EqualTo(2));
+            Assert.That(economy.Materials.Count("들풀"), Is.EqualTo(2));
         }
 
         [UnityTest]

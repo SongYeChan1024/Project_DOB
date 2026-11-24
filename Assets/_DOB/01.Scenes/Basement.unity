@@ -320,6 +320,8 @@ GameObject:
   - component: {fileID: 338973284}
   - component: {fileID: 338973286}
   - component: {fileID: 338973287}
+  - component: {fileID: 338973289}
+  - component: {fileID: 338973288}
   m_Layer: 0
   m_Name: Systems
   m_TagString: Untagged
@@ -372,6 +374,8 @@ MonoBehaviour:
   service: {fileID: 993346891}
   kitchen: {fileID: 2035097304}
   relationship: {fileID: 338973287}
+  settlement: {fileID: 338973289}
+  economy: {fileID: 338973288}
   settings: {fileID: 11400000, guid: 63cc637be448bd7488900a45bf867c9d, type: 2}
 --- !u!114 &338973287
 MonoBehaviour:
@@ -385,6 +389,31 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6c2f1d2b28db3642b6913bd97ebed82, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.RelationshipManager
+--- !u!114 &338973288
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 338973283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fe28f59e683f9a14a98483f6a986cfe7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.Manager::DOB.Manager.EconomyManager
+--- !u!114 &338973289
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 338973283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5416fe13cccbc2a4a9a7a952065972bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.Manager::DOB.Manager.SettlementManager
+  rewards: {fileID: 11400000, guid: df40de1602d755b418699bed55aef252, type: 2}
 --- !u!1001 &617800609
 PrefabInstance:
   m_ObjectHideFlags: 0

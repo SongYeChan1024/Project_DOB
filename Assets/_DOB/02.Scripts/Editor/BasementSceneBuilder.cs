@@ -25,7 +25,7 @@ namespace DOB.Editor
         [MenuItem("DOB/Basement/Windows 시험 빌드")]
         public static void BuildPreview()
         {
-            string[] scenes = { DOB.Manager.SceneComposition.Title, "Loading", "Basement", "BasementRestaurant", "BasementUI" };
+            string[] scenes = { DOB.Manager.SceneComposition.Title, "Loading", "Basement", DOB.Manager.BasementComposition.RestaurantScene, "BasementUI" };
             const string output = "Builds/Basement/Basement.exe";
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output));
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
@@ -41,11 +41,10 @@ namespace DOB.Editor
 
         public static void Generate()
         {
-            foreach (var name in new[] { "Basement", "BasementRestaurant", "BasementUI", "BasementTitle" })
+            foreach (var name in new[] { "Basement", "BasementUI", "BasementTitle" })
                 if (System.IO.File.Exists(Scenes + name + ".unity"))
                     throw new InvalidOperationException("이미 있는 프리뷰 씬을 보존합니다. " + name);
             EditorSceneManager.OpenScene(Scenes + "Title.unity", OpenSceneMode.Single);
-            BasementGrayboxBuilder.CreateScene();
             CreateGame();
             CreateHud();
             CreateTitle();
@@ -133,6 +132,9 @@ namespace DOB.Editor
             Wire(plate, ("kitchen", kitchen), ("carryAnchor",player.transform.Find("Anchors/PlatePoint")));
             var game = ComponentOn(systems,"GameManager");
             Wire(game,("service",service),("kitchen",kitchen),("relationship",ComponentOn(systems,"RelationshipManager")),("settings",DayCycleSettings()));
+            var settlement = ComponentOn(systems,"SettlementManager");
+            Wire(settlement,("rewards",ExpeditionRewards()));
+            Wire(game,("settlement",settlement),("economy",ComponentOn(systems,"EconomyManager")));
             var composer = ComponentOn(systems,"BasementComposition");
             Wire(composer,("game",game));
             Save("Basement");
@@ -261,6 +263,103 @@ namespace DOB.Editor
             EditorUtility.SetDirty(hud.Settle.GetComponentInChildren<Text>());
             Save("BasementUI");
             Debug.Log("DOB_BASEMENT_DAY_FLOW_READY");
+        }
+
+        // 아트가 배치한 Restaurant 씬을 새 게임 경로의 식당 레벨로 쓰도록 배치 계약(RestaurantLayout)과 이동 경계만 붙인다.
+        // 기준점 위치와 가구·조명은 건드리지 않는다. 아트 메뉴(Build Restaurant Greybox)는 LayoutAnchors를 지우지 않으므로 다시 빌드해도 남는다.
+        [MenuItem("DOB/Basement/Restaurant 씬 연결 추가")]
+        public static void AddRestaurantLayout()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var anchors = EditorSceneManager.OpenScene(Scenes + "Restaurant.unity", OpenSceneMode.Single).GetRootGameObjects()
+                .Single(root => root.name == "LayoutAnchors").transform;
+            var layout = anchors.GetComponent<DOB.Manager.RestaurantLayout>();
+            if (!layout) layout = anchors.gameObject.AddComponent<DOB.Manager.RestaurantLayout>();
+
+            // 아트의 블록 바닥은 빌드할 때마다 새로 만들어지고 충돌체가 없다. 이동 경계와 발판은 기준점 쪽에 따로 둔다.
+            var bounds = anchors.Find("FloorBounds");
+            if (!bounds)
+            {
+                bounds = new GameObject("FloorBounds").transform;
+                bounds.SetParent(anchors, false);
+            }
+            var floor = bounds.GetComponent<BoxCollider>();
+            if (!floor) floor = bounds.gameObject.AddComponent<BoxCollider>();
+            // 건물 격자(RestaurantGreyboxSetup: x -6~6, z -4~6)를 덮고 윗면이 바닥 높이 0에 오게 한다.
+            floor.center = new Vector3(0f, -0.5f, 1f);
+            floor.size = new Vector3(12f, 1f, 10f);
+
+            var data = new SerializedObject(layout);
+            foreach (var (field, anchor) in new[] { ("playerSpawn", "PlayerSpawn"), ("guestEntrance", "GuestEntrance"),
+                         ("greetingPoint", "GreetingPoint"), ("kitchen", "Kitchen"), ("stairsExit", "StairsExit") })
+                data.FindProperty(field).objectReferenceValue = RequiredAnchor(anchors, anchor);
+            // 💡 시작 3석만 영업 좌석으로 잇는다 (아트 배치의 start 좌석). Seat04~06은 '좌석 늘리기' 해금을 연결할 때 추가한다.
+            string[] startSeats = { "Seat01", "Seat02", "Seat03" };
+            var seats = data.FindProperty("seats");
+            seats.arraySize = startSeats.Length;
+            for (int i = 0; i < startSeats.Length; i++)
+                seats.GetArrayElementAtIndex(i).objectReferenceValue = RequiredAnchor(anchors, startSeats[i]);
+            data.FindProperty("floor").objectReferenceValue = floor;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            Save("Restaurant");
+            Debug.Log("DOB_RESTAURANT_LAYOUT_READY");
+        }
+
+        private static Transform RequiredAnchor(Transform anchors, string name)
+        {
+            var anchor = anchors.Find(name);
+            if (!anchor) throw new InvalidOperationException("Restaurant 기준점 누락: " + name);
+            return anchor;
+        }
+
+        private const string ExpeditionRewardsPath = "08.Data/SO_ExpeditionRewards.asset";
+
+        // 이미 있는 Basement 씬에 정산·경제 총괄(F7·F9 방문 결과와 귀환 보고, 던전 재료 재고) 연결만 추가한다.
+        [MenuItem("DOB/Basement/정산·경제 연결 추가")]
+        public static void AddSettlement()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var game = EditorSceneManager.OpenScene(Scenes + "Basement.unity", OpenSceneMode.Single).GetRootGameObjects()
+                .Select(root => root.GetComponentInChildren<DOB.Manager.GameManager>(true)).Single(found => found);
+            var settlement = game.GetComponent<DOB.Manager.SettlementManager>();
+            if (!settlement) settlement = game.gameObject.AddComponent<DOB.Manager.SettlementManager>();
+            var economy = game.GetComponent<DOB.Manager.EconomyManager>();
+            if (!economy) economy = game.gameObject.AddComponent<DOB.Manager.EconomyManager>();
+            Wire(settlement,("rewards",ExpeditionRewards()));
+            Wire(game,("settlement",settlement),("economy",economy));
+            Save("Basement");
+            Debug.Log("DOB_BASEMENT_SETTLEMENT_READY");
+        }
+
+        // 💡 시험값: 등급별 전리품 3·2·1·0, 1층 일반 재료 4종, 대성공 때 희귀 재료(숲 송로) 30% (FeatureManagerMap F9, FirstPlayEconomy). 에셋이 이미 있으면 값을 건드리지 않는다.
+        private static ScriptableObject ExpeditionRewards()
+        {
+            var rewards = Asset<ScriptableObject>(ExpeditionRewardsPath);
+            if (rewards)
+                return rewards;
+            rewards = ScriptableObject.CreateInstance<DOB.Define.ExpeditionRewards>();
+            var data = new SerializedObject(rewards);
+            var counts = data.FindProperty("lootByGrade");
+            int[] byGrade = { 3, 2, 1, 0 };
+            counts.arraySize = byGrade.Length;
+            for (int i = 0; i < byGrade.Length; i++)
+                counts.GetArrayElementAtIndex(i).intValue = byGrade[i];
+            var floors = data.FindProperty("floors");
+            floors.arraySize = 1;
+            var first = floors.GetArrayElementAtIndex(0);
+            first.FindPropertyRelative("floor").intValue = 1;
+            var materials = first.FindPropertyRelative("materials");
+            string[] forest = { "슬라임 젤리", "숲버섯", "들풀", "숲 당근" };
+            materials.arraySize = forest.Length;
+            for (int i = 0; i < forest.Length; i++)
+                materials.GetArrayElementAtIndex(i).stringValue = forest[i];
+            first.FindPropertyRelative("rareMaterial").stringValue = "숲 송로";
+            data.FindProperty("rareLootChance").floatValue = 0.3f;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.CreateAsset(rewards, Root + ExpeditionRewardsPath);
+            return rewards;
         }
 
         private static ScriptableObject DayCycleSettings()

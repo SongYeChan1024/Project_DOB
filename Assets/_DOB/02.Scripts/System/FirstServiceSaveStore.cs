@@ -1,11 +1,14 @@
 // 슬롯별 JSON을 같은 디렉터리의 임시 파일에 완전히 쓴 후 교체한다. 손상된 원본은 직전 백업으로 읽는다.
 // 정산은 쓰기 잠금 안에서 저장 일차를 다시 읽고, 아직 처리하지 않은 방문일의 지급 후 상태만 기록한다.
+// 스냅샷에는 던전 재료 재고와 다음 아침의 미처리 귀환 보고가 함께 들어간다 (FirstServiceSaveData).
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Xml;
+using DOB.Define;
 
 namespace DOB.Systems
 {
@@ -35,15 +38,19 @@ namespace DOB.Systems
             return data != null;
         }
 
-        public FirstServiceSaveData SavePreparation(FirstServiceSaveSlot slot, int day, int gold, int garlicStock)
+        /// <summary>일차 시작 스냅샷을 쓴다. 재료와 미처리 귀환 보고를 생략하면 비어 있는 것으로 저장한다.</summary>
+        public FirstServiceSaveData SavePreparation(FirstServiceSaveSlot slot, int day, int gold, int garlicStock,
+            IEnumerable<MaterialCount> materials = null, IEnumerable<VisitResult> pendingReports = null)
         {
             lock (WriteGate)
             using (LockDirectory())
-                return Write(slot, day, gold, garlicStock);
+                return Write(slot, day, gold, garlicStock, materials, pendingReports);
         }
 
-        /// <summary>수입 대신 지급이 끝난 절대 잔액을 받는다. 같은 날의 두 번째 호출은 기존 저장본을 반환한다.</summary>
-        public FirstServiceSaveData SettleDay(int completedDay, int goldAfterPayment, int garlicAfterService)
+        /// <summary>수입 대신 지급이 끝난 절대 잔액·재고와 그날의 방문 결과를 받아 다음 일차 시작으로 쓴다.
+        /// 같은 날의 두 번째 호출은 기존 저장본을 반환한다.</summary>
+        public FirstServiceSaveData SettleDay(int completedDay, int goldAfterPayment, int garlicAfterService,
+            IEnumerable<MaterialCount> materialsAfterReports = null, IEnumerable<VisitResult> visitResults = null)
         {
             if (completedDay < 1 || completedDay == int.MaxValue) throw new ArgumentOutOfRangeException(nameof(completedDay));
             lock (WriteGate)
@@ -51,7 +58,8 @@ namespace DOB.Systems
             {
                 if (TryLoad(FirstServiceSaveSlot.Auto, out var previous) && previous.Day > completedDay)
                     return previous;
-                return Write(FirstServiceSaveSlot.Auto, completedDay + 1, goldAfterPayment, garlicAfterService);
+                return Write(FirstServiceSaveSlot.Auto, completedDay + 1, goldAfterPayment, garlicAfterService,
+                    materialsAfterReports, visitResults);
             }
         }
 
@@ -87,12 +95,13 @@ namespace DOB.Systems
                 ex.GetBaseException() is SerializationException) { return false; }
         }
 
-        private FirstServiceSaveData Write(FirstServiceSaveSlot slot, int day, int gold, int garlicStock)
+        private FirstServiceSaveData Write(FirstServiceSaveSlot slot, int day, int gold, int garlicStock,
+            IEnumerable<MaterialCount> materials, IEnumerable<VisitResult> pendingReports)
         {
             DateTime timestamp = DateTime.UtcNow;
             if (TryLoadLatest(out var latest) && timestamp <= latest.SavedAtUtc && latest.SavedAtUtc < DateTime.MaxValue)
                 timestamp = latest.SavedAtUtc.AddTicks(1);
-            var data = new FirstServiceSaveData(slot, day, gold, garlicStock, timestamp);
+            var data = new FirstServiceSaveData(slot, day, gold, garlicStock, timestamp, materials, pendingReports);
             string path = SlotPath(slot);
             string backup = path + ".bak";
             string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";

@@ -25,13 +25,16 @@ namespace DOB.Define
         public int BreadBasePrice => breadBasePrice;
         public int StartGold => startGold;
 
-        /// <summary>손님에게 실제로 필요한 여섯 축에서 이번 빵과 양념의 효과를 빼고 부족한 칸만 더한다.</summary>
-        public int GetShortfall(Func<string, int> actualRisk, bool hasGarlic)
+        /// <summary>이번 빵과 양념이 한 축을 덮는 칸 수. 효과가 없는 축은 0. 부족 계산은 ExpeditionJudge가 한다.</summary>
+        public int Protection(string axis, bool hasGarlic)
         {
-            if (actualRisk == null) throw new ArgumentNullException(nameof(actualRisk));
-            int Missing(string axis, int protection = 0) => Math.Max(0, actualRisk(axis) - protection);
-            return Missing("독", hasGarlic ? garlicPoison : 0) + Missing("체력", breadStamina)
-                + Missing("함정", breadTrap) + Missing("열") + Missing("냉기") + Missing("어둠");
+            switch (axis)
+            {
+                case "독": return hasGarlic ? garlicPoison : 0;
+                case "체력": return breadStamina;
+                case "함정": return breadTrap;
+                default: return 0;
+            }
         }
     }
 }

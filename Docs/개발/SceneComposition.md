@@ -2,7 +2,7 @@
 
 ## Basement 브랜치의 타이틀 진입
 
-`Title`의 ‘새로 시작’과 ‘이어하기’는 `Loading`을 거쳐 `Basement`(플레이어·카메라·진행), `BasementRestaurant`(레벨), `BasementUI`(영업 화면)를 함께 연다. 새 게임은 1일차에서, 이어하기는 최근 유효한 자동·수동 슬롯에 저장된 일차에서 시작한다. ESC 메뉴에서 끝내기를 확인하면 `Title`로 복귀한다. 기존 `Restaurant + Gameplay` 및 `Tutorial` 조합은 아래 초기 설계의 개발·검증 경로로 유지한다.
+`Title`의 ‘새로 시작’과 ‘이어하기’는 `Loading`을 거쳐 `Basement`(플레이어·카메라·진행), `Restaurant`(레벨), `BasementUI`(영업 화면)를 함께 연다. 2026-11-24 김언호: 레벨을 그레이박스 `BasementRestaurant`에서 아트가 배치한 `Restaurant`으로 바꿨다. `Restaurant`의 `LayoutAnchors`에 배치 계약(`RestaurantLayout`, 💡 시작 3석)과 이동 경계(`FloorBounds`)를 붙였고(`DOB > Basement > Restaurant 씬 연결 추가`), 기준점 위치와 가구·조명은 그대로다. 전환을 플레이와 PlayMode 테스트로 확인한 뒤 `BasementRestaurant` 씬과 그 그레이박스 빌더, 그 씬만 쓰던 재질을 삭제했다. 새 게임은 1일차에서, 이어하기는 최근 유효한 자동·수동 슬롯에 저장된 일차에서 시작한다. ESC 메뉴에서 끝내기를 확인하면 `Title`로 복귀한다. 기존 `Restaurant + Gameplay` 및 `Tutorial` 조합은 아래 초기 설계의 개발·검증 경로로 유지한다.
 
 ## 초기 씬 구성
 

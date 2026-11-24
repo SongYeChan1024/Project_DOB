@@ -113,9 +113,8 @@ namespace DOB.Manager
             uiScene = dialogue.gameObject.scene;
             SceneManager.sceneLoaded += OnSceneLoaded;
             SceneManager.sceneUnloaded += OnSceneUnloaded;
-            if (!TryBindRestaurant(gameObject.scene)
-                && !TryBindRestaurant(SceneManager.GetSceneByName(BasementComposition.RestaurantScene)))
-                TryBindRestaurant(SceneManager.GetSceneByName(SceneComposition.Restaurant));
+            if (!TryBindRestaurant(gameObject.scene))
+                TryBindRestaurant(SceneManager.GetSceneByName(BasementComposition.RestaurantScene));
         }
 
         private void OnDisable()
@@ -130,7 +129,7 @@ namespace DOB.Manager
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (scene == gameObject.scene || scene.name == BasementComposition.RestaurantScene || scene.name == SceneComposition.Restaurant)
+            if (scene == gameObject.scene || scene.name == BasementComposition.RestaurantScene)
                 TryBindRestaurant(scene);
         }
 

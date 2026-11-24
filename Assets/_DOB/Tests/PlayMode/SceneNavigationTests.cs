@@ -29,7 +29,7 @@ namespace DOB.Tests
             Assert.That(sceneNames.FirstOrDefault(), Is.EqualTo("Title"), "빌드는 타이틀에서 시작해야 합니다.");
             CollectionAssert.AreEquivalent(
                 new[] { "Title", "Loading", "Restaurant", "Gameplay", "Tutorial", "ReturnReport",
-                    "Basement", "BasementRestaurant", "BasementUI" },
+                    "Basement", "BasementUI" },
                 sceneNames);
             Assert.That(sceneNames, Does.Not.Contain("CharacterTest"), "개발용 캐릭터 씬은 플레이어 빌드에서 제외합니다.");
         }
