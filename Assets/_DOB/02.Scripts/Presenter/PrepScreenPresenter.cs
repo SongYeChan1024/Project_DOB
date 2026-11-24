@@ -24,6 +24,7 @@ using System.Collections.Generic;
 using System.Linq;
 using DOB.UI;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace DOB.Manager
 {
@@ -84,6 +85,15 @@ namespace DOB.Manager
             UIManager.UnregisterPrepScreen(this);
         }
 
+        // Esc로 닫기 (PR #20 버그: 테스트 입력에만 있었음).
+        // shortcut: 일시 정지 메뉴도 Esc를 받으면 같이 열릴 수 있음, BasementPauseMenu가 UIManager.IsPrepScreenOpen을 보게 되면 정리
+        private void Update()
+        {
+            var keyboard = Keyboard.current;
+            if (IsOpen && keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+                Close();
+        }
+
         /// <summary>화면 하나를 연다. 이미 다른 준비 화면이 열려 있으면 바꿔 끼운다.</summary>
         public bool Open(PrepScreen screen)
         {
@@ -131,6 +141,8 @@ namespace DOB.Manager
 
         private void OnOpenBusiness()
         {
+            // 이미 닫히는 중이면 무시 (화면 쪽 입력 차단과 별개로 한 번 더 막음)
+            if (!IsOpen) return;
             Close();
             // TODO(계약): GameManager(DayCycle)가 UIManager.StartBusinessRequested를 듣고 준비 → 영업으로 넘긴다.
             UIManager.HandleStartBusiness();
@@ -211,7 +223,8 @@ namespace DOB.Manager
         }
 
         // 기획 10장 던전 재료 (그림 이름 → 한글 이름 · 나오는 층 · 희귀)
-        private static readonly Dictionary<string, (string name, int floor, bool rare)> Ingredients =
+        // internal: 요리 화면(KitchenPresenter)도 같은 더미 표를 쓴다. 계약 후 08.Data ScriptableObject로 옮긴다.
+        internal static readonly Dictionary<string, (string name, int floor, bool rare)> Ingredients =
             new Dictionary<string, (string, int, bool)>
             {
                 ["SlimeJelly"] = ("슬라임 젤리", 1, false), ["ForestMushroom"] = ("숲버섯", 1, false),
@@ -225,11 +238,11 @@ namespace DOB.Manager
             };
         private static readonly string[] FloorNames = { "", "슬라임 숲", "곰팡이 동굴", "용암 균열", "서리 회랑", "눈먼 심연" };
 
-        private static string IngredientName(string id) => Ingredients.TryGetValue(id, out var v) ? v.name : id;
+        internal static string IngredientName(string id) => Ingredients.TryGetValue(id, out var v) ? v.name : id;
 
         // 마우스를 올리면 보일 설명: 어디서 나오는지 + 이걸로 만드는 요리와 그 효과
         // 예) "1층 슬라임 숲 재료\n슬라임 젤리 샐러드: 해독 2 · 감각 1"
-        private static string IngredientInfo(string id)
+        internal static string IngredientInfo(string id)
         {
             if (!Ingredients.TryGetValue(id, out var v)) return string.Empty;
             string where = $"{v.floor}층 {FloorNames[v.floor]} {(v.rare ? "희귀 재료" : "재료")}";
@@ -246,18 +259,20 @@ namespace DOB.Manager
             return itemIcons.FirstOrDefault(sp => sp && sp.name == file);
         }
 
-        // 기획 11장 양념 표 (효과 +1 · 맛 · 가격)
+        // 기획 11장 양념 표 (효과 +1 · 맛 · 가격). 그림 순서도 이 순서
+        internal static readonly (string id, string name, string effect, string flavor, int price)[] SpiceTable =
+        {
+            ("garlic", "마늘", "해독", "향긋", 2),
+            ("mint", "박하", "내열", "시원", 2),
+            ("ginger", "생강", "방한", "얼큰", 2),
+            ("carrot", "당근즙", "야광", "달콤", 3),
+            ("salt", "소금", "활력", "짭짤", 2),
+            ("pepper", "후추", "감각", "알싸", 2),
+        };
+
         private SpiceItemData[] BuildSpices()
         {
-            (string id, string name, string effect, string flavor, int price)[] table =
-            {
-                ("garlic", "마늘", "해독", "향긋", 2),
-                ("mint", "박하", "내열", "시원", 2),
-                ("ginger", "생강", "방한", "얼큰", 2),
-                ("carrot", "당근즙", "야광", "달콤", 3),
-                ("salt", "소금", "활력", "짭짤", 2),
-                ("pepper", "후추", "감각", "알싸", 2),
-            };
+            var table = SpiceTable;
             var result = new SpiceItemData[table.Length];
             for (int i = 0; i < table.Length; i++)
             {
@@ -300,7 +315,7 @@ namespace DOB.Manager
         }
 
         // 기획 11장 레시피 표 (처음엔 기본 레시피 3개만 열림). id는 요리 그림 이름과 같게 (T_UI_Dish + id)
-        private static readonly RecipeItemData[] Recipes =
+        internal static readonly RecipeItemData[] Recipes =
         {
             R("Bread", "구운 빵", true, "밀가루 × 2", true, "고소 · 담백", 8, ("활력", 1), ("감각", 1)),
             R("PotatoStew", "감자 스튜", true, "감자 × 1 · 고기 × 1", true, "진한", 10, ("활력", 2)),

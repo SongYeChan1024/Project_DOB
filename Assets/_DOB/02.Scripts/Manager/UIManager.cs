@@ -30,6 +30,14 @@
 // [등록]      준비 화면 Presenter가 켜지면 등록, 꺼지면 해제한다 (로딩 화면과 같은 방식)
 // [열기]      등록된 화면이 없으면 경고하고 false → 있으면 그 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패)을 연다
 // [영업 시작] 입구 문패의 [문 열기]를 StartBusinessRequested로 알린다 (듣는 쪽: GameManager · 없으면 경고)
+//
+// ── 요리 화면 (홍준우 추가 · 2026-11-24) ──────────────────────────────
+// 호출자 : 식당의 화구 상호작용(E) 쪽 (OpenKitchen(화구 번호), CloseKitchen, IsKitchenOpen)
+//          KitchenPresenter (RegisterKitchen, UnregisterKitchen)
+// 호출   : KitchenPresenter
+// 상태   : 등록된 요리 화면 Presenter 하나.
+// [열기]      등록된 화면이 없으면 경고하고 false → 있으면 그 화구의 요리 화면을 연다
+// [열림 여부] 재료 고르는 중에는 손님 대기 시간을 멈춘다(기획 4-1). 손님 쪽이 IsKitchenOpen을 읽는다
 // =====================================================================
 using System;
 using System.Collections;
@@ -41,7 +49,7 @@ using UnityEngine.SceneManagement;
 
 namespace DOB.Manager
 {
-    /// <summary>씬을 넘어 유지되는 공용 화면 중계자. 로딩 화면 · 실패 안내 입력 · 준비 화면을 맡는다.</summary>
+    /// <summary>씬을 넘어 유지되는 공용 화면 중계자. 로딩 화면 · 실패 안내 입력 · 준비 화면 · 요리 화면을 맡는다.</summary>
     [DisallowMultipleComponent]
     public sealed class UIManager : MonoBehaviour
     {
@@ -62,6 +70,11 @@ namespace DOB.Manager
 
         // ---------------- 준비 화면 ----------------
         private PrepScreenPresenter prepScreen;
+        // ---------------- 요리 화면 ----------------
+        private KitchenPresenter kitchen;
+
+        /// <summary>화구 요리 화면이 열려 있는지 (재료 고르는 중).</summary>
+        public static bool IsKitchenOpen => instance && instance.kitchen && instance.kitchen.IsOpen;
 
         /// <summary>준비 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패) 중 하나가 열려 있는지.</summary>
         public static bool IsPrepScreenOpen => instance && instance.prepScreen && instance.prepScreen.IsOpen;
@@ -133,6 +146,43 @@ namespace DOB.Manager
             if (StartBusinessRequested == null)
                 Debug.LogWarning("[DOB] 영업 시작 요청을 받을 곳이 없습니다 (StartBusinessRequested 구독 없음).");
             StartBusinessRequested?.Invoke();
+        }
+
+        // =================================================================
+        // 요리 화면 (홍준우)
+        // =================================================================
+
+        /// <summary>요리 화면 Presenter가 켜질 때 등록한다.</summary>
+        internal static void RegisterKitchen(KitchenPresenter screen)
+        {
+            if (screen)
+                Instance.kitchen = screen;
+        }
+
+        /// <summary>요리 화면 Presenter가 꺼질 때 등록을 푼다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        internal static void UnregisterKitchen(KitchenPresenter screen)
+        {
+            if (!instance || instance.kitchen != screen)
+                return;
+            instance.kitchen = null;
+        }
+
+        /// <summary>화구 하나(0부터)의 요리 화면을 연다. 등록된 화면이 없으면 경고하고 false.</summary>
+        public static bool OpenKitchen(int burner)
+        {
+            if (!instance || !instance.kitchen)
+            {
+                Debug.LogWarning("[DOB] 요리 화면이 등록되지 않아 열 수 없습니다: 화구 " + burner);
+                return false;
+            }
+            return instance.kitchen.Open(burner);
+        }
+
+        /// <summary>열린 요리 화면을 닫는다. 없으면 무시한다.</summary>
+        public static void CloseKitchen()
+        {
+            if (instance && instance.kitchen)
+                instance.kitchen.Close();
         }
 
         /// <summary>Loading 씬의 로딩 화면이 켜질 때 등록한다.</summary>
