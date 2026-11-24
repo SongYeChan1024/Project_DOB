@@ -21,8 +21,19 @@
 // [실패]      화면이 없으면 false를 돌려 호출자가 정리하게 한다
 //             → 있으면 EventSystem을 보장하고 실패 안내를 띄운다
 // [버튼 응답] 타이틀로: SceneLoadService에 실패 정리 후 타이틀 전환을 요청 / 종료: 게임 종료
+//
+// ── 준비 화면 (홍준우 추가 · 2026-11-24) ──────────────────────────────
+// 호출자 : 식당 물건 상호작용(E) · Tab 입력 쪽 (OpenPrepScreen, ClosePrepScreen)
+//          PrepScreenPresenter (RegisterPrepScreen, UnregisterPrepScreen, HandleStartBusiness)
+// 호출   : PrepScreenPresenter
+// 상태   : 등록된 준비 화면 Presenter 하나.
+// [등록]      준비 화면 Presenter가 켜지면 등록, 꺼지면 해제한다 (로딩 화면과 같은 방식)
+// [열기]      등록된 화면이 없으면 경고하고 false → 있으면 그 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패)을 연다
+// [영업 시작] 입구 문패의 [문 열기]를 StartBusinessRequested로 알린다 (듣는 쪽: GameManager · 없으면 경고)
 // =====================================================================
+using System;
 using System.Collections;
+using DOB.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -30,7 +41,7 @@ using UnityEngine.SceneManagement;
 
 namespace DOB.Manager
 {
-    /// <summary>씬을 넘어 유지되는 공용 화면 중계자. 지금은 로딩 화면과 실패 안내 입력을 맡는다.</summary>
+    /// <summary>씬을 넘어 유지되는 공용 화면 중계자. 로딩 화면 · 실패 안내 입력 · 준비 화면을 맡는다.</summary>
     [DisallowMultipleComponent]
     public sealed class UIManager : MonoBehaviour
     {
@@ -49,6 +60,15 @@ namespace DOB.Manager
         /// <summary>로딩 화면이 열려 있거나 여는 중인지. 닫기가 끝나거나 화면이 사라지면 거짓이다.</summary>
         public static bool IsLoadingOpen => instance && (instance.loadingOpen || instance.loadingOpening);
 
+        // ---------------- 준비 화면 ----------------
+        private PrepScreenPresenter prepScreen;
+
+        /// <summary>준비 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패) 중 하나가 열려 있는지.</summary>
+        public static bool IsPrepScreenOpen => instance && instance.prepScreen && instance.prepScreen.IsOpen;
+
+        /// <summary>입구 문패에서 [문 열기]를 눌렀다. GameManager(DayCycle, 💡 구성안)가 구독해 준비 → 영업으로 넘긴다.</summary>
+        public static event Action StartBusinessRequested;
+
         private static UIManager Instance
         {
             get
@@ -64,7 +84,56 @@ namespace DOB.Manager
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetInstance() => instance = null;
+        private static void ResetInstance()
+        {
+            instance = null;
+            StartBusinessRequested = null;
+        }
+
+        // =================================================================
+        // 준비 화면 (홍준우)
+        // =================================================================
+
+        /// <summary>준비 화면 Presenter가 켜질 때 등록한다.</summary>
+        internal static void RegisterPrepScreen(PrepScreenPresenter screen)
+        {
+            if (screen)
+                Instance.prepScreen = screen;
+        }
+
+        /// <summary>준비 화면 Presenter가 꺼질 때 등록을 푼다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        internal static void UnregisterPrepScreen(PrepScreenPresenter screen)
+        {
+            if (!instance || instance.prepScreen != screen)
+                return;
+            instance.prepScreen = null;
+        }
+
+        /// <summary>준비 화면 하나를 연다. 등록된 화면이 없으면 경고하고 false.</summary>
+        public static bool OpenPrepScreen(PrepScreen screen)
+        {
+            if (!instance || !instance.prepScreen)
+            {
+                Debug.LogWarning("[DOB] 준비 화면이 등록되지 않아 열 수 없습니다: " + screen);
+                return false;
+            }
+            return instance.prepScreen.Open(screen);
+        }
+
+        /// <summary>열린 준비 화면을 닫는다. 없으면 무시한다.</summary>
+        public static void ClosePrepScreen()
+        {
+            if (instance && instance.prepScreen)
+                instance.prepScreen.Close();
+        }
+
+        /// <summary>입구 문패 [문 열기] 응답.</summary>
+        internal static void HandleStartBusiness()
+        {
+            if (StartBusinessRequested == null)
+                Debug.LogWarning("[DOB] 영업 시작 요청을 받을 곳이 없습니다 (StartBusinessRequested 구독 없음).");
+            StartBusinessRequested?.Invoke();
+        }
 
         /// <summary>Loading 씬의 로딩 화면이 켜질 때 등록한다.</summary>
         internal static void RegisterLoadingScreen(LoadingScreenPresenter screen)
