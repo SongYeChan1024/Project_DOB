@@ -120,7 +120,7 @@ namespace DOB.Tests
             var fade = SceneManager.GetSceneByName(BasementComposition.UiScene).GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<Image>(true)).Single(image => image.name == "FadeOverlay");
             yield return Until(() => FindActiveButton("FollowButton") && !fade.raycastTarget, "동행 버튼 입력 가능");
-            Assert.That(FindActiveButton("SendHomeButton"), Is.Null, "첫날의 튜토리얼 제한 유지");
+            Assert.That(FindActiveButton("SendHomeButton"), Is.Not.Null, "본영업에서는 첫날부터 손님을 돌려보낼 수 있다");
             var view = UnityEngine.Object.FindAnyObjectByType<GuestDialogueView>();
             Assert.That(view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "NameText").text, Is.EqualTo(visit.GuestName));
             var lineClue = visit.Clues.First(c => c.Channel == DialogueClueChannel.Dialogue);
