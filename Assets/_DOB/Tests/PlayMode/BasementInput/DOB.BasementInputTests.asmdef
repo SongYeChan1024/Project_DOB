@@ -1,6 +1,7 @@
 {
   "name": "DOB.BasementInputTests",
   "references": [
+    "DOB.Define",
     "DOB.Manager",
     "Unity.InputSystem",
     "Unity.ugui",

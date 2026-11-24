@@ -1,5 +1,6 @@
 // 착석한 방문에 주문 하나를 연다. 주방에서 레시피를 확인하고 확정하면 월드 입력을 돌려준다.
 // 조리 시간은 대화 상태와 독립적으로 흐른다. 접시는 주방에서 들고 해당 방문의 자리에서만 서빙한다.
+// 서빙이 성공하면 Served로 알려 GameManager가 방명록 글을 등록하게 한다.
 using DOB.Define;
 using DOB.Systems;
 using UnityEngine;
@@ -29,6 +30,8 @@ namespace DOB.Manager
         public int GarlicStock => order?.GarlicStock ?? DayStartGarlic;
         public bool HasServed => order != null && order.State == FirstGuestOrderState.Served;
         public bool IsCarrying => order != null && order.State == FirstGuestOrderState.Carrying;
+        /// <summary>서빙이 성공할 때 방문 ID, 손님 이름, 맛 소감 한 줄을 한 번 알린다 (방명록 등록용).</summary>
+        public event System.Action<string, string, string> Served;
         // 양념이 부족한 날에도 무료 기본 재료로 영업을 진행한다 (첫 플레이 E11).
         private int GarlicForBread => DayStartGarlic >= recipe.GarlicRequired ? recipe.GarlicRequired : 0;
 
@@ -119,6 +122,7 @@ namespace DOB.Manager
                 gold += payment;
                 string line = GarlicForBread > 0 ? guest.ServeLine : guest.PlainBreadLine;
                 receipt.text = $"{guest.GuestName}   “{line}”\n서빙 +{payment}금화   ·   보유 {gold}금화   ·   남은 마늘 {order.GarlicStock}개";
+                Served?.Invoke(service.VisitId, guest.GuestName, line);
                 service.TryDepartForDungeon(service.VisitId);
                 return true;
             }
