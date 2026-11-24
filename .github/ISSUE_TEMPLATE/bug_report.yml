@@ -1,0 +1,73 @@
+name: 버그·기획 의도 신고
+description: 오류, 기획과 다른 동작, 의도 확인이 필요한 동작을 제보합니다.
+title: "[분야] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목은 `[분야] 한 줄 요약`으로 적어 주세요. 예를 들어 `[UI] 시장에서 닫기 버튼을 눌러도 창이 남음`처럼 씁니다.
+
+  - type: dropdown
+    id: report-kind
+    attributes:
+      label: 신고 유형
+      options:
+        - 오류·버그
+        - 확정된 기획과 다른 동작
+        - 기획 의도 확인 필요
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 심각도
+      options:
+        - 막힘(진행 불가)
+        - 중요
+        - 사소
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 시작한 씬이나 화면부터 문제가 발생한 조작까지 순서대로 적어 주세요. 가끔 발생하면 빈도도 함께 적어 주세요.
+      placeholder: |
+        1. 준비 중에 시장을 연다.
+        2. 양념 수량을 한 번 늘린다.
+        3. 닫기 버튼을 누른다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 결과와 근거
+      description: 기대한 동작을 적고, 근거가 있으면 기획서의 문서명·절이나 팀 합의를 함께 적어 주세요. 의도가 미정이면 팀에 확인할 질문을 적어 주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      description: 화면에 남은 내용, 달라진 값, 오류 메시지 등 직접 확인한 결과를 적어 주세요.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: 실행 환경과 버전
+      description: 에디터 또는 빌드에서 확인했는지 적고, 아는 범위에서 Unity 버전·브랜치·커밋 또는 빌드 번호를 적어 주세요.
+      placeholder: Windows / Unity 6000.4.0f1 에디터 / Basement
+    validations:
+      required: true
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: 스크린샷·영상·로그 (선택)
+      description: 문제가 보이는 파일을 끌어 놓거나 관련 콘솔 로그를 붙여 주세요.
