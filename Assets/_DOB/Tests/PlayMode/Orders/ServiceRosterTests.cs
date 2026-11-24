@@ -98,6 +98,13 @@ namespace DOB.Tests
         }
 
         [Test]
+        public void WordOfMouthExtraGuestsAddToThePlannedCount()
+        {
+            Assert.That(new ServiceRoster(Settings(), new System.Random(1), 1).Planned, Is.EqualTo(4));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new ServiceRoster(Settings(), new System.Random(1), -1));
+        }
+
+        [Test]
         public void InvalidSettingsAreRejected()
         {
             Assert.Throws<ArgumentException>(() => new ServiceRoster(Settings(guests: 0), new System.Random(1)));

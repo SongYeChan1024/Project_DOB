@@ -391,6 +391,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d6c2f1d2b28db3642b6913bd97ebed82, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.RelationshipManager
+  rules: {fileID: 11400000, guid: 02e4bc3ff8feb3645b18067d1b4ac8bc, type: 2}
 --- !u!114 &338973288
 MonoBehaviour:
   m_ObjectHideFlags: 0
