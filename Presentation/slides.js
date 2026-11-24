@@ -4,14 +4,14 @@
 
   const dialog = document.createElement("dialog");
   dialog.className = "dob-slides";
-  dialog.setAttribute("aria-label", "기획 자료 발표");
+  dialog.setAttribute("aria-label", "흐름도 자료실");
   dialog.innerHTML = `
     <div class="dob-slides__frame">
       <div class="dob-slides__header">
         <span class="dob-slides__count" aria-hidden="true"></span>
         <h2 class="dob-slides__title" tabindex="-1"></h2>
         <button type="button" data-act="full">전체화면</button>
-        <button type="button" data-act="close" aria-label="발표 닫기">닫기</button>
+        <button type="button" data-act="close" aria-label="자료실 닫기">닫기</button>
       </div>
       <div class="dob-slides__stage" role="region" aria-label="발표 자료">
         <img class="dob-slides__image" alt="">
@@ -70,7 +70,7 @@
     const chapter = chapters[index];
     const focused = document.activeElement;
     title.textContent = chapter.title;
-    part("count").textContent = (index + 1) + " / " + chapters.length;
+    part("count").textContent = "흐름도 " + (index + 1) + " / " + chapters.length;
     part("announcement").textContent = "전체 " + chapters.length + "장 중 " + (index + 1) + "장, " + chapter.title;
     part("question").textContent = chapter.question;
     part("summary").textContent = chapter.summary;
@@ -110,6 +110,8 @@
   });
 
   function syncFullscreen() {
+    const deckIsFullscreen = document.fullscreenElement === document.documentElement;
+    full.hidden = deckIsFullscreen || !document.fullscreenEnabled || typeof frame.requestFullscreen !== "function";
     full.textContent = document.fullscreenElement === frame ? "전체화면 해제" : "전체화면";
   }
 
@@ -204,7 +206,6 @@
     const id = trigger.dataset.present;
     const first = id ? chapters.findIndex((chapter) => String(chapter.id) === id) : 0;
     setNotes(false);
-    full.hidden = !document.fullscreenEnabled || typeof frame.requestFullscreen !== "function";
     syncFullscreen();
     render(Math.max(0, first));
     dialog.showModal();
