@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9710e6716b9f8c144874c60713ab17bd, type: 3}
+  m_Name: SO_CookingPotRattle
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.CookingPotRattleSettings
+  restSecondsAtStart: {x: 0.8, y: 1.5}
+  restSecondsAtEnd: {x: 0.2, y: 0.45}
+  burstGapSeconds: 0.13
+  burstCountMax: 4
+  liftSeconds: 0.07
+  dropSeconds: 0.15
+  liftHeight: 0.0174
+  tiltDegrees: 11
+  bounce: 0.35
+  startIntensity: 0.7
+  randomness: 0.3
+  wobbleDegrees: 6
+  wobbleFrequency: 9
+  wobbleSeconds: 0.4
+  spinDegrees: 12
+  trembleAmount: 0.00435
+  trembleFrequency: 6
+  climaxFrom: 0.9
+  bodySquash: 0.16
+  bodyHopHeight: 0.036250003
+  squashSeconds: 0.18
+  finishLiftHeight: 0.087
+  finishTiltDegrees: 20
+  finishSeconds: 0.5
+  steamPerRattle: 6
+  steamOnFinish: 24
