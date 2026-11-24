@@ -98,6 +98,27 @@ namespace DOB.Tests
         }
 
         [Test]
+        public void WordOfMouthExtraGuestsAddToThePlannedCount()
+        {
+            Assert.That(new ServiceRoster(Settings(), new System.Random(1), 1).Planned, Is.EqualTo(4));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new ServiceRoster(Settings(), new System.Random(1), -1));
+        }
+
+        [Test]
+        public void WaitScoreNowAndPatienceLeftFollowTheWaitClock()
+        {
+            var roster = Open();
+            Assert.That(roster.Admit("v1", "g1"), Is.True);
+            var visit = roster.Find("v1");
+            Assert.That((roster.WaitScoreNow(visit), roster.PatienceLeft(visit)), Is.EqualTo((2, 30f)));
+            roster.Tick(12f);
+            Assert.That((roster.WaitScoreNow(visit), roster.PatienceLeft(visit)), Is.EqualTo((1, 18f)));
+            roster.Tick(25f);
+            Assert.That(visit.End, Is.EqualTo(ServiceVisitEnd.WaitedOut));
+            Assert.That((roster.WaitScoreNow(visit), roster.PatienceLeft(visit)), Is.EqualTo((0, 0f)));
+        }
+
+        [Test]
         public void InvalidSettingsAreRejected()
         {
             Assert.Throws<ArgumentException>(() => new ServiceRoster(Settings(guests: 0), new System.Random(1)));

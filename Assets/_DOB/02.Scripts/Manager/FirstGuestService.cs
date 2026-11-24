@@ -4,7 +4,8 @@
 //         PlayerMovementController(이동 잠금), Cinemachine(클로즈업).
 // 상태  : 식당 배치, 응대 중인 손님, 따라오는 손님(한 번에 하나), 카메라 줌 타이머, 마지막 퇴장 안내.
 // 의사코드:
-//   식당이 준비되면 GuestManager로 그날 명단을 열어 첫 손님을 입구에 세운다. 이후 입장은 GameManager의 Tick이 만든다.
+//   식당이 준비되면 GuestManager로 그날 명단을(GameManager가 넘긴 입소문 추가 인원 포함) 열어 첫 손님을 입구에 세운다.
+//   이후 입장은 GameManager의 Tick이 만든다.
 //   매 프레임 손님마다 목표를 정해 걷게 한다: 입구 대기는 줄 위치(GreetingPoint에서 입구 쪽으로 줄 간격씩 뒤),
 //   따라오기는 플레이어 뒤, 좌석 안내는 의자, 끝난 방문은 문(돌려보냄·대기 이탈) 또는 계단(파견).
 //   E: ① 따라오는 손님이 빈 자리 가까이 있으면 자리를 선점하고 의자로 보낸다. ② 줄에 선 가장 가까운 손님을 명단에서
@@ -58,6 +59,8 @@ namespace DOB.Manager
         private string notice;
         private bool observing;
         private int serviceDay;
+        // 그 일차의 입소문 추가 인원. 명단을 열 때 GuestManager에 넘긴다.
+        private int extraGuests;
 
         private bool CanSendHome => serviceDay > 1 || dialogue.FirstGuestCanSendHome;
         private ServiceRoster Roster => guests.Roster;
@@ -99,12 +102,13 @@ namespace DOB.Manager
         /// <summary>주방 메뉴가 열려 있으면 플레이어와 손님 이동을 멈춘다.</summary>
         public Func<bool> KitchenIsOpen { get; set; }
 
-        /// <summary>BasementUI가 준비되면 GameManager가 서비스 활성화 전에 HUD와 응대 Presenter, 일차를 전달한다.</summary>
-        public void ConnectHud(Text label, FirstGuestDialogue presenter, int day)
+        /// <summary>BasementUI가 준비되면 GameManager가 서비스 활성화 전에 HUD와 응대 Presenter, 일차, 그 일차의 입소문 추가 인원을 전달한다.</summary>
+        public void ConnectHud(Text label, FirstGuestDialogue presenter, int day, int wordOfMouthBonus = 0)
         {
             guidance = label;
             dialogue = presenter;
             serviceDay = day;
+            extraGuests = wordOfMouthBonus;
         }
 
         /// <summary>그 방문이 의자에 앉아 있으면 좌석 기준점, 아니면 null.</summary>
@@ -193,7 +197,7 @@ namespace DOB.Manager
                     Debug.LogError("[DOB] RestaurantLayout의 배치 기준점·바닥 연결을 확인하세요.", candidate);
                     return false;
                 }
-                if (!guests.BeginService(serviceDay, candidate.GuestEntrance))
+                if (!guests.BeginService(serviceDay, candidate.GuestEntrance, extraGuests))
                     return false;
 
                 guests.VisitEnded += OnVisitEnded;

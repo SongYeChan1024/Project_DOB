@@ -4,7 +4,8 @@
 // 호출  : ServiceRoster, GuestArrivalPool·GuestDialogueGenerator(Resources의 손님 후보·대사 규칙), GuestAgent.
 // 상태  : 기준값·손님 템플릿(직렬화), 현재 일차, 입구 위치, 명단, 입장한 손님 에이전트 목록.
 // 의사코드:
-//   BeginService — 이미 열렸거나 기준값이 잘못되면 거절. 새 명단을 열고 바로 Tick(0)으로 첫 손님을 입장시킨다.
+//   BeginService — 이미 열렸거나 기준값이 잘못되면 거절. 그 일차의 입소문 추가 인원으로 새 명단을 열고
+//                  바로 Tick(0)으로 첫 손님을 입장시킨다.
 //   Tick(Δ)     — 명단에 입장·대기 Δ를 넘긴다(대기 이탈은 명단이 확정하고 VisitEnded로 알린다).
 //                  명단이 입장을 허락하는 동안 방문 원고를 만들어 등록하고 에이전트를 입구에 세운다.
 //                  첫 손님은 씬의 템플릿을 그대로 쓰고 이후 손님은 템플릿을 복제한다.
@@ -49,8 +50,8 @@ namespace DOB.Manager
         /// <summary>그 방문의 손님 오브젝트. 없으면 null.</summary>
         public GuestAgent Find(string visitId) => agents.Find(a => a.VisitId == visitId);
 
-        /// <summary>식당이 준비되면 그날 명단을 열고 첫 손님을 입구에 세운다.</summary>
-        public bool BeginService(int serviceDay, Transform guestEntrance)
+        /// <summary>식당이 준비되면 그날 명단을 열고 첫 손님을 입구에 세운다. 예정 수는 기본 인원 + 입소문 추가 인원(0 이상).</summary>
+        public bool BeginService(int serviceDay, Transform guestEntrance, int wordOfMouthBonus = 0)
         {
             string error = SetupError;
             if (Roster != null || !guestEntrance || error != null)
@@ -60,7 +61,7 @@ namespace DOB.Manager
             }
             day = serviceDay;
             entrance = guestEntrance;
-            Roster = new ServiceRoster(Settings, random);
+            Roster = new ServiceRoster(Settings, random, wordOfMouthBonus);
             Roster.VisitEnded += OnVisitEnded;
             template.gameObject.SetActive(false);
             Tick(0f);

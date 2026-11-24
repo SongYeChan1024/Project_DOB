@@ -19,14 +19,23 @@ namespace DOB.Tests
     /// <summary>통합 테스트용 영업 손님 기준값을 GuestManager에 넣고 뺀다.</summary>
     internal static class TestGuestRoster
     {
-        public static void Use(int guests, float arrivalSeconds = 1f, int queue = 3, float leaveAfter = 600f)
+        public static void Use(int guests, float arrivalSeconds = 1f, int queue = 3, float leaveAfter = 600f, float scoreStep = 10f)
         {
             Clear();
             var settings = ScriptableObject.CreateInstance<ServiceRosterSettings>();
             JsonUtility.FromJsonOverwrite(
                 $"{{\"baseGuests\":{guests},\"arrivalMinSeconds\":{arrivalSeconds},\"arrivalMaxSeconds\":{arrivalSeconds}," +
-                $"\"queueCapacity\":{queue},\"waitStartScore\":2,\"scoreStepSeconds\":10,\"leaveAfterSeconds\":{leaveAfter}}}", settings);
+                $"\"queueCapacity\":{queue},\"waitStartScore\":2,\"scoreStepSeconds\":{scoreStep},\"leaveAfterSeconds\":{leaveAfter}}}", settings);
             GuestManager.SettingsOverride = settings;
+        }
+
+        /// <summary>씬의 호감·입소문 기준 대신 JSON으로 덮어쓴 기준을 쓴다. 적지 않은 값은 💡 시험값(기본값)이다.</summary>
+        public static AffinityRules UseAffinityRules(string json)
+        {
+            var rules = ScriptableObject.CreateInstance<AffinityRules>();
+            JsonUtility.FromJsonOverwrite(json, rules);
+            RelationshipManager.RulesOverride = rules;
+            return rules;
         }
 
         public static void Clear()
@@ -34,6 +43,9 @@ namespace DOB.Tests
             if (GuestManager.SettingsOverride)
                 Object.DestroyImmediate(GuestManager.SettingsOverride);
             GuestManager.SettingsOverride = null;
+            if (RelationshipManager.RulesOverride)
+                Object.DestroyImmediate(RelationshipManager.RulesOverride);
+            RelationshipManager.RulesOverride = null;
         }
     }
 
@@ -162,6 +174,86 @@ namespace DOB.Tests
             Assert.That(s.Guests.Roster.NextArrivalSeconds, Is.EqualTo(arrival), "일시 정지 중 입장 정지");
             yield return Press(Key.Escape);
             Assert.That(Time.timeScale, Is.EqualTo(1f));
+        }
+
+        // ── 입소문: 1일차 방문 호감이 2일차 예정 인원을 정한다 ──
+
+        [UnityTest]
+        public IEnumerator WellServedGuestsBringMoreGuestsNextDayAndTheReloadedSaveAgrees()
+        {
+            // 대기 점수가 2점에 머물도록 점수 간격을 길게 두고, 입맛 0점에서도 문턱에 닿도록 방문 최대를 4로 낮춘다.
+            // 탐험 등급은 손님 위험이 무작위라 고정할 수 없으므로, 테스트 기준에서는 실패·대실패도 +1로 두어 어떤 등급이든 방문당 3점 이상이 되게 한다.
+            TestGuestRoster.Use(guests: 3, scoreStep: 600f);
+            var rules = TestGuestRoster.UseAffinityRules("{\"visitMaxPoints\":4,\"failurePoints\":1,\"greatFailurePoints\":1}");
+            yield return StartFromTitle();
+            var s = FindScene();
+            yield return Until(() => s.Guests.Agents.Count == 3 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "세 손님 입장");
+            var agents = s.Guests.Agents.ToArray();
+            int[] seats = { 0, 2, 0 };
+            for (int i = 0; i < agents.Length; i++)
+            {
+                yield return GreetAndSeat(s, agents[i], seats[i]);
+                yield return CookAndServe(s, agents[i]);
+            }
+            yield return Until(() => s.Hud.Settle.IsInteractable(), "세 손님 파견 후 마감");
+
+            var grades = Object.FindAnyObjectByType<SettlementManager>().TodayResults.Select(r => r.Grade).ToArray();
+            Assert.That(grades.Length, Is.EqualTo(3));
+            Assert.That(s.Guests.Roster.Visits.Select(v => v.WaitScore), Has.All.EqualTo(2), "전제: 대기 점수 2");
+            int sum = grades.Sum(g => 2 + rules.GradePoints(g));
+            int expected = AffinityJudge.ExtraGuests(rules, sum, 3);
+            Assert.That(expected, Is.GreaterThanOrEqualTo(2), "방문 최대 4 × 3명 = 12점, 방문당 3점 이상이면 75% 문턱까지 도달");
+
+            yield return Click("SettleDay");
+            yield return Until(() => ReadyDay(2), "2일차 로드");
+            var relationship = Object.FindAnyObjectByType<RelationshipManager>();
+            Assert.That(relationship.WordOfMouthBonus, Is.EqualTo(expected));
+            Assert.That(relationship.YesterdayTally, Is.EqualTo((sum, 3)));
+            var yesterday = relationship.YesterdayAffinities.Select(a => (a.VisitId, a.Total)).ToArray();
+            CollectionAssert.AreEqual(agents.Select(a => a.VisitId), yesterday.Select(a => a.VisitId), "방문마다 기록 하나, 정산 순서");
+            yield return OpenServiceAndExpectPlanned(3 + expected);
+
+            // 2일차 시작 자동 저장을 이어하기로 다시 불러와도 같은 기록과 예정 인원을 얻는다.
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(2), "이어하기로 2일차 진입");
+            relationship = Object.FindAnyObjectByType<RelationshipManager>();
+            Assert.That(relationship.WordOfMouthBonus, Is.EqualTo(expected));
+            CollectionAssert.AreEqual(yesterday, relationship.YesterdayAffinities.Select(a => (a.VisitId, a.Total)).ToArray());
+            yield return OpenServiceAndExpectPlanned(3 + expected);
+        }
+
+        [UnityTest]
+        public IEnumerator SendingEveryoneHomeLeavesTheNextDayAtTheBaseCount()
+        {
+            TestGuestRoster.Use(guests: 2);
+            yield return StartFromTitle();
+            var s = FindScene();
+            yield return Until(() => s.Guests.Agents.Count == 2 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "두 손님 입장");
+            foreach (var guest in s.Guests.Agents.ToArray())
+            {
+                yield return Greet(s, guest);
+                yield return Click("SendHomeButton");
+                yield return Click("YesButton");
+            }
+            yield return Until(() => s.Hud.Settle.IsInteractable(), "모두 돌려보낸 뒤 마감");
+            yield return Click("SettleDay");
+            yield return Until(() => ReadyDay(2), "2일차 로드");
+            var relationship = Object.FindAnyObjectByType<RelationshipManager>();
+            Assert.That(relationship.YesterdayAffinities.Count, Is.EqualTo(2), "돌려보낸 방문도 기록은 남는다");
+            Assert.That(relationship.YesterdayTally, Is.EqualTo((0, 0)), "💡 시험값: 돌려보낸 방문은 입소문에 넣지 않는다");
+            Assert.That(relationship.WordOfMouthBonus, Is.Zero);
+            yield return OpenServiceAndExpectPlanned(2);
+        }
+
+        // 아침 보고를 넘기고 영업을 시작해 명단이 열리면 예정 방문 수를 확인한다.
+        private IEnumerator OpenServiceAndExpectPlanned(int planned)
+        {
+            yield return Click("ConfirmMorningReport");
+            yield return Click("StartService");
+            var guests = Object.FindAnyObjectByType<GuestManager>();
+            yield return Until(() => guests.Roster != null, "영업 명단 열림");
+            Assert.That(guests.Roster.Planned, Is.EqualTo(planned));
         }
 
         // 줄 방향의 옆에 서서 그 손님만 가장 가깝게 만든 뒤 응대를 연다. 줌아웃 중이면 E가 거절되므로 될 때까지 다시 누른다.
