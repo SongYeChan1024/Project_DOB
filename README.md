@@ -293,7 +293,7 @@ Loading은 전환 화면이고, CharacterTest는 같은 캐릭터 프리팹을 �
 
 | 에셋 | 사용처 | 출처 링크 | 라이선스 |
 | --- | --- | --- | --- |
-| 🔴 | | | |
+| Castle Wall Slates 텍스처 (1k 디퓨즈·노멀 GL, Rob Tuytel) | 식당 돌 기단 `PF_Env_Foundation` · `Assets/_DOB/04.Art/Textures/T_Env_Foundation_Albedo.jpg`·`_Normal.jpg` (이름 변경) | https://polyhaven.com/a/castle_wall_slates | CC0 |
 
 ## 6. 코드 규칙
 
@@ -504,3 +504,4 @@ GitHub **Issues**에 올리고, 고친 PR 본문에 `Fixes #번호`를 적습니
 | 2026.11.01 | 송예찬 | 기존 브랜치 이력을 main에 통합한 뒤 backend·frontend·art 역할 브랜치로 제작 시작. 역할별 PR·main 경유 통합·병합 후 역할 브랜치 유지와 갱신 규칙 적용 |
 | 2026.11.01 | 송예찬 | 씬을 일곱 개로 분리하고 식당 공간·실행·튜토리얼 Additive 조합, 전환 Loading, 빌드에서 제외하는 CharacterTest와 담당 범위를 정리 |
 | 2026.11.23 | 송예찬 | 기획 목차 아래에 네 가지 범위별 자료실을 만들고 관련 문서와 노션 제작 카드를 연결 |
+| 2026.11.23 | 이기혁 | 5장 외부 에셋 출처에 식당 기단용 Poly Haven 텍스처(CC0) 추가 |
