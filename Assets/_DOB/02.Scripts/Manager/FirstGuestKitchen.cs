@@ -1,6 +1,8 @@
 // 착석한 방문에 주문 하나를 연다. 주방에서 레시피를 확인하고 확정하면 월드 입력을 돌려준다.
 // 조리 시간은 대화 상태와 독립적으로 흐른다. 접시는 주방에서 들고 해당 방문의 자리에서만 서빙한다.
-// 서빙이 성공하면 Served로 알려 GameManager가 방명록 글을 등록하게 한다.
+// 서빙이 성공하면 축별 부족을 한 번 계산해 출발 한마디를 고르고, 같은 값을 Served로 알려
+// GameManager가 방명록 글 등록과 방문 결과 확정을 요청하게 한다.
+using System.Collections.Generic;
 using DOB.Define;
 using DOB.Systems;
 using UnityEngine;
@@ -32,8 +34,30 @@ namespace DOB.Manager
         public int GarlicStock => order?.GarlicStock ?? DayStartGarlic;
         public bool HasServed => order != null && order.State == FirstGuestOrderState.Served;
         public bool IsCarrying => order != null && order.State == FirstGuestOrderState.Carrying;
-        /// <summary>서빙이 성공할 때 방문 ID, 손님 이름, 맛 소감 한 줄을 한 번 알린다 (방명록 등록용).</summary>
-        public event System.Action<string, string, string> Served;
+        /// <summary>서빙이 성공한 한 끼. 축별 부족은 RiskAxes.All 순서이며, 생성된 방문이 없으면 null이다.</summary>
+        public readonly struct ServedMeal
+        {
+            public readonly string VisitId;
+            public readonly string GuestName;
+            public readonly string Line;
+            public readonly string Dish;
+            public readonly bool UsedSeasoning;
+            public readonly IReadOnlyList<int> Shortfalls;
+
+            public ServedMeal(string visitId, string guestName, string line, string dish, bool usedSeasoning, IReadOnlyList<int> shortfalls)
+            {
+                VisitId = visitId;
+                GuestName = guestName;
+                Line = line;
+                Dish = dish;
+                UsedSeasoning = usedSeasoning;
+                Shortfalls = shortfalls;
+            }
+        }
+
+        private const string Dish = "구운 빵";
+        /// <summary>서빙이 성공할 때 한 번 알린다 (방명록 등록과 방문 결과 확정용).</summary>
+        public event System.Action<ServedMeal> Served;
         // 양념이 부족한 날에도 무료 기본 재료로 영업을 진행한다 (첫 플레이 E11).
         private int GarlicForBread => DayStartGarlic >= recipe.GarlicRequired ? recipe.GarlicRequired : 0;
 
@@ -128,11 +152,13 @@ namespace DOB.Manager
                 bool hasGarlic = GarlicForBread > 0;
                 string line;
                 string resolve = string.Empty;
+                int[] shortfalls = null;
                 if (orderGuest != null)
                 {
                     line = orderGuest.TasteLine(hasGarlic);
-                    int shortfall = recipe.GetShortfall(orderGuest.ActualRisk, hasGarlic);
-                    resolve = $"\n“{orderGuest.DepartureLine(shortfall)}”";
+                    // 출발 한마디와 방문 결과의 등급이 어긋나지 않도록 부족을 한 번만 계산해 함께 쓴다.
+                    shortfalls = ExpeditionJudge.Shortfalls(orderGuest.ActualRisk, axis => recipe.Protection(axis, hasGarlic));
+                    resolve = $"\n“{orderGuest.DepartureLine(ExpeditionJudge.Total(shortfalls))}”";
                 }
                 else
                     line = hasGarlic ? guest.ServeLine : guest.PlainBreadLine;
@@ -140,7 +166,7 @@ namespace DOB.Manager
                 if (receipt.preferredHeight > receipt.rectTransform.rect.height)
                     receipt.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, receipt.preferredHeight);
                 string servedVisit = order.VisitId;
-                Served?.Invoke(servedVisit, GuestName, line);
+                Served?.Invoke(new ServedMeal(servedVisit, GuestName, line, Dish, hasGarlic, shortfalls));
                 service.TryDepartForDungeon(servedVisit);
                 return true;
             }

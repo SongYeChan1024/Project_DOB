@@ -133,6 +133,9 @@ namespace DOB.Editor
             Wire(plate, ("kitchen", kitchen), ("carryAnchor",player.transform.Find("Anchors/PlatePoint")));
             var game = ComponentOn(systems,"GameManager");
             Wire(game,("service",service),("kitchen",kitchen),("relationship",ComponentOn(systems,"RelationshipManager")),("settings",DayCycleSettings()));
+            var settlement = ComponentOn(systems,"SettlementManager");
+            Wire(settlement,("rewards",ExpeditionRewards()));
+            Wire(game,("settlement",settlement),("economy",ComponentOn(systems,"EconomyManager")));
             var composer = ComponentOn(systems,"BasementComposition");
             Wire(composer,("game",game));
             Save("Basement");
@@ -261,6 +264,53 @@ namespace DOB.Editor
             EditorUtility.SetDirty(hud.Settle.GetComponentInChildren<Text>());
             Save("BasementUI");
             Debug.Log("DOB_BASEMENT_DAY_FLOW_READY");
+        }
+
+        private const string ExpeditionRewardsPath = "08.Data/SO_ExpeditionRewards.asset";
+
+        // 이미 있는 Basement 씬에 정산·경제 총괄(F7·F9 방문 결과와 귀환 보고, 던전 재료 재고) 연결만 추가한다.
+        [MenuItem("DOB/Basement/정산·경제 연결 추가")]
+        public static void AddSettlement()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var game = EditorSceneManager.OpenScene(Scenes + "Basement.unity", OpenSceneMode.Single).GetRootGameObjects()
+                .Select(root => root.GetComponentInChildren<DOB.Manager.GameManager>(true)).Single(found => found);
+            var settlement = game.GetComponent<DOB.Manager.SettlementManager>();
+            if (!settlement) settlement = game.gameObject.AddComponent<DOB.Manager.SettlementManager>();
+            var economy = game.GetComponent<DOB.Manager.EconomyManager>();
+            if (!economy) economy = game.gameObject.AddComponent<DOB.Manager.EconomyManager>();
+            Wire(settlement,("rewards",ExpeditionRewards()));
+            Wire(game,("settlement",settlement),("economy",economy));
+            Save("Basement");
+            Debug.Log("DOB_BASEMENT_SETTLEMENT_READY");
+        }
+
+        // 💡 시험값: 등급별 전리품 3·2·1·0, 1층 일반 재료 4종 (FeatureManagerMap F9, FirstPlayEconomy). 에셋이 이미 있으면 값을 건드리지 않는다.
+        private static ScriptableObject ExpeditionRewards()
+        {
+            var rewards = Asset<ScriptableObject>(ExpeditionRewardsPath);
+            if (rewards)
+                return rewards;
+            rewards = ScriptableObject.CreateInstance<DOB.Define.ExpeditionRewards>();
+            var data = new SerializedObject(rewards);
+            var counts = data.FindProperty("lootByGrade");
+            int[] byGrade = { 3, 2, 1, 0 };
+            counts.arraySize = byGrade.Length;
+            for (int i = 0; i < byGrade.Length; i++)
+                counts.GetArrayElementAtIndex(i).intValue = byGrade[i];
+            var floors = data.FindProperty("floors");
+            floors.arraySize = 1;
+            var first = floors.GetArrayElementAtIndex(0);
+            first.FindPropertyRelative("floor").intValue = 1;
+            var materials = first.FindPropertyRelative("materials");
+            string[] forest = { "슬라임 젤리", "숲버섯", "들풀", "숲 당근" };
+            materials.arraySize = forest.Length;
+            for (int i = 0; i < forest.Length; i++)
+                materials.GetArrayElementAtIndex(i).stringValue = forest[i];
+            data.ApplyModifiedPropertiesWithoutUndo();
+            AssetDatabase.CreateAsset(rewards, Root + ExpeditionRewardsPath);
+            return rewards;
         }
 
         private static ScriptableObject DayCycleSettings()
