@@ -5,8 +5,8 @@ on:
     branches: [main]
     paths:
       - 'Presentation/**'
+      - 'Assets/_DOB/07.UI/Sprites/Loading/T_UI_Loading*.png'
       - 'Docs/기획/플레이/Flowcharts/*.png'
-      - 'Docs/References/3D/restaurant-layout.png'
       - '.github/workflows/presentation-pages.yml'
   workflow_dispatch:
 

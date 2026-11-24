@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        제목은 `[분야] 한 줄 요약`으로 적어 주세요. 예를 들어 `[UI] 시장에서 닫기 버튼을 눌러도 창이 남음`처럼 씁니다.
+        새 버그와 개발·배포 장애는 팀 [노션 버그 리포트](https://app.notion.com/p/422f7d6373c380e6b171f90a60bd6e65?v=422f7d6373c38027a9ee000c40da21b2)에 등록합니다. GitHub 이슈를 연결할 때는 노션 항목 링크를 남겨 주세요.
 
   - type: dropdown
     id: report-kind
