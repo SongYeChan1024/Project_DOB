@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="trail.css">
   <script src="content.js" defer></script>
   <script src="features.js" defer></script>
+  <script src="comparisons.js" defer></script>
   <script src="slides.js" defer></script>
   <script src="trail.js" defer></script>
   <script src="deck.js" defer></script>
@@ -32,14 +33,27 @@
         <img class="deck-art" src="assets/loading-title.png" alt="" width="1280" height="714" fetchpriority="high">
         <div class="deck-reading">
           <article class="deck-copy" aria-labelledby="deck-title">
-            <p class="deck-kicker" id="deck-number">게임 기획 발표</p>
-            <h1 id="deck-title">다녀왔어:<br>층계참 식당</h1>
-            <p class="deck-lead" id="deck-lead">손님의 단서를 읽고, 안전한 귀환을 위한 한 끼를 차립니다.</p>
+            <p class="deck-kicker" id="deck-number">01 · 타이틀 메뉴</p>
+            <h1 id="deck-title" tabindex="-1">다녀왔어:<br>층계참 식당</h1>
+            <p class="deck-lead" id="deck-lead">타이틀 메뉴에서 새 게임을 시작합니다.</p>
             <p class="deck-detail" id="deck-detail" hidden></p>
-            <button type="button" class="deck-related" id="deck-related" data-present="" aria-haspopup="dialog" hidden>
-              관련 흐름도 보기 <span aria-hidden="true">↗</span>
-            </button>
+            <nav class="deck-choices" aria-label="연결된 장면" hidden></nav>
+            <div class="deck-references">
+              <button type="button" class="deck-related" id="deck-related" data-present="" aria-haspopup="dialog" hidden>
+                관련 흐름도 보기 <span aria-hidden="true">↗</span>
+              </button>
+              <a class="deck-related" id="dialogue-generator-link" href="https://github.com/SongYeChan1024/Project_DOB/blob/main/Docs/기획/시스템/DialogueGenerator.md" target="_blank" rel="noopener" aria-label="대사 생성기 기획서 (새 탭)" hidden>
+                대사 생성기 기획서 <span aria-hidden="true">↗</span>
+              </a>
+            </div>
           </article>
+          <section class="deck-comparison" aria-label="기획 시안과 실제 플레이 비교" hidden>
+            <div class="compare-tabs" role="tablist" aria-label="비교할 이미지">
+              <button type="button" role="tab" id="compare-tab-before" aria-controls="compare-before" data-side="before">기획 시안</button>
+              <button type="button" role="tab" id="compare-tab-after" aria-controls="compare-after" data-side="after">실제 플레이</button>
+            </div>
+            <div class="compare-pair"></div>
+          </section>
         </div>
       </div>
     </div>
@@ -57,6 +71,25 @@
     <span class="deck-sr" role="status" aria-atomic="true" id="deck-announcement"></span>
     <p class="deck-notice" role="status" id="deck-notice" hidden></p>
   </main>
+  <template id="compare-figure">
+    <figure class="compare-figure">
+      <div class="compare-label"><span></span><strong></strong></div>
+      <button class="compare-open" type="button" aria-haspopup="dialog">
+        <img alt="">
+        <span class="compare-enlarge">원본 확대 <span aria-hidden="true">↗</span></span>
+      </button>
+      <figcaption></figcaption>
+    </figure>
+  </template>
+  <dialog class="compare-viewer" aria-labelledby="compare-viewer-title">
+    <header>
+      <h2 id="compare-viewer-title"></h2>
+      <button type="button" class="compare-zoom" aria-pressed="false">원본 크기</button>
+      <button type="button" class="compare-close" autofocus>닫기</button>
+    </header>
+    <div class="compare-stage" tabindex="-1" role="region" aria-label="확대 이미지"><img alt=""></div>
+    <p class="compare-caption"></p>
+  </dialog>
   <noscript>
     <nav class="deck-fallback" aria-label="흐름도 원본">
       <p>장 이동에는 자바스크립트가 필요합니다. 원본 흐름도를 열어볼 수 있습니다.</p>
