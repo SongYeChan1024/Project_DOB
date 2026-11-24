@@ -22,7 +22,8 @@ namespace DOB.Manager
     {
         public const string BaseScene = "Basement";
         public const string TitleScene = SceneComposition.Title;
-        public const string RestaurantScene = "BasementRestaurant";
+        // 아트가 배치한 식당 씬을 레벨로 쓴다. 배치 계약(RestaurantLayout)은 DOB > Basement > Restaurant 씬 연결 추가로 붙인다.
+        public const string RestaurantScene = SceneComposition.Restaurant;
         public const string UiScene = "BasementUI";
         private const string SceneFolder = "Assets/_DOB/01.Scenes/";
 

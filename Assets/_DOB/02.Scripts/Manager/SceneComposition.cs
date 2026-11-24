@@ -18,7 +18,8 @@ namespace DOB.Manager
         public static IReadOnlyList<string> RuntimeSceneNames { get; } = Array.AsReadOnly(new[]
         {
             Title, Loading, Restaurant, Gameplay, Tutorial, ReturnReport,
-            BasementComposition.BaseScene, BasementComposition.RestaurantScene, BasementComposition.UiScene
+            // 새 게임 경로의 식당 레벨은 위의 Restaurant을 함께 쓴다 (BasementComposition.RestaurantScene).
+            BasementComposition.BaseScene, BasementComposition.UiScene
         });
 
         /// <summary>지원하는 진입 경로의 씬 조합을 반환한다. 호출자는 반환 배열을 독립적으로 사용한다.</summary>

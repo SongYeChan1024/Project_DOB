@@ -25,7 +25,7 @@ namespace DOB.Editor
         [MenuItem("DOB/Basement/Windows 시험 빌드")]
         public static void BuildPreview()
         {
-            string[] scenes = { DOB.Manager.SceneComposition.Title, "Loading", "Basement", "BasementRestaurant", "BasementUI" };
+            string[] scenes = { DOB.Manager.SceneComposition.Title, "Loading", "Basement", DOB.Manager.BasementComposition.RestaurantScene, "BasementUI" };
             const string output = "Builds/Basement/Basement.exe";
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output));
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
@@ -264,6 +264,54 @@ namespace DOB.Editor
             EditorUtility.SetDirty(hud.Settle.GetComponentInChildren<Text>());
             Save("BasementUI");
             Debug.Log("DOB_BASEMENT_DAY_FLOW_READY");
+        }
+
+        // 아트가 배치한 Restaurant 씬을 새 게임 경로의 식당 레벨로 쓰도록 배치 계약(RestaurantLayout)과 이동 경계만 붙인다.
+        // 기준점 위치와 가구·조명은 건드리지 않는다. 아트 메뉴(Build Restaurant Greybox)는 LayoutAnchors를 지우지 않으므로 다시 빌드해도 남는다.
+        [MenuItem("DOB/Basement/Restaurant 씬 연결 추가")]
+        public static void AddRestaurantLayout()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var anchors = EditorSceneManager.OpenScene(Scenes + "Restaurant.unity", OpenSceneMode.Single).GetRootGameObjects()
+                .Single(root => root.name == "LayoutAnchors").transform;
+            var layout = anchors.GetComponent<DOB.Manager.RestaurantLayout>();
+            if (!layout) layout = anchors.gameObject.AddComponent<DOB.Manager.RestaurantLayout>();
+
+            // 아트의 블록 바닥은 빌드할 때마다 새로 만들어지고 충돌체가 없다. 이동 경계와 발판은 기준점 쪽에 따로 둔다.
+            var bounds = anchors.Find("FloorBounds");
+            if (!bounds)
+            {
+                bounds = new GameObject("FloorBounds").transform;
+                bounds.SetParent(anchors, false);
+            }
+            var floor = bounds.GetComponent<BoxCollider>();
+            if (!floor) floor = bounds.gameObject.AddComponent<BoxCollider>();
+            // 건물 격자(RestaurantGreyboxSetup: x -6~6, z -4~6)를 덮고 윗면이 바닥 높이 0에 오게 한다.
+            floor.center = new Vector3(0f, -0.5f, 1f);
+            floor.size = new Vector3(12f, 1f, 10f);
+
+            var data = new SerializedObject(layout);
+            foreach (var (field, anchor) in new[] { ("playerSpawn", "PlayerSpawn"), ("guestEntrance", "GuestEntrance"),
+                         ("greetingPoint", "GreetingPoint"), ("kitchen", "Kitchen"), ("stairsExit", "StairsExit") })
+                data.FindProperty(field).objectReferenceValue = RequiredAnchor(anchors, anchor);
+            // 💡 시작 3석만 영업 좌석으로 잇는다 (아트 배치의 start 좌석). Seat04~06은 '좌석 늘리기' 해금을 연결할 때 추가한다.
+            string[] startSeats = { "Seat01", "Seat02", "Seat03" };
+            var seats = data.FindProperty("seats");
+            seats.arraySize = startSeats.Length;
+            for (int i = 0; i < startSeats.Length; i++)
+                seats.GetArrayElementAtIndex(i).objectReferenceValue = RequiredAnchor(anchors, startSeats[i]);
+            data.FindProperty("floor").objectReferenceValue = floor;
+            data.ApplyModifiedPropertiesWithoutUndo();
+            Save("Restaurant");
+            Debug.Log("DOB_RESTAURANT_LAYOUT_READY");
+        }
+
+        private static Transform RequiredAnchor(Transform anchors, string name)
+        {
+            var anchor = anchors.Find(name);
+            if (!anchor) throw new InvalidOperationException("Restaurant 기준점 누락: " + name);
+            return anchor;
         }
 
         private const string ExpeditionRewardsPath = "08.Data/SO_ExpeditionRewards.asset";
