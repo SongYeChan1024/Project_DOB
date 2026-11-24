@@ -322,6 +322,7 @@ GameObject:
   - component: {fileID: 338973287}
   - component: {fileID: 338973289}
   - component: {fileID: 338973288}
+  - component: {fileID: 338973290}
   m_Layer: 0
   m_Name: Systems
   m_TagString: Untagged
@@ -373,6 +374,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.GameManager
   service: {fileID: 993346891}
   kitchen: {fileID: 2035097304}
+  guests: {fileID: 338973290}
   relationship: {fileID: 338973287}
   settlement: {fileID: 338973289}
   economy: {fileID: 338973288}
@@ -414,6 +416,20 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.SettlementManager
   rewards: {fileID: 11400000, guid: df40de1602d755b418699bed55aef252, type: 2}
+--- !u!114 &338973290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 338973283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb7c9f048dd05bd468526cc36d0a6672, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.Manager::DOB.Manager.GuestManager
+  settings: {fileID: 11400000, guid: 6abf29ec0527bbb468f97f1b96cad6a0, type: 2}
+  template: {fileID: 617800610}
 --- !u!1001 &617800609
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -510,7 +526,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.FirstGuestService
   player: {fileID: 55066205}
-  guest: {fileID: 617800610}
+  guests: {fileID: 338973290}
   worldCamera: {fileID: 147420775}
   guidance: {fileID: 0}
   dialogue: {fileID: 0}
@@ -597,7 +613,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.FirstGuestKitchen
   service: {fileID: 993346891}
   recipe: {fileID: 11400000, guid: b967443705f148f5a1c3f4612938d7fa, type: 2}
-  guest: {fileID: 11400000, guid: 96eb5cb2d19a42b29c3a542023026de9, type: 2}
 --- !u!4 &2035097305
 Transform:
   m_ObjectHideFlags: 0

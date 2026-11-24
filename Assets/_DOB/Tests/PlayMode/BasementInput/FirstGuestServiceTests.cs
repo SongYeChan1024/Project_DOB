@@ -50,6 +50,8 @@ namespace DOB.Tests
             initialTimeScale = Time.timeScale;
             spawned.Clear();
             input = new BasementTestKeyboard();
+            // 기존 한 손님 흐름은 손님 1명·넉넉한 대기 한도로 검증한다. 여러 손님 테스트는 본문에서 다시 정한다.
+            TestGuestRoster.Use(guests: 1);
             keyboard = input.Keyboard;
             mouse = InputSystem.AddDevice<Mouse>("TestMouse");
         }
@@ -71,6 +73,7 @@ namespace DOB.Tests
                 if (otherKeyboard != null && otherKeyboard.added) InputSystem.RemoveDevice(otherKeyboard);
                 if (mouse != null && mouse.added) InputSystem.RemoveDevice(mouse);
                 input?.Dispose();
+                TestGuestRoster.Clear();
                 otherKeyboard = null;
                 mouse = null;
                 keyboard = null;
