@@ -183,7 +183,7 @@ namespace DOB.UI
                 SetRiskIcon(Part<Image>(item, "Icon"), clue.risk);
                 Part<TMP_Text>(item, "Title").text = clue.tag;
                 var sub = Part<TMP_Text>(item, "Sub");
-                sub.text = string.IsNullOrEmpty(clue.risk) ? "어떤 위험인지 아직 몰라요" : clue.risk + " 위험";
+                sub.text = string.IsNullOrEmpty(clue.risk) ? "어떤 위험인지 아직 몰라요" : clue.RiskLabel + " 위험";
                 sub.color = string.IsNullOrEmpty(clue.risk) ? faintColor : PrepPalette.For(clue.risk);
                 if (fromLine) lines++; else portraits++;
             }

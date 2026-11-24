@@ -3,6 +3,8 @@
   "references": [
     "DOB.Define",
     "DOB.Manager",
+    "DOB.Systems",
+    "DOB.UI",
     "Unity.InputSystem",
     "Unity.ugui",
     "Unity.TextMeshPro"

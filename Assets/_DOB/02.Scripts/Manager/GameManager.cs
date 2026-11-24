@@ -74,7 +74,7 @@ namespace DOB.Manager
             newTimeline = startsNewTimeline;
             startDay = start?.Day ?? 1;
 
-            service.ConnectHud(hud.Guidance, hud.Dialogue);
+            service.ConnectHud(hud.Guidance, hud.Dialogue, startDay);
             kitchen.ConnectHud(hud);
             settleButton = hud.Settle;
             settleButton.interactable = false;

@@ -1,0 +1,432 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6ad6831f1314d679bd54b097c40e7af, type: 3}
+  m_Name: SO_GuestDialogueRules
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.GuestDialogueRules
+  causes:
+  - causeId: floor.1.poison
+    condition: 0
+    firstDay: 1
+    floor: 1
+    qualifier: ""
+    axis: "독"
+    delta: 1
+    line: "[[슬라임 점액]]이 튀면 [[따끔]]하더라."
+    alternateLines:
+    - "가지에서 떨어진 [[끈적한 방울]]이 손에 닿으니 [[화끈거리더라]]."
+    observation: ""
+    news: ""
+  - causeId: floor.1.stamina
+    condition: 0
+    firstDay: 1
+    floor: 1
+    qualifier: ""
+    axis: "체력"
+    delta: 1
+    line: "돌아오는 [[길도 멀고]]."
+    alternateLines:
+    - "숲을 나와서도 [[한참을 더 걸어야]] 해."
+    observation: ""
+    news: ""
+  - causeId: floor.2.poison
+    condition: 0
+    firstDay: 1
+    floor: 2
+    qualifier: ""
+    axis: "독"
+    delta: 2
+    line: "[[홀씨가 자욱]]해서 손수건을 두 겹 챙겼어."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.2.dark
+    condition: 0
+    firstDay: 1
+    floor: 2
+    qualifier: ""
+    axis: "어둠"
+    delta: 1
+    line: "안에선 [[손끝도 안 보이더라]]."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.2.trap
+    condition: 0
+    firstDay: 1
+    floor: 2
+    qualifier: ""
+    axis: "함정"
+    delta: 1
+    line: "[[들썩이는 바닥돌]]을 잘 봐야 해."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.3.heat
+    condition: 0
+    firstDay: 1
+    floor: 3
+    qualifier: ""
+    axis: "열"
+    delta: 3
+    line: "신발 너머로 [[발바닥이 익는]] 것 같아."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.3.stamina
+    condition: 0
+    firstDay: 1
+    floor: 3
+    qualifier: ""
+    axis: "체력"
+    delta: 1
+    line: "오늘은 [[고개를 몇 번이나 넘어야]] 해."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.3.trap
+    condition: 0
+    firstDay: 1
+    floor: 3
+    qualifier: ""
+    axis: "함정"
+    delta: 1
+    line: "판석 밑에서 [[딸깍 소리]]가 나더라."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.4.cold
+    condition: 0
+    firstDay: 1
+    floor: 4
+    qualifier: ""
+    axis: "냉기"
+    delta: 3
+    line: "입김이 소매에 닿자마자 [[얼어붙더라]]."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.4.dark
+    condition: 0
+    firstDay: 1
+    floor: 4
+    qualifier: ""
+    axis: "어둠"
+    delta: 1
+    line: "굽이를 돌면 [[등불이 닿지 않아]]."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.4.stamina
+    condition: 0
+    firstDay: 1
+    floor: 4
+    qualifier: ""
+    axis: "체력"
+    delta: 1
+    line: "끝 회랑까지 가면 [[다리가 풀려]]."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.5.dark
+    condition: 0
+    firstDay: 1
+    floor: 5
+    qualifier: ""
+    axis: "어둠"
+    delta: 3
+    line: "눈을 떠도 [[감은 것처럼 캄캄해]]."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.5.poison
+    condition: 0
+    firstDay: 1
+    floor: 5
+    qualifier: ""
+    axis: "독"
+    delta: 1
+    line: "벽에서 샌 물에 닿으니 [[살갗이 쓰라렸어]]."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.5.cold
+    condition: 0
+    firstDay: 1
+    floor: 5
+    qualifier: ""
+    axis: "냉기"
+    delta: 1
+    line: "아래서 온 바람에 [[손끝이 곱았어]]."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: floor.5.stamina
+    condition: 0
+    firstDay: 1
+    floor: 5
+    qualifier: ""
+    axis: "체력"
+    delta: 1
+    line: "올라오는 길에는 [[몇 번이고 쉬어야]] 해."
+    alternateLines: []
+    observation: ""
+    news: ""
+  - causeId: event.poison
+    condition: 1
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "독"
+    delta: 1
+    line: "오늘은 [[안개가 혀끝을 아리게]] 한대."
+    alternateLines: []
+    observation: ""
+    news: "오늘은 안개가 혀끝을 아리게 한대."
+  - causeId: event.heat
+    condition: 1
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "열"
+    delta: 1
+    line: "바닥 틈의 [[열기]]가 오늘따라 거세대."
+    alternateLines: []
+    observation: ""
+    news: "바닥 틈의 열기가 오늘따라 거세대."
+  - causeId: event.cold
+    condition: 1
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "냉기"
+    delta: 1
+    line: "오늘은 난간에 [[새 고드름]]이 맺혔대."
+    alternateLines: []
+    observation: ""
+    news: "오늘은 난간에 새 고드름이 맺혔대."
+  - causeId: event.dark
+    condition: 1
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "어둠"
+    delta: 1
+    line: "오늘은 [[등불이 자꾸 꺼진대]]."
+    alternateLines: []
+    observation: ""
+    news: "오늘은 등불이 자꾸 꺼진대."
+  - causeId: event.stamina
+    condition: 1
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "체력"
+    delta: 1
+    line: "길이 무너져 오늘은 [[먼 길로 돌아간대]]."
+    alternateLines: []
+    observation: ""
+    news: "길이 무너져 오늘은 먼 길로 돌아간대."
+  - causeId: event.trap
+    condition: 1
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "함정"
+    delta: 1
+    line: "오늘은 길 위에 [[새 올가미]]가 보인대."
+    alternateLines: []
+    observation: ""
+    news: "오늘은 길 위에 새 올가미가 보인대."
+  - causeId: race.elf.heat
+    condition: 2
+    firstDay: 1
+    floor: 0
+    qualifier: "엘프"
+    axis: "열"
+    delta: 1
+    line: "잠깐만 걸어도 [[귓가가 뜨거워져]]."
+    alternateLines: []
+    observation: "긴 귀 · 더위에 약한 숲 태생"
+    news: ""
+  - causeId: race.beastfolk.poison
+    condition: 2
+    firstDay: 1
+    floor: 0
+    qualifier: "수인"
+    axis: "독"
+    delta: 1
+    line: "오늘 길에선 [[톡 쏘는 냄새]]가 오래 남더라."
+    alternateLines: []
+    observation: "짐승 귀와 꼬리 · 냄새에 코를 감싼다"
+    news: ""
+  - causeId: race.dwarf.trap
+    condition: 2
+    firstDay: 1
+    floor: 0
+    qualifier: "드워프"
+    axis: "함정"
+    delta: 1
+    line: "내가 지나면 [[바닥돌이 덜컥]]하곤 해."
+    alternateLines: []
+    observation: "작은 키와 수염 · 묵직한 발걸음"
+    news: ""
+  - causeId: race.halfling.stamina
+    condition: 2
+    firstDay: 1
+    floor: 0
+    qualifier: "하플링"
+    axis: "체력"
+    delta: 1
+    line: "다들 한 걸음 갈 때 난 [[두 걸음씩]] 가야 해."
+    alternateLines: []
+    observation: "아이 같은 키 · 짧은 다리로 의자에 오른다"
+    news: ""
+  - causeId: job.warrior.stamina
+    condition: 3
+    firstDay: 1
+    floor: 0
+    qualifier: "전사"
+    axis: "체력"
+    delta: -1
+    line: ""
+    alternateLines: []
+    observation: "큰 방패 · 힘 있게 고쳐 멘다"
+    news: ""
+  - causeId: job.mage.heat
+    condition: 3
+    firstDay: 1
+    floor: 0
+    qualifier: "마법사"
+    axis: "열"
+    delta: -1
+    line: ""
+    alternateLines: []
+    observation: "지팡이 · 끝이 그을린 소매"
+    news: ""
+  - causeId: job.rogue.trap
+    condition: 3
+    firstDay: 1
+    floor: 0
+    qualifier: "도적"
+    axis: "함정"
+    delta: -1
+    line: ""
+    alternateLines: []
+    observation: "얇은 공구로 바닥 장치를 살핀다"
+    news: ""
+  - causeId: job.priest.poison
+    condition: 3
+    firstDay: 1
+    floor: 0
+    qualifier: "사제"
+    axis: "독"
+    delta: -1
+    line: ""
+    alternateLines: []
+    observation: "목에 건 성표 · 작은 향로"
+    news: ""
+  - causeId: job.miner.dark
+    condition: 3
+    firstDay: 1
+    floor: 0
+    qualifier: "광부"
+    axis: "어둠"
+    delta: -1
+    line: ""
+    alternateLines: []
+    observation: "곡괭이 · 불 꺼진 갱도에서도 길을 찾는다"
+    news: ""
+  - causeId: job.archer.cold
+    condition: 3
+    firstDay: 1
+    floor: 0
+    qualifier: "궁수"
+    axis: "냉기"
+    delta: -1
+    line: ""
+    alternateLines: []
+    observation: "활과 화살통 · 찬바람에도 손이 떨리지 않는다"
+    news: ""
+  - causeId: condition.tired.stamina
+    condition: 4
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "체력"
+    delta: 1
+    line: "여기 올라오는 데도 [[숨이 찼어]]."
+    alternateLines: []
+    observation: "처진 어깨 · 숨을 고르며 땀을 닦는다"
+    news: ""
+  - causeId: weakness.poison
+    condition: 5
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "독"
+    delta: 1
+    line: "요즘 [[목이 칼칼]]해."
+    alternateLines: []
+    observation: "기침·창백한 얼굴"
+    news: ""
+  - causeId: weakness.heat
+    condition: 5
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "열"
+    delta: 1
+    line: "아직 [[덴 자리]]가 화끈거려."
+    alternateLines: []
+    observation: "화상 자국"
+    news: ""
+  - causeId: weakness.cold
+    condition: 5
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "냉기"
+    delta: 1
+    line: "나는 원래 [[추위]]를 많이 타."
+    alternateLines: []
+    observation: "떨림·목도리"
+    news: ""
+  - causeId: weakness.dark
+    condition: 5
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "어둠"
+    delta: 1
+    line: "[[어두운 데]]선 앞이 잘 안 보여."
+    alternateLines: []
+    observation: "찡그린 눈"
+    news: ""
+  - causeId: weakness.trap
+    condition: 5
+    firstDay: 2
+    floor: 0
+    qualifier: ""
+    axis: "함정"
+    delta: 1
+    line: "다리를 좀 [[삐었는데]] 발밑을 조심해야겠지."
+    alternateLines: []
+    observation: "절뚝거림"
+    news: ""
+  secondClueAffinity: 21
+  calmLine: "별일 없을 거야"
+  breadLines:
+    garlicTaste: "고소한 빵에 마늘 향이 나네."
+    plainTaste: "따뜻한 빵이 담백하네."
+    fullyPrepared: "이 정도면 끝까지 버틸 수 있겠어."
+    oneShort: "한 군데만 더 조심하면 되겠어."
+    severalShort: "내려가는 길에 조심할 게 많겠어."

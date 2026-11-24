@@ -43,6 +43,9 @@ namespace DOB.UI
         /// 수첩 기록. 비워 두면 이번 플레이 동안 함께 쓰는 공용 기록(NotebookRecord.Session)을 쓴다.
         /// </summary>
         [NonSerialized] public NotebookRecord notebook;
+        // 생성된 방문에서만 제공한다. 같은 원인의 위험 보정은 방문에서 한 번만 적용한다.
+        [NonSerialized] public Func<string, bool> discover;
+        [NonSerialized] public Func<string, int?> notebookRisk;
 
         /// <summary>튜토리얼 등에서 돌려보내기 버튼을 숨길 때 false.</summary>
         public bool canSendHome = true;
@@ -59,6 +62,8 @@ namespace DOB.UI
     [Serializable]
     public sealed class ClueKeywordData
     {
+        public string key;
+        public int delta;
         /// <summary>대사의 [[ ]] 안 글자와 똑같아야 한다 (예: 슬라임 점액).</summary>
         public string phrase;
         /// <summary>위험 이름 (독 · 열 · 냉기 · 어둠 · 체력 · 함정).</summary>
@@ -71,6 +76,8 @@ namespace DOB.UI
     [Serializable]
     public sealed class ClueMarkerData
     {
+        public string key;
+        public int delta;
         /// <summary>찾은 뒤 마우스를 올리면 보이는 생김새 설명.</summary>
         public string description;
         public Vector2 position;

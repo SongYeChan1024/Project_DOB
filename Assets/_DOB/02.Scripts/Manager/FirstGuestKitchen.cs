@@ -21,6 +21,8 @@ namespace DOB.Manager
         private Button cancel;
 
         private FirstGuestOrder order;
+        private GuestDialogueVisit orderGuest;
+        private string GuestName => orderGuest?.GuestName ?? guest.GuestName;
         private int gold;
         private int? startingGold;
         private int? startingGarlic;
@@ -81,6 +83,7 @@ namespace DOB.Manager
         {
             if (order != null && order.VisitId == visitId)
                 return;
+            orderGuest = service.CurrentVisit;
             order = new FirstGuestOrder(visitId, recipe.CookSeconds, DayStartGarlic,
                 recipe.FlourRequired, GarlicForBread, recipe.BreadBasePrice);
         }
@@ -98,13 +101,13 @@ namespace DOB.Manager
             switch (order.State)
             {
                 case FirstGuestOrderState.Waiting:
-                    return service.IsNearPlayer(service.Kitchen) ? "E  주방에서 재료 확인" : "오른쪽 주방에서 하루의 구운 빵을 준비하세요.";
+                    return service.IsNearPlayer(service.Kitchen) ? "E  주방에서 재료 확인" : $"오른쪽 주방에서 {GuestName}의 구운 빵을 준비하세요.";
                 case FirstGuestOrderState.Cooking:
                     return $"구운 빵을 굽고 있어요.  {Mathf.CeilToInt(order.RemainingSeconds)}초";
                 case FirstGuestOrderState.Ready:
-                    return service.IsNearPlayer(service.Kitchen) ? "E  하루의 접시 들기" : "빵이 완성됐어요. 주방에서 접시를 들어 주세요.";
+                    return service.IsNearPlayer(service.Kitchen) ? $"E  {GuestName}의 접시 들기" : "빵이 완성됐어요. 주방에서 접시를 들어 주세요.";
                 case FirstGuestOrderState.Carrying:
-                    return service.IsNearPlayer(service.SeatedAt) ? "E  하루에게 서빙" : "접시를 들었어요. 하루가 앉은 자리로 돌아가세요.";
+                    return service.IsNearPlayer(service.SeatedAt) ? $"E  {GuestName}에게 서빙" : $"접시를 들었어요. {GuestName}의 자리로 돌아가세요.";
                 default:
                     return null;
             }
@@ -120,10 +123,23 @@ namespace DOB.Manager
                 if (!service.IsNearPlayer(service.SeatedAt) || !order.TryServe(service.VisitId, out int payment))
                     return false;
                 gold += payment;
-                string line = GarlicForBread > 0 ? guest.ServeLine : guest.PlainBreadLine;
-                receipt.text = $"{guest.GuestName}   “{line}”\n서빙 +{payment}금화   ·   보유 {gold}금화   ·   남은 마늘 {order.GarlicStock}개";
-                Served?.Invoke(service.VisitId, guest.GuestName, line);
-                service.TryDepartForDungeon(service.VisitId);
+                bool hasGarlic = GarlicForBread > 0;
+                string line;
+                string resolve = string.Empty;
+                if (orderGuest != null)
+                {
+                    line = orderGuest.TasteLine(hasGarlic);
+                    int shortfall = recipe.GetShortfall(orderGuest.ActualRisk, hasGarlic);
+                    resolve = $"\n“{orderGuest.DepartureLine(shortfall)}”";
+                }
+                else
+                    line = hasGarlic ? guest.ServeLine : guest.PlainBreadLine;
+                receipt.text = $"{GuestName}   “{line}”{resolve}\n서빙 +{payment}금화   ·   보유 {gold}금화   ·   남은 마늘 {order.GarlicStock}개";
+                if (receipt.preferredHeight > receipt.rectTransform.rect.height)
+                    receipt.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, receipt.preferredHeight);
+                string servedVisit = order.VisitId;
+                Served?.Invoke(servedVisit, GuestName, line);
+                service.TryDepartForDungeon(servedVisit);
                 return true;
             }
 
@@ -134,7 +150,7 @@ namespace DOB.Manager
             if (order.State != FirstGuestOrderState.Waiting)
                 return false;
             string seasoning = GarlicForBread > 0 ? $"  +  마늘 {GarlicForBread}개" : "  ·  양념 없이 굽기";
-            ingredients.text = $"구운 빵\n밀가루 {recipe.FlourRequired}개{seasoning}\n마늘 재고 {order.GarlicStock}개    ·    조리 {recipe.CookSeconds:0.#}초";
+            ingredients.text = $"{GuestName}의 구운 빵\n밀가루 {recipe.FlourRequired}개{seasoning}\n마늘 재고 {order.GarlicStock}개    ·    조리 {recipe.CookSeconds:0.#}초";
             recipePanel.SetActive(true);
             return true;
         }
