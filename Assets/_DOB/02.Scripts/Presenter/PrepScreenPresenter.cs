@@ -86,11 +86,11 @@ namespace DOB.Manager
         }
 
         // Esc로 닫기 (PR #20 버그: 테스트 입력에만 있었음).
-        // shortcut: 일시 정지 메뉴도 Esc를 받으면 같이 열릴 수 있음, BasementPauseMenu가 UIManager.IsPrepScreenOpen을 보게 되면 정리
+        // Esc 순서: ESC 메뉴가 열려 있으면 메뉴가 받고, 이 화면이 열려 있으면 이 화면만 닫는다 (BasementPauseInput은 UIManager.IsScreenOpen이면 메뉴를 열지 않음)
         private void Update()
         {
             var keyboard = Keyboard.current;
-            if (IsOpen && keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+            if (IsOpen && !BasementPauseMenu.IsPaused && keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
                 Close();
         }
 

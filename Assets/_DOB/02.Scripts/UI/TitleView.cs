@@ -1,6 +1,6 @@
 // =====================================================================
 // TitleView — 타이틀 화면 표시와 입력
-// 역할   : 메뉴 버튼·로딩 표시·새로 시작 확인창·설정 창·실패 안내를 보여 주고,
+// 역할   : 메뉴 버튼·로딩 표시·새로 시작 확인창·설정 창(설정 PF_Settings)·실패 안내를 보여 주고,
 //          버튼 입력을 이벤트로 알린다. 씬 이동·저장 확인은 하지 않는다.
 // 호출자 : TitlePresenter (메뉴 구성, 잠금, 확인창, 실패 안내 요청)
 // 호출   : 없음 (이벤트로만 알림)
@@ -9,6 +9,7 @@
 using System;
 using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 namespace DOB.UI
@@ -36,9 +37,8 @@ namespace DOB.UI
         [SerializeField] private Button confirmYesButton;
         [SerializeField] private Button confirmNoButton;
 
-        /// <summary>설정 창. 지금은 열고 닫기만 한다(설정 항목은 07·08번 작업).</summary>
-        [Header("설정 창"), SerializeField] private GameObject settingsPanel;
-        [SerializeField] private Button settingsCloseButton;
+        /// <summary>설정 창 (ESC 메뉴와 같은 PF_Settings). 비워 두면 처음 열 때 스킨에서 만든다.</summary>
+        [Header("설정 창"), SerializeField] private SettingsView settings;
 
         /// <summary>새로 시작을 눌렀다.</summary>
         public event Action NewGameClicked;
@@ -58,13 +58,51 @@ namespace DOB.UI
             confirmNoButton.onClick.AddListener(() => ShowConfirm(false));
 
             // 설정 창 열고 닫기는 게임 상태와 무관한 화면 동작이라 View 안에서 처리한다.
-            settingsButton.onClick.AddListener(() => settingsPanel.SetActive(true));
-            settingsCloseButton.onClick.AddListener(() => settingsPanel.SetActive(false));
+            settingsButton.onClick.AddListener(OpenSettings);
+            if (settings) settings.Hide();
 
             loadingIndicator.SetActive(false);
             loadFailedMessage.SetActive(false);
             confirmPopup.SetActive(false);
-            settingsPanel.SetActive(false);
+        }
+
+        private void OpenSettings()
+        {
+            if (!settings) settings = CreateSettings();
+            if (settings) settings.Open();
+        }
+
+        // 씬에 연결된 창이 없으면 ESC 메뉴와 같은 PF_Settings(Resources/UI/PauseMenuSkin에 연결)를
+        // 타이틀 맨 위 캔버스에 한 번 만든다 (Title 씬을 고치지 않아도 되게)
+        private SettingsView CreateSettings()
+        {
+            var skin = Resources.Load<PauseMenuSkin>("UI/PauseMenuSkin");
+            if (!skin || !skin.settingsPrefab)
+            {
+                Debug.LogWarning("[DOB] Resources/UI/PauseMenuSkin 또는 PF_Settings가 없어 설정 창을 열 수 없습니다.");
+                return null;
+            }
+            var host = new GameObject("SettingsCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            host.transform.SetParent(transform, false);
+            var canvas = host.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 900; // 타이틀 연출 위
+            var scaler = host.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920, 1080);
+            scaler.matchWidthOrHeight = 0.5f;
+            var view = Instantiate(skin.settingsPrefab, host.transform);
+            view.Hide();
+            return view;
+        }
+
+        // 타이틀에는 ESC 메뉴가 없으므로 Esc는 열린 설정 창만 닫는다
+        private void Update()
+        {
+            var keyboard = Keyboard.current;
+            if (keyboard == null || !keyboard.escapeKey.wasPressedThisFrame) return;
+            if (settings && settings.IsOpen) settings.Close();
         }
 
         /// <summary>저장 여부에 맞춰 메뉴를 구성한다. 저장이 없으면 이어하기를 숨긴다.</summary>
