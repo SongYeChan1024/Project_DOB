@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using DOB.Define;
 using DOB.Manager;
 using DOB.UI;
 using UnityEditor;
@@ -22,6 +23,8 @@ namespace DOB.Editor
         private const string SceneFolder = "Assets/_DOB/01.Scenes/";
         private const string CharacterFolder = "Assets/_DOB/03.Prefabs/Characters/";
         private const string FontPath = "Assets/_DOB/07.UI/Fonts/Gaegu-Regular.ttf";
+        private const string LoadingPrefabPath = "Assets/_DOB/03.Prefabs/UI/PF_LoadingScreen.prefab";
+        private const string LoadingContentPath = "Assets/_DOB/08.Data/LoadingScreenContent.asset";
         private static readonly string[] AllScenes = SceneComposition.RuntimeSceneNames.Concat(new[] { SceneComposition.CharacterTest }).ToArray();
         private static readonly string[] AuthoredScenes = {
             SceneComposition.Title, BasementComposition.BaseScene, BasementComposition.RestaurantScene, BasementComposition.UiScene
@@ -90,41 +93,38 @@ namespace DOB.Editor
             var scene = NewScene();
             // 목표 씬의 오디오 리스너가 활성화돼도 전환 중 리스너가 겹치지 않게 한다.
             CreateCamera(Vector3.zero, Vector3.zero, false);
-            var canvas = CreateCanvas("LoadingCanvas", 1000);
-            var background = new GameObject("Background", typeof(RectTransform), typeof(Image));
-            background.transform.SetParent(canvas.transform, false);
-            var backgroundRect = background.GetComponent<RectTransform>();
-            backgroundRect.anchorMin = Vector2.zero;
-            backgroundRect.anchorMax = Vector2.one;
-            backgroundRect.offsetMin = Vector2.zero;
-            backgroundRect.offsetMax = Vector2.zero;
-            background.GetComponent<Image>().color = new Color(0.035f, 0.045f, 0.06f, 1);
-            CreateText(canvas.transform, "LoadingTitle", "불러오는 중", new Vector2(0, 85), new Vector2(900, 90), 42);
-            var label = CreateText(canvas.transform, "ProgressText", "0%", Vector2.zero, new Vector2(900, 60), 30);
-            var barObject = new GameObject("ProgressBar", typeof(RectTransform), typeof(Image), typeof(Slider));
-            barObject.transform.SetParent(canvas.transform, false);
-            var barRect = barObject.GetComponent<RectTransform>();
-            barRect.sizeDelta = new Vector2(600, 26);
-            barRect.anchoredPosition = new Vector2(0, -65);
-            barObject.GetComponent<Image>().color = new Color(0.13f, 0.16f, 0.20f);
-            var fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
-            fill.transform.SetParent(barObject.transform, false);
-            var fillRect = fill.GetComponent<RectTransform>();
-            fillRect.anchorMin = Vector2.zero;
-            fillRect.anchorMax = Vector2.one;
-            fillRect.offsetMin = Vector2.zero;
-            fillRect.offsetMax = Vector2.zero;
-            fill.GetComponent<Image>().color = new Color(0.50f, 0.72f, 0.64f);
-            var bar = barObject.GetComponent<Slider>();
-            bar.fillRect = fillRect;
-            bar.targetGraphic = fill.GetComponent<Image>();
-            bar.minValue = 0;
-            bar.maxValue = 1;
-            bar.value = 0;
-            bar.interactable = false;
-            bar.transition = Selectable.Transition.None;
-            canvas.AddComponent<LoadingScreenPresenter>().Configure(label, bar);
+            PlaceLoadingScreen(scene);
             Save(scene, SceneComposition.Loading);
+        }
+
+        /// <summary>기존 Loading 씬의 예전 회색 진행 화면을 PF_LoadingScreen과 Presenter로 바꾼다. 카메라는 유지한다.</summary>
+        [MenuItem("DOB/Scenes/Upgrade Loading Screen")]
+        public static void UpgradeLoadingScene()
+        {
+            Require(!EditorApplication.isPlaying, "플레이 중에는 씬을 바꿀 수 없습니다.");
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var scene = EditorSceneManager.OpenScene(ScenePath(SceneComposition.Loading), OpenSceneMode.Single);
+            foreach (var root in scene.GetRootGameObjects())
+                if (root.name == "LoadingCanvas")
+                    UnityEngine.Object.DestroyImmediate(root);
+            if (Components<LoadingScreenPresenter>(scene).Length == 0)
+                PlaceLoadingScreen(scene);
+            Save(scene, SceneComposition.Loading);
+            Debug.Log("DOB_LOADING_SCREEN_UPGRADED");
+        }
+
+        private static void PlaceLoadingScreen(Scene scene)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(LoadingPrefabPath);
+            var content = AssetDatabase.LoadAssetAtPath<LoadingScreenContent>(LoadingContentPath);
+            Require(prefab != null && prefab.GetComponent<LoadingScreenView>() != null, "로딩 화면 프리팹 누락: " + LoadingPrefabPath);
+            Require(content != null, "로딩 화면 내용 데이터 누락: " + LoadingContentPath);
+            var screen = (GameObject)PrefabUtility.InstantiatePrefab(prefab, scene);
+            // 프리팹에 컴포넌트를 덧붙이지 않도록 Presenter는 별도 루트에 둔다.
+            var presenterObject = new GameObject("LoadingScreenPresenter");
+            SceneManager.MoveGameObjectToScene(presenterObject, scene);
+            presenterObject.AddComponent<LoadingScreenPresenter>().Configure(screen.GetComponent<LoadingScreenView>(), content);
         }
 
         private static void CreateRestaurant()
@@ -401,7 +401,10 @@ namespace DOB.Editor
                     var presenter = Components<LoadingScreenPresenter>(scene).SingleOrDefault();
                     Require(presenter != null, "Loading 표시 연결 누락");
                     var serialized = new SerializedObject(presenter);
-                    Require(serialized.FindProperty("progressText").objectReferenceValue != null && serialized.FindProperty("progressBar").objectReferenceValue != null, "Loading 진행률 참조 누락");
+                    var screen = serialized.FindProperty("view").objectReferenceValue as LoadingScreenView;
+                    Require(screen != null && screen.gameObject.scene == scene, "Loading 화면 연결 누락");
+                    Require(serialized.FindProperty("content").objectReferenceValue != null, "Loading 내용 데이터 연결 누락");
+                    Require(Components<LoadingScreenView>(scene).Length == 1, "Loading 화면 중복 또는 누락");
                 }
                 if (name == SceneComposition.CharacterTest)
                     foreach (var kind in new[] { "Player", "Guest", "Enemy" })

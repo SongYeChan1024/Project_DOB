@@ -1350,7 +1350,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 8876852376459243844}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1364172373540693229}
+        m_TargetAssemblyTypeName: DOB.UI.LoadingScreenView, DOB.UI
+        m_MethodName: OnFailureButtonClicked
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument:
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!1 &9099760902050706319
 GameObject:
   m_ObjectHideFlags: 0

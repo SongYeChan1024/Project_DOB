@@ -249,20 +249,27 @@ namespace DOB.Tests
             Assert.That(service.IsNearPlayer(guest), Is.True, "플레이어와 대기 손님이 응대 거리 안에 있어야 함");
             Assert.That(presenter.FirstGuestId, Is.EqualTo("tutorial_guest_01"), "응대 프로필 연결");
             Assert.That(service.TryInteract(), Is.True, "대기 손님 앞에서 응대를 여는 E 요청");
-            Assert.That(service.TryInteract(), Is.False, "페이드 중 E 연타");
+            Assert.That(service.TryInteract(), Is.False, "줌인 중 E 연타");
+            Assert.That(presenter.BlocksWorldInput, Is.False, "줌인이 끝나기 전에는 응대 화면을 열지 않음");
+            yield return Until(() => presenter.BlocksWorldInput, "줌인 후 응대 화면 생성");
             var follow = DialogueElement("FollowButton").GetComponent<Button>();
             var close = DialogueElement("CloseButton").GetComponent<Button>();
             var fade = DialogueElement("FadeOverlay").GetComponent<Image>();
             yield return Until(() => follow.isActiveAndEnabled && !fade.raycastTarget, "첫 응대 화면 열기");
-            Assert.That(Vector3.Distance(overhead.position, camera.position), Is.GreaterThan(0.5f));
+            // 플레이어는 손님 옆에 서 있지만 카메라는 손님 얼굴 정면에서 얼굴을 바라봐야 한다.
+            var toCamera = camera.position - guest.Find("Anchors/FacePoint").position;
+            Assert.That(Vector3.Dot(toCamera, guest.forward), Is.GreaterThan(0.05f), "카메라가 손님 얼굴 앞");
+            Assert.That(Vector3.Cross(toCamera, guest.forward).magnitude, Is.LessThan(0.01f), "카메라가 얼굴 정면 축 위");
+            Assert.That(Vector3.Angle(camera.forward, -guest.forward), Is.LessThan(0.5f), "카메라가 얼굴을 바라봄");
 
             follow.onClick.Invoke();
             Assert.That(DialogueElement("NoticeText").gameObject.activeInHierarchy, Is.True, "만석 거절 안내");
             close.onClick.Invoke();
             yield return Until(() => !presenter.BlocksWorldInput, "닫기");
+            Assert.That(service.TryInteract(), Is.False, "줌아웃 중 E");
+            yield return Until(() => Vector3.Distance(overhead.position, camera.position) < 0.001f
+                && Quaternion.Angle(overhead.rotation, camera.rotation) < 0.01f, "줌아웃 후 전경 복귀");
             yield return null;
-            Assert.That(Vector3.Distance(overhead.position, camera.position), Is.LessThan(0.001f));
-            Assert.That(Quaternion.Angle(overhead.rotation, camera.rotation), Is.LessThan(0.01f));
 
             layout.Release(1, "stale_visit");
             Assert.That(layout.IsOccupied(1), Is.True);
@@ -270,6 +277,7 @@ namespace DOB.Tests
             Assert.That(layout.TryAssign(1, "other_visit_0"), Is.False, "한 방문에 좌석 두 개를 배정할 수 없음");
 
             Assert.That(service.TryInteract(), Is.True);
+            yield return Until(() => presenter.BlocksWorldInput, "줌인 후 응대 다시 생성");
             follow = DialogueElement("FollowButton").GetComponent<Button>();
             fade = DialogueElement("FadeOverlay").GetComponent<Image>();
             yield return Until(() => follow.isActiveAndEnabled && !fade.raycastTarget, "응대 다시 열기");

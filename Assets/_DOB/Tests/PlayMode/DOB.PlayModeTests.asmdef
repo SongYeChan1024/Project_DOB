@@ -1,6 +1,6 @@
 {
   "name": "DOB.PlayModeTests",
-  "references": ["DOB.Manager", "Unity.ugui"],
+  "references": ["DOB.Manager", "Unity.ugui", "Unity.TextMeshPro"],
   "optionalUnityReferences": ["TestAssemblies"],
   "includePlatforms": [],
   "excludePlatforms": [],

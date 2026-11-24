@@ -1,0 +1,197 @@
+// =====================================================================
+// UIManager — 여러 씬에 걸친 공용 화면 처리를 맡는 중계자
+// 역할   : 로더(SceneLoadService·BasementComposition)의 로딩 열기·진행률·닫기·실패 요청을
+//          등록된 로딩 화면 Presenter에 전달한다. 실패 안내 버튼 응답(타이틀로·종료)을 처리하고,
+//          버튼을 누를 수 있게 EventSystem이 없으면 임시로 만든다.
+// 호출자 : SceneLoadService, BasementComposition (OpenLoading, SetLoadingProgress, CloseLoading, ShowLoadingFailure)
+//          LoadingScreenPresenter (RegisterLoadingScreen, UnregisterLoadingScreen, 실패 버튼 응답)
+// 호출   : LoadingScreenPresenter, SceneLoadService.RequestReturnToTitle
+// 상태   : 등록된 로딩 화면, 로딩 화면이 다 보인 시각, 여는 중/열림 여부.
+//          게임 상태(금화·주문·저장)는 갖지 않고, 씬에 배치된 화면을 만들거나 없애지 않는다.
+//          직접 만들고 없애는 것은 실패 안내용 임시 EventSystem 하나뿐이며, 그것도 Loading 씬과 함께 사라진다.
+//
+// 의사코드
+// [인스턴스]  처음 쓸 때 하나 만들고 씬이 바뀌어도 유지한다. 플레이 시작마다 초기화한다
+// [등록]      로딩 화면 Presenter가 켜지면 등록, 꺼지면 해제한다 (Find* 대신)
+// [열기]      화면 등록을 몇 프레임 기다린다 → 없으면 경고하고 표시 없이 진행
+//             → 목적지 내용 표시(검은 화면) → 페이드 인 끝까지 대기 → 다 보인 시각 기록
+// [진행률]    등록된 화면에 그대로 전달한다
+// [닫기]      여는 중이면 끝날 때까지 기다린다 → 진행 바를 1로
+//             → 최소 표시 시간 경과와 진행 바 채움을 기다린다(채움은 상한 시간까지만) → 검은 페이드 끝까지 대기
+// [실패]      화면이 없으면 false를 돌려 호출자가 정리하게 한다
+//             → 있으면 EventSystem을 보장하고 실패 안내를 띄운다
+// [버튼 응답] 타이틀로: SceneLoadService에 실패 정리 후 타이틀 전환을 요청 / 종료: 게임 종료
+// =====================================================================
+using System.Collections;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityEngine.InputSystem.UI;
+using UnityEngine.SceneManagement;
+
+namespace DOB.Manager
+{
+    /// <summary>씬을 넘어 유지되는 공용 화면 중계자. 지금은 로딩 화면과 실패 안내 입력을 맡는다.</summary>
+    [DisallowMultipleComponent]
+    public sealed class UIManager : MonoBehaviour
+    {
+        // 씬 활성화 직후 Presenter의 OnEnable이 끝나지 않은 경우를 대비해 기다리는 프레임 수.
+        private const int RegistrationWaitFrames = 10;
+        // 화면이 꺼져 진행 바가 멈춰도 전환이 영원히 막히지 않게 하는 추가 대기 상한(초).
+        private const float CatchUpTimeoutSeconds = 3f;
+
+        private static UIManager instance;
+
+        private LoadingScreenPresenter loadingScreen;
+        private float loadingShownAt = -1f;
+        private bool loadingOpening;
+        private bool loadingOpen;
+
+        /// <summary>로딩 화면이 열려 있거나 여는 중인지. 닫기가 끝나거나 화면이 사라지면 거짓이다.</summary>
+        public static bool IsLoadingOpen => instance && (instance.loadingOpen || instance.loadingOpening);
+
+        private static UIManager Instance
+        {
+            get
+            {
+                if (!instance)
+                {
+                    var host = new GameObject(nameof(UIManager));
+                    DontDestroyOnLoad(host);
+                    instance = host.AddComponent<UIManager>();
+                }
+                return instance;
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void ResetInstance() => instance = null;
+
+        /// <summary>Loading 씬의 로딩 화면이 켜질 때 등록한다.</summary>
+        internal static void RegisterLoadingScreen(LoadingScreenPresenter screen)
+        {
+            if (screen)
+                Instance.loadingScreen = screen;
+        }
+
+        /// <summary>로딩 화면이 꺼질 때 등록을 푼다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        internal static void UnregisterLoadingScreen(LoadingScreenPresenter screen)
+        {
+            if (!instance || instance.loadingScreen != screen)
+                return;
+            instance.loadingScreen = null;
+            instance.loadingOpen = false;
+            instance.loadingShownAt = -1f;
+        }
+
+        /// <summary>목적지의 로딩 화면을 보이고 페이드 인한다. 끝까지 기다리려면 반환값을 yield return 한다.</summary>
+        public static Coroutine OpenLoading(string destination)
+        {
+            var manager = Instance;
+            return manager.StartCoroutine(manager.Open(destination));
+        }
+
+        /// <summary>실제 진행률(0~1)을 로딩 화면에 전달한다. 화면이 없으면 무시한다.</summary>
+        public static void SetLoadingProgress(float progress)
+        {
+            if (instance && instance.loadingScreen)
+                instance.loadingScreen.SetProgress(progress);
+        }
+
+        /// <summary>최소 표시 시간·진행 바 채움·페이드 아웃이 모두 끝날 때까지 기다린다. 반환값을 yield return 한다.</summary>
+        public static Coroutine CloseLoading()
+        {
+            var manager = Instance;
+            return manager.StartCoroutine(manager.Close());
+        }
+
+        /// <summary>로딩 실패 안내를 띄운다. 띄울 화면이 없으면 false를 돌려 호출자가 정리하게 한다.</summary>
+        public static bool ShowLoadingFailure(bool canReturnToTitle)
+        {
+            if (!instance || !instance.loadingScreen)
+                return false;
+            var screen = instance.loadingScreen;
+            EnsureEventSystem(screen.gameObject.scene);
+            screen.ShowFailure(canReturnToTitle);
+            return true;
+        }
+
+        /// <summary>실패 안내의 [타이틀로] 응답.</summary>
+        internal static void HandleLoadingReturnToTitle()
+        {
+            if (!SceneLoadService.RequestReturnToTitle())
+                Debug.LogError("[DOB] 로딩 실패 후 타이틀로 돌아갈 수 없습니다.");
+        }
+
+        /// <summary>실패 안내의 [게임 종료] 응답.</summary>
+        internal static void HandleLoadingQuit()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        private IEnumerator Open(string destination)
+        {
+            loadingOpening = true;
+            loadingShownAt = -1f;
+            try
+            {
+                for (var frame = 0; !loadingScreen && frame < RegistrationWaitFrames; frame++)
+                    yield return null;
+                if (!loadingScreen)
+                {
+                    Debug.LogWarning("[DOB] 로딩 화면이 등록되지 않아 표시 없이 전환합니다.");
+                    yield break;
+                }
+
+                var screen = loadingScreen;
+                screen.Show(destination);
+                loadingOpen = true;
+                yield return screen.FadeIn();
+                if (screen && screen == loadingScreen)
+                    loadingShownAt = Time.realtimeSinceStartup;
+            }
+            finally
+            {
+                loadingOpening = false;
+            }
+        }
+
+        private IEnumerator Close()
+        {
+            while (loadingOpening)
+                yield return null;
+            var screen = loadingScreen;
+            if (!screen)
+                yield break;
+
+            screen.SetProgress(1f);
+            var shownAt = loadingShownAt >= 0f ? loadingShownAt : Time.realtimeSinceStartup;
+            var minimum = screen.MinimumDisplaySeconds;
+            while (screen && Time.realtimeSinceStartup - shownAt < minimum)
+                yield return null;
+            var catchUpDeadline = Time.realtimeSinceStartup + CatchUpTimeoutSeconds;
+            while (screen && !screen.HasCaughtUp && Time.realtimeSinceStartup < catchUpDeadline)
+                yield return null;
+            if (screen)
+                yield return screen.FadeOut();
+            if (screen == loadingScreen)
+                loadingOpen = false;
+        }
+
+        private static void EnsureEventSystem(Scene owner)
+        {
+            if (EventSystem.current)
+                return;
+            // Loading 씬은 평소 EventSystem을 두지 않는다(목적지 씬과 겹치지 않게).
+            // 실패 안내 때만 같은 씬에 임시로 만들어, Loading이 닫히면 함께 사라지게 한다.
+            var host = new GameObject("TemporaryEventSystem");
+            if (owner.IsValid() && owner.isLoaded)
+                SceneManager.MoveGameObjectToScene(host, owner);
+            host.AddComponent<EventSystem>();
+            host.AddComponent<InputSystemUIInputModule>().AssignDefaultActions();
+        }
+    }
+}
