@@ -190,6 +190,9 @@ namespace DOB.Tests
             Assert.That(served.GuestId, Is.EqualTo(visit.GuestId));
             Assert.That(served.Shortfalls, Is.EqualTo(shortfalls));
             Assert.That(served.Grade, Is.EqualTo(ExpeditionJudge.Grade(shortfall)));
+            // 보고 화면이 "막아냈다" 줄을 그릴 수 있게 그날의 실제 위험과 요리가 막은 칸도 함께 남는다.
+            Assert.That(served.Risks, Is.EqualTo(ExpeditionJudge.PerAxis(visit.ActualRisk)));
+            Assert.That(served.Protections, Is.EqualTo(ExpeditionJudge.PerAxis(axis => bread.Protection(axis, true))));
             // 대성공이면 30% 확률로 희귀 재료(숲 송로)가 하나 더 붙으므로 일반 재료만 센다.
             Assert.That(served.Loot.Count(material => material != "숲 송로"), Is.EqualTo(new[] { 3, 2, 1, 0 }[(int)served.Grade]));
             Assert.That(served.Loot.Count(material => material == "숲 송로"),
@@ -229,6 +232,8 @@ namespace DOB.Tests
             Assert.That(report.VisitId, Is.EqualTo(firstVisit));
             Assert.That(report.Grade, Is.EqualTo(served.Grade));
             Assert.That(report.Loot, Is.EqualTo(served.Loot));
+            Assert.That(report.Risks, Is.EqualTo(served.Risks), "위험 칸도 저장을 거쳐 다음 날 보고로 넘어온다");
+            Assert.That(report.Loot.All(settlement.IsNewMaterial), Is.True, "빈 재고에서 처음 받는 재료는 모두 신규다");
             Assert.That(settlement.IsReportConfirmed(firstVisit), Is.False);
             Assert.That(settlement.TodayResults, Is.Empty);
             Assert.That(economy.Materials.All(), Is.Empty);

@@ -27,6 +27,16 @@ namespace DOB.Systems
             return result;
         }
 
+        /// <summary>축 이름으로 조회한 값을 RiskAxes.All 순서로 늘어놓는다. 0 아래는 0. 보고 화면에 넘길 위험·효과 칸에 쓴다.</summary>
+        public static int[] PerAxis(Func<string, int> valueOf)
+        {
+            if (valueOf == null) throw new ArgumentNullException(nameof(valueOf));
+            var result = new int[RiskAxes.All.Count];
+            for (int i = 0; i < result.Length; i++)
+                result[i] = Math.Max(0, valueOf(RiskAxes.All[i]));
+            return result;
+        }
+
         /// <summary>축별 부족의 합.</summary>
         public static int Total(IReadOnlyList<int> shortfalls)
         {

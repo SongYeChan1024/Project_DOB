@@ -139,6 +139,49 @@ namespace DOB.Tests
         }
 
         [Test]
+        public void RisksAndProtectionsAreKeptForTheReportAndMustAgreeWithTheShortfalls()
+        {
+            var log = NewLog();
+            int[] risks = { 2, 0, 0, 0, 1, 1 }, protections = { 1, 0, 0, 0, 1, 3 }, shortfalls = { 1, 0, 0, 0, 0, 0 };
+            Assert.That(log.TryRecord("g1", "v1", "하루", 1, "구운 빵", true, shortfalls, risks, protections, out var result), Is.True);
+            Assert.That(result.Risks, Is.EqualTo(risks));
+            Assert.That(result.Protections, Is.EqualTo(protections));
+            Assert.That(result.Grade, Is.EqualTo(ExpeditionGrade.Success));
+            risks[0] = 9;
+            Assert.That(result.Risks[0], Is.EqualTo(2), "넘긴 배열을 나중에 바꿔도 기록은 그대로다");
+
+            // 위험·효과를 남기지 않은 기록은 null로 구분한다.
+            Assert.That(Record(log, "v2", 1).Risks, Is.Null);
+            Assert.That(log.Results[1].Protections, Is.Null);
+
+            // 한쪽만 주거나, 축 수가 다르거나, 음수거나, 부족과 맞지 않으면 아무것도 남기지 않는다.
+            int[] ok = { 2, 0, 0, 0, 1, 1 };
+            Assert.That(log.TryRecord("g", "v3", "하루", 1, "구운 빵", true, shortfalls, ok, null, out _), Is.False);
+            Assert.That(log.TryRecord("g", "v3", "하루", 1, "구운 빵", true, shortfalls, new[] { 2, 0 }, protections, out _), Is.False);
+            Assert.That(log.TryRecord("g", "v3", "하루", 1, "구운 빵", true, shortfalls, new[] { 2, 0, 0, 0, 1, -1 }, protections, out _), Is.False);
+            Assert.That(log.TryRecord("g", "v3", "하루", 1, "구운 빵", true, Short(0), ok, protections, out _), Is.False);
+            Assert.That(log.Results.Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void AMaterialIsNewForTheWholeMorningWhenItWasNotOwnedAtTheStartOfTheDay()
+        {
+            var log = NewLog();
+            Record(log, "v1", 0);
+            var stock = new MaterialStock(new[] { new MaterialCount("숲버섯", 2), new MaterialCount("들풀", 0) });
+            var reports = new ReturnReportLog(log.Results, stock);
+            Assert.That(reports.IsNewMaterial("숲버섯"), Is.False);
+            Assert.That(reports.IsNewMaterial("들풀"), Is.True, "보유 수가 0이면 아직 얻지 못한 재료다");
+            Assert.That(reports.IsNewMaterial("슬라임 젤리"), Is.True);
+            Assert.That(reports.IsNewMaterial(""), Is.False);
+            Assert.That(reports.IsNewMaterial(null), Is.False);
+
+            reports.ConfirmAll();
+            Assert.That(reports.IsNewMaterial("슬라임 젤리"), Is.True, "보고를 확정한 뒤 화면을 다시 열어도 그날은 신규로 남는다");
+            Assert.That(reports.IsNewMaterial("숲버섯"), Is.False);
+        }
+
+        [Test]
         public void ConfirmingAReportAddsItsLootExactlyOnce()
         {
             var log = NewLog();

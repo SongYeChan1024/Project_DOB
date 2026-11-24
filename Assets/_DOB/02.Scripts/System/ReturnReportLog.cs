@@ -23,6 +23,7 @@ namespace DOB.Systems
         private readonly List<VisitResult> reports = new List<VisitResult>();
         private readonly HashSet<string> confirmed = new HashSet<string>();
         private readonly MaterialStock stock;
+        private readonly HashSet<string> ownedAtStart = new HashSet<string>();
 
         /// <summary>오늘 아침의 귀환 보고. 전날 결과가 확정된 순서.</summary>
         public IReadOnlyList<VisitResult> Reports => reports;
@@ -30,6 +31,8 @@ namespace DOB.Systems
         public ReturnReportLog(IEnumerable<VisitResult> pending, MaterialStock stock)
         {
             this.stock = stock ?? throw new ArgumentNullException(nameof(stock));
+            foreach (var owned in stock.All())
+                if (owned.Count > 0) ownedAtStart.Add(owned.Id);
             if (pending == null)
                 return;
             var seen = new HashSet<string>();
@@ -40,6 +43,10 @@ namespace DOB.Systems
                 reports.Add(report);
             }
         }
+
+        /// <summary>오늘 아침 보고에서 처음 얻는 재료인지. 보고를 확정해도 그날 동안은 답이 바뀌지 않는다.</summary>
+        // shortcut: 일차 시작 때 보유 수가 0이면 처음 얻는 것으로 본다, 던전 재료를 요리에 써서 0이 될 수 있게 되면 "얻은 적 있는 재료" 기록을 따로 저장한다.
+        public bool IsNewMaterial(string material) => !string.IsNullOrEmpty(material) && !ownedAtStart.Contains(material);
 
         /// <summary>이 방문의 보고를 이미 처리했는지.</summary>
         public bool IsConfirmed(string visitId) => visitId != null && confirmed.Contains(visitId);
