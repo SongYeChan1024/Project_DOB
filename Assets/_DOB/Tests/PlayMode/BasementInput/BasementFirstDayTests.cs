@@ -190,7 +190,10 @@ namespace DOB.Tests
             Assert.That(served.GuestId, Is.EqualTo(visit.GuestId));
             Assert.That(served.Shortfalls, Is.EqualTo(shortfalls));
             Assert.That(served.Grade, Is.EqualTo(ExpeditionJudge.Grade(shortfall)));
-            Assert.That(served.Loot.Count, Is.EqualTo(new[] { 3, 2, 1, 0 }[(int)served.Grade]));
+            // 대성공이면 30% 확률로 희귀 재료(숲 송로)가 하나 더 붙으므로 일반 재료만 센다.
+            Assert.That(served.Loot.Count(material => material != "숲 송로"), Is.EqualTo(new[] { 3, 2, 1, 0 }[(int)served.Grade]));
+            Assert.That(served.Loot.Count(material => material == "숲 송로"),
+                Is.LessThanOrEqualTo(served.Grade == ExpeditionGrade.GreatSuccess ? 1 : 0));
             Assert.That(UnityEngine.Object.FindAnyObjectByType<EconomyManager>().Materials.All(), Is.Empty, "전리품은 다음 아침에 받는다");
             Canvas.ForceUpdateCanvases();
             var receipt = hud.Receipt;

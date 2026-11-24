@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: SO_ExpeditionRewards
   m_EditorClassIdentifier: DOB.Define::DOB.Define.ExpeditionRewards
   lootByGrade: 03000000020000000100000000000000
+  rareLootChance: 0.3
   floors:
   - floor: 1
     materials:
@@ -20,3 +21,4 @@ MonoBehaviour:
     - "\uC232\uBC84\uC12F"
     - "\uB4E4\uD480"
     - "\uC232 \uB2F9\uADFC"
+    rareMaterial: "\uC232 \uC1A1\uB85C"

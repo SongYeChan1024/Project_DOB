@@ -43,7 +43,7 @@ namespace DOB.Manager
             if (!rewards || stock == null)
                 return false;
             reports = new ReturnReportLog(pendingReports, stock);
-            results = new VisitResultLog(rewards.LootCount, rewards.Materials, random);
+            results = new VisitResultLog(rewards.LootCount, rewards.Materials, random, rewards.RareMaterial, rewards.RareLootChance);
             return true;
         }
 

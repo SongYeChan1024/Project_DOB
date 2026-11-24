@@ -333,7 +333,7 @@ namespace DOB.Editor
             Debug.Log("DOB_BASEMENT_SETTLEMENT_READY");
         }
 
-        // 💡 시험값: 등급별 전리품 3·2·1·0, 1층 일반 재료 4종 (FeatureManagerMap F9, FirstPlayEconomy). 에셋이 이미 있으면 값을 건드리지 않는다.
+        // 💡 시험값: 등급별 전리품 3·2·1·0, 1층 일반 재료 4종, 대성공 때 희귀 재료(숲 송로) 30% (FeatureManagerMap F9, FirstPlayEconomy). 에셋이 이미 있으면 값을 건드리지 않는다.
         private static ScriptableObject ExpeditionRewards()
         {
             var rewards = Asset<ScriptableObject>(ExpeditionRewardsPath);
@@ -355,6 +355,8 @@ namespace DOB.Editor
             materials.arraySize = forest.Length;
             for (int i = 0; i < forest.Length; i++)
                 materials.GetArrayElementAtIndex(i).stringValue = forest[i];
+            first.FindPropertyRelative("rareMaterial").stringValue = "숲 송로";
+            data.FindProperty("rareLootChance").floatValue = 0.3f;
             data.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.CreateAsset(rewards, Root + ExpeditionRewardsPath);
             return rewards;

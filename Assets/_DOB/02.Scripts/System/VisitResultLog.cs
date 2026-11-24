@@ -6,6 +6,7 @@
 //   TryRecord — 방문·손님 ID가 비었거나 축별 부족이 여섯 칸이 아니거나 음수가 있으면 거절한다.
 //               같은 방문 ID가 이미 있으면 거절한다 (중복 서빙 입력 방지).
 //               부족 합으로 등급을 정하고, 등급별 개수만큼 그 층의 재료에서 전리품을 뽑아 함께 기록한다.
+//               대성공이면 정해진 확률로 그 층의 희귀 재료 1개를 더한다.
 //   전리품은 여기서 한 번만 뽑는다. 불러오기나 보고 재열기로 결과가 달라지지 않게 하기 위해서다.
 // =====================================================================
 using System;
@@ -20,6 +21,8 @@ namespace DOB.Systems
         private readonly Func<ExpeditionGrade, int> lootCount;
         private readonly Func<int, IReadOnlyList<string>> floorMaterials;
         private readonly Random random;
+        private readonly Func<int, string> floorRareMaterial;
+        private readonly double rareChance;
         private readonly List<VisitResult> results = new List<VisitResult>();
         private readonly HashSet<string> visitIds = new HashSet<string>();
 
@@ -29,11 +32,17 @@ namespace DOB.Systems
         /// <param name="lootCount">등급별 전리품 개수(기획 데이터).</param>
         /// <param name="floorMaterials">층별 일반 재료 목록(기획 데이터).</param>
         /// <param name="random">전리품 추첨용 난수. 테스트는 시드를 고정해 넘긴다.</param>
-        public VisitResultLog(Func<ExpeditionGrade, int> lootCount, Func<int, IReadOnlyList<string>> floorMaterials, Random random)
+        /// <param name="floorRareMaterial">층별 희귀 재료 이름(기획 데이터). 생략하면 희귀 재료를 주지 않는다.</param>
+        /// <param name="rareChance">대성공일 때 희귀 재료 1개를 더 줄 확률(기획 데이터). 0부터 1.</param>
+        public VisitResultLog(Func<ExpeditionGrade, int> lootCount, Func<int, IReadOnlyList<string>> floorMaterials, Random random,
+            Func<int, string> floorRareMaterial = null, double rareChance = 0)
         {
+            if (!(rareChance >= 0 && rareChance <= 1)) throw new ArgumentOutOfRangeException(nameof(rareChance));
             this.lootCount = lootCount ?? throw new ArgumentNullException(nameof(lootCount));
             this.floorMaterials = floorMaterials ?? throw new ArgumentNullException(nameof(floorMaterials));
             this.random = random ?? throw new ArgumentNullException(nameof(random));
+            this.floorRareMaterial = floorRareMaterial;
+            this.rareChance = rareChance;
         }
 
         /// <summary>서빙이 성공한 방문의 결과를 확정한다. 잘못된 입력과 중복 방문은 아무것도 바꾸지 않고 false.</summary>
@@ -64,10 +73,16 @@ namespace DOB.Systems
         {
             var materials = floorMaterials(floor);
             int count = materials == null || materials.Count == 0 ? 0 : Math.Max(0, lootCount(grade));
-            var loot = new string[count];
+            var loot = new List<string>(count + 1);
             for (int i = 0; i < count; i++)
-                loot[i] = materials[random.Next(materials.Count)];
-            return loot;
+                loot.Add(materials[random.Next(materials.Count)]);
+
+            // 대성공일 때만 희귀 재료를 한 번 추첨한다. 💡 기본 전리품을 대신하지 않고 맨 뒤에 하나 더한다
+            // (대신하는지 더하는지는 FeatureManagerMap에 미정, 정해지면 이 블록만 바꾼다).
+            string rare = grade == ExpeditionGrade.GreatSuccess ? floorRareMaterial?.Invoke(floor) : null;
+            if (!string.IsNullOrEmpty(rare) && random.NextDouble() < rareChance)
+                loot.Add(rare);
+            return loot.ToArray();
         }
     }
 }

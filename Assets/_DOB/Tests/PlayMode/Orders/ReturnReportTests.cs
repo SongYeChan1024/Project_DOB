@@ -63,6 +63,54 @@ namespace DOB.Tests
             Assert.That(result.Loot, Is.SubsetOf(Forest));
         }
 
+        private const string Rare = "숲 송로";
+
+        private static VisitResultLog RareLog(double chance, int seed = 7) =>
+            new VisitResultLog(grade => LootByGrade[(int)grade], floor => floor == 1 ? Forest : Array.Empty<string>(),
+                new Random(seed), floor => floor == 1 ? Rare : null, chance);
+
+        [Test]
+        public void OnlyAGreatSuccessCanAddOneRareMaterialOnTopOfTheBaseLoot()
+        {
+            var always = Record(RareLog(1), "v1", 0);
+            Assert.That(always.Loot.Count, Is.EqualTo(4), "기본 3개에 희귀 1개를 더한다");
+            Assert.That(always.Loot.Last(), Is.EqualTo(Rare));
+            Assert.That(always.Loot.Take(3), Is.SubsetOf(Forest));
+
+            // 성공 이하에서는 확률이 1이어도 희귀 재료가 없다.
+            for (int shortfall = 1; shortfall <= 3; shortfall++)
+                Assert.That(Record(RareLog(1), "v" + shortfall, shortfall).Loot, Has.None.EqualTo(Rare));
+
+            Assert.That(Record(RareLog(0), "v1", 0).Loot, Is.EqualTo(Record(NewLog(), "v1", 0).Loot), "확률 0이면 기본 전리품과 같다");
+            Assert.That(Record(RareLog(1), "v9", 0, floor: 9).Loot, Is.Empty, "희귀 재료가 등록되지 않은 층");
+            Assert.Throws<ArgumentOutOfRangeException>(() => RareLog(1.5));
+            Assert.Throws<ArgumentOutOfRangeException>(() => RareLog(-0.1));
+        }
+
+        [Test]
+        public void RareMaterialAppearsAtRoughlyTheConfiguredChance()
+        {
+            var log = RareLog(0.3, seed: 11);
+            int rare = 0;
+            const int visits = 2000;
+            for (int i = 0; i < visits; i++)
+                if (Record(log, "v" + i, 0).Loot.Contains(Rare)) rare++;
+            Assert.That(rare / (double)visits, Is.InRange(0.26, 0.34));
+        }
+
+        [Test]
+        public void ARareMaterialGoesIntoStockOnceLikeAnyOtherLoot()
+        {
+            var log = RareLog(1);
+            Record(log, "v1", 0);
+            var stock = new MaterialStock();
+            var reports = new ReturnReportLog(log.Results, stock);
+            Assert.That(reports.Confirm("v1"), Is.EqualTo(ReportConfirmResult.Confirmed));
+            Assert.That(reports.Confirm("v1"), Is.EqualTo(ReportConfirmResult.AlreadyConfirmed));
+            Assert.That(stock.Count(Rare), Is.EqualTo(1));
+            Assert.That(Total(stock), Is.EqualTo(4));
+        }
+
         [Test]
         public void LootIsDrawnOnceAndAFloorWithoutMaterialsGivesNone()
         {
