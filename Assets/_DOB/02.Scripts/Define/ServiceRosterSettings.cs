@@ -1,0 +1,52 @@
+// 본영업 하루의 손님 수·입장 간격·입구 줄·대기 점수 기준값. GuestManager가 읽어 ServiceRoster를 만든다.
+// 의사코드: 값은 인스펙터(08.Data/SO_ServiceRoster)에서만 정한다. Validate가 인원 ≥ 1, 0 < 최소 ≤ 최대, 줄 ≥ 1,
+// 점수 간격·이탈 한도 > 0, 시작 점수 ≥ 0을 검사하고 첫 오류를 돌려준다. 검사 실패면 GameManager.Prepare가 실패한다.
+// 💡 시험값(3명, 8~20초, 줄 2명, 2점, 10초, 30초)은 송예찬 확인 전이다 (FeatureManagerMap F1·F2·F10 시험안).
+using UnityEngine;
+
+namespace DOB.Define
+{
+    /// <summary>하루 영업의 손님 명단 기준값. 실행 중 방문 상태는 ServiceRoster가 갖는다.</summary>
+    [CreateAssetMenu(menuName = "DOB/영업 손님 기준", fileName = "SO_ServiceRoster")]
+    public sealed class ServiceRosterSettings : ScriptableObject
+    {
+        /// <summary>입소문이 없을 때 그날 받는 예정 방문 수(명). 1 이상.</summary>
+        [SerializeField] private int baseGuests = 3;
+        /// <summary>다음 입장까지의 최소 간격(초). 0보다 크다.</summary>
+        [SerializeField] private float arrivalMinSeconds = 8f;
+        /// <summary>다음 입장까지의 최대 간격(초). 최소 이상.</summary>
+        [SerializeField] private float arrivalMaxSeconds = 20f;
+        /// <summary>입구에서 맞이를 기다릴 수 있는 최대 인원(명). 1 이상.</summary>
+        [SerializeField] private int queueCapacity = 2;
+        /// <summary>대기 점수의 시작값(점). 0 이상.</summary>
+        [SerializeField] private int waitStartScore = 2;
+        /// <summary>대기 점수가 1점 내려가는 대기 시간(초). 0보다 크다.</summary>
+        [SerializeField] private float scoreStepSeconds = 10f;
+        /// <summary>서빙을 받지 못하고 기다릴 수 있는 한도(초). 이에 이르면 대기 이탈. 0보다 크다.</summary>
+        [SerializeField] private float leaveAfterSeconds = 30f;
+        /// <summary>입구 줄에서 손님 사이의 간격(m). 배치 값이라 규칙에는 쓰지 않는다.</summary>
+        [SerializeField, Min(0.1f)] private float queueSpacing = 0.9f;
+
+        public int BaseGuests => baseGuests;
+        public float ArrivalMinSeconds => arrivalMinSeconds;
+        public float ArrivalMaxSeconds => arrivalMaxSeconds;
+        public int QueueCapacity => queueCapacity;
+        public int WaitStartScore => waitStartScore;
+        public float ScoreStepSeconds => scoreStepSeconds;
+        public float LeaveAfterSeconds => leaveAfterSeconds;
+        public float QueueSpacing => queueSpacing;
+
+        /// <summary>규칙에 쓰는 값을 검사한다. 문제가 없으면 null, 있으면 첫 오류 설명.</summary>
+        public string Validate()
+        {
+            if (baseGuests < 1) return "기본 인원은 1명 이상이어야 합니다.";
+            if (!(arrivalMinSeconds > 0f) || !(arrivalMaxSeconds >= arrivalMinSeconds) || float.IsInfinity(arrivalMaxSeconds))
+                return "입장 간격은 0 < 최소 ≤ 최대여야 합니다.";
+            if (queueCapacity < 1) return "입구 줄 인원은 1명 이상이어야 합니다.";
+            if (waitStartScore < 0) return "대기 시작 점수는 0 이상이어야 합니다.";
+            if (!(scoreStepSeconds > 0f) || float.IsInfinity(scoreStepSeconds)) return "대기 점수 간격은 0보다 커야 합니다.";
+            if (!(leaveAfterSeconds > 0f) || float.IsInfinity(leaveAfterSeconds)) return "대기 이탈 한도는 0보다 커야 합니다.";
+            return null;
+        }
+    }
+}
