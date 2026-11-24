@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 11ee47f0bfce2894e992bd229a8097d4, type: 3}
+  m_Name: PauseMenuSkin
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.PauseMenuSkin
+  font: {fileID: 11400000, guid: 05bd8d960abd0494c8025bcf5e3e9030, type: 2}
+  window: {fileID: 21300000, guid: ef4c2f7e047e23a498b0cfea6594b958, type: 3}
+  plate: {fileID: 21300000, guid: 5105df13c39c9c6438abace1eed09ccb, type: 3}
+  settingsPrefab: {fileID: 3604735242523553012, guid: f2fb81349d264a54199ea4aed45da1a2, type: 3}
+  titleColor: {r: 0.9411765, g: 0.76862746, b: 0.43137255, a: 1}
+  textColor: {r: 0.9607843, g: 0.9098039, b: 0.8039216, a: 1}
+  subColor: {r: 0.88235295, g: 0.8039216, b: 0.6666667, a: 1}

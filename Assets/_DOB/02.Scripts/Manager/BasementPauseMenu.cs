@@ -1,8 +1,12 @@
-// ESC → 영업 시간 정지 → 저장 일차 확인, 슬롯 복원, 음량 조정 또는 타이틀 복귀.
+// ESC → 영업 시간 정지 → 저장 일차 확인, 슬롯 복원, 설정 또는 타이틀 복귀.
 // 취소하면 파일과 진행 상태를 보존하고, 닫히거나 씬이 종료되면 열기 전 시간 배율과 포커스를 복원한다.
+// 게임 시간(Time.timeScale)을 멈추는 곳은 이 메뉴 하나뿐이다. 대화 · 수첩 · 주방 · 준비 화면에서는 시간이 계속 흐른다.
+// (홍준우 2026-11-24) 화면을 다른 화면과 같은 나무 창 · 이름표 단추(PauseMenuView)로 바꾸고,
+//   설정은 해상도 · 화면 모드 · 수직 동기화 · 음량 3종 창(SettingsView · GameSettings)으로 바꿨다. 흐름 · 단추 이름은 그대로.
 using System;
 using System.IO;
 using DOB.Systems;
+using DOB.UI;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -11,12 +15,14 @@ namespace DOB.Manager
     [DisallowMultipleComponent]
     public sealed class BasementPauseMenu : MonoBehaviour
     {
+        // 구 글꼴 참조. BasementSceneBuilder가 연결하므로 남겨 둔다 (화면은 스킨의 연성 글꼴을 쓴다).
         [SerializeField] private Font font;
+        [Tooltip("비워 두면 Resources/UI/PauseMenuSkin을 쓴다")]
+        [SerializeField] private PauseMenuSkin skin;
         // ESC 메뉴는 BasementComposition.Current를 읽지 않는다. 저장소·일차·저장 요청은 GameManager가 Initialize·이벤트로 잇는다.
-        private const string VolumeKey = "DOB.Basement.MasterVolume";
         private enum Page { Main, Save, Load, ConfirmLoad, Settings, Exit }
         private Page page;
-        private BasementPauseView view;
+        private PauseMenuView view;
         private GameObject previousFocus;
         private float previousScale;
         private static BasementPauseMenu openMenu;
@@ -35,9 +41,9 @@ namespace DOB.Manager
 
         private void Awake()
         {
-            view = new BasementPauseView(transform, font ? font : Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
-            if (PlayerPrefs.HasKey(VolumeKey))
-                AudioListener.volume = Mathf.Clamp01(PlayerPrefs.GetFloat(VolumeKey));
+            view = new PauseMenuView(transform, skin ? skin : Resources.Load<PauseMenuSkin>("UI/PauseMenuSkin"));
+            // 설정 [뒤로] → 첫 화면 (Esc는 HandleEscape가 같은 곳으로 보낸다)
+            if (view.Settings) view.Settings.Closed += () => { if (openMenu == this) Main(); };
         }
 
         public void HandleEscape()
@@ -86,8 +92,8 @@ namespace DOB.Manager
             view.Action("Resume", "이어하기\n" + recent, Close);
             view.Action("Save", "저장", ConfirmSave);
             view.Action("Load", "불러오기", LoadSlots);
-            view.Action("Settings", "환경설정", Settings);
-            view.Action("Exit", "끝내기", ConfirmExit);
+            view.Action("Settings", "설정", Settings);
+            view.Action("Exit", "타이틀로", ConfirmExit);
             if (!string.IsNullOrEmpty(note)) view.Label(note);
             view.Focus();
         }
@@ -145,16 +151,8 @@ namespace DOB.Manager
         private void Settings()
         {
             page = Page.Settings;
-            view.Begin("환경설정");
-            var label = view.Label($"전체 음량 {Mathf.RoundToInt(AudioListener.volume * 100f)}%");
-            view.Volume(AudioListener.volume, volume =>
-            {
-                AudioListener.volume = volume;
-                PlayerPrefs.SetFloat(VolumeKey, volume);
-                label.text = $"전체 음량 {Mathf.RoundToInt(volume * 100f)}%";
-            });
-            view.Action("Back", "뒤로", () => Main());
-            view.Focus();
+            if (!view.ShowSettings())
+                Main("설정 창을 찾지 못했어요.");
         }
 
         private void ConfirmExit()

@@ -169,8 +169,8 @@ namespace DOB.Manager
                 if (i == current && IsOpen) view.Show(BuildData());
             }
 
-            // shortcut: Esc가 일시 정지 메뉴와 겹칠 수 있음, 입력 담당 정해지면 그쪽으로 옮긴다
-            if (IsOpen && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+            // Esc 순서: ESC 메뉴가 열려 있으면 메뉴가 받고, 이 화면이 열려 있으면 이 화면만 닫는다 (BasementPauseInput은 UIManager.IsScreenOpen이면 메뉴를 열지 않음)
+            if (IsOpen && !BasementPauseMenu.IsPaused && Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
                 Close();
         }
 

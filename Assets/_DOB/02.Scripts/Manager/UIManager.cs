@@ -38,6 +38,7 @@
 // 상태   : 등록된 요리 화면 Presenter 하나.
 // [열기]      등록된 화면이 없으면 경고하고 false → 있으면 그 화구의 요리 화면을 연다
 // [열림 여부] 재료 고르는 중에는 손님 대기 시간을 멈춘다(기획 4-1). 손님 쪽이 IsKitchenOpen을 읽는다
+// [Esc 순서] IsScreenOpen: 준비 · 요리 화면이 열려 있으면 Esc는 그 화면을 닫는 데 쓰고 ESC 메뉴는 열지 않는다 (BasementPauseInput)
 // =====================================================================
 using System;
 using System.Collections;
@@ -75,6 +76,9 @@ namespace DOB.Manager
 
         /// <summary>화구 요리 화면이 열려 있는지 (재료 고르는 중).</summary>
         public static bool IsKitchenOpen => instance && instance.kitchen && instance.kitchen.IsOpen;
+
+        /// <summary>Esc로 닫히는 화면(준비 · 요리)이 열려 있는지. 열려 있으면 Esc는 그 화면만 닫고 ESC 메뉴를 열지 않는다.</summary>
+        public static bool IsScreenOpen => IsPrepScreenOpen || IsKitchenOpen;
 
         /// <summary>준비 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패) 중 하나가 열려 있는지.</summary>
         public static bool IsPrepScreenOpen => instance && instance.prepScreen && instance.prepScreen.IsOpen;
