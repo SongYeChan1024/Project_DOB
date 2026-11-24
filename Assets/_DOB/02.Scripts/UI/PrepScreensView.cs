@@ -54,6 +54,7 @@ namespace DOB.UI
                 return;
             bool wasOpen = IsOpen;
             Current = screen;
+            SetInput(true);
             // 먼저 켜야 각 화면의 Awake(버튼 연결)가 그리기 전에 끝난다
             content.gameObject.SetActive(true);
             ShowOnly(screen);
@@ -79,6 +80,8 @@ namespace DOB.UI
         {
             if (!IsOpen) return;
             Current = PrepScreen.None;
+            // 닫히는 페이드 동안 버튼이 또 눌리지 않게 바로 입력을 막는다 (PR #20 버그: 문 열기 두 번)
+            SetInput(false);
             StartFade(0f, true);
         }
 
@@ -102,9 +105,14 @@ namespace DOB.UI
             }
         }
 
+        private void SetInput(bool on)
+        {
+            content.interactable = on;
+            content.blocksRaycasts = on;
+        }
+
         private IEnumerator Fade(float to, bool hideAtEnd)
         {
-            content.blocksRaycasts = true;
             float from = content.alpha;
             // 일시 정지(timeScale 0)와 무관하게 끝나도록 실제 시간을 쓴다.
             for (float t = 0f; t < fadeSeconds; t += Time.unscaledDeltaTime)

@@ -2,74 +2,103 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="다녀왔어: 층계참 식당의 팀 기획 자료. 손님의 단서를 읽고 요리하는 첫 영업부터 다음 아침의 귀환까지 다섯 장의 흐름도로 살펴봅니다.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="다녀왔어: 층계참 식당의 게임 기획 발표와 흐름도 자료실">
   <title>다녀왔어: 층계참 식당 · 게임 기획</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="deck.css">
   <link rel="stylesheet" href="slides.css">
+  <link rel="stylesheet" href="trail.css">
   <script src="content.js" defer></script>
-  <script src="reader.js" defer></script>
+  <script src="features.js" defer></script>
+  <script src="comparisons.js" defer></script>
   <script src="slides.js" defer></script>
+  <script src="trail.js" defer></script>
+  <script src="deck.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#chapters">기획 목차로 건너뛰기</a>
-  <header class="site-header">
-    <a class="brand" href="#intro">층계참 식당</a>
-    <nav class="site-nav" aria-label="주요 메뉴">
-      <a href="#intro">게임 소개</a>
-      <a href="#chapters">기획 읽기</a>
-    </nav>
-  </header>
-
-  <main>
-    <section class="hero" id="intro" aria-labelledby="game-title">
-      <div class="hero-copy">
-        <h1 id="game-title">다녀왔어:<br>층계참 식당</h1>
-        <p class="hero-summary">던전으로 내려가는 손님의 말과 차림새에서 단서를 찾아 한 끼를 차립니다. 그 음식이 어떤 도움이 됐는지는 다음 아침, 식당으로 돌아온 손님에게 듣습니다.</p>
-        <div class="hero-actions">
-          <button class="button button-primary" type="button" data-present="">발표 시작</button>
-          <a class="button button-secondary" href="#chapters">기획 읽기</a>
+  <main class="deck" data-cover aria-label="게임 기획 발표">
+    <div class="deck-scene">
+      <header class="deck-header">
+        <span class="deck-brand"><i class="deck-mark" aria-hidden="true"></i>층계참 식당</span>
+        <div class="deck-actions">
+          <button type="button" class="deck-action" data-present="" aria-haspopup="dialog">
+            <i class="deck-icon-book" aria-hidden="true"></i>흐름도 자료실
+          </button>
+          <button type="button" class="deck-action" id="deck-full" hidden>
+            <i class="deck-icon-full" aria-hidden="true"></i><span>전체화면</span>
+          </button>
+        </div>
+      </header>
+      <div class="deck-page" data-cover>
+        <img class="deck-art" src="assets/loading-title.png" alt="" width="1280" height="714" fetchpriority="high">
+        <div class="deck-reading">
+          <article class="deck-copy" aria-labelledby="deck-title">
+            <p class="deck-kicker" id="deck-number">01 · 타이틀 메뉴</p>
+            <h1 id="deck-title" tabindex="-1">다녀왔어:<br>층계참 식당</h1>
+            <p class="deck-lead" id="deck-lead">타이틀 메뉴에서 새 게임을 시작합니다.</p>
+            <p class="deck-detail" id="deck-detail" hidden></p>
+            <nav class="deck-choices" aria-label="연결된 장면" hidden></nav>
+            <div class="deck-references">
+              <button type="button" class="deck-related" id="deck-related" data-present="" aria-haspopup="dialog" hidden>
+                관련 흐름도 보기 <span aria-hidden="true">↗</span>
+              </button>
+              <a class="deck-related" id="dialogue-generator-link" href="https://github.com/SongYeChan1024/Project_DOB/blob/main/Docs/기획/시스템/DialogueGenerator.md" target="_blank" rel="noopener" aria-label="대사 생성기 기획서 (새 탭)" hidden>
+                대사 생성기 기획서 <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+          </article>
+          <section class="deck-comparison" aria-label="기획 시안과 실제 플레이 비교" hidden>
+            <div class="compare-tabs" role="tablist" aria-label="비교할 이미지">
+              <button type="button" role="tab" id="compare-tab-before" aria-controls="compare-before" data-side="before">기획 시안</button>
+              <button type="button" role="tab" id="compare-tab-after" aria-controls="compare-after" data-side="after">실제 플레이</button>
+            </div>
+            <div class="compare-pair"></div>
+          </section>
         </div>
       </div>
-      <figure class="hero-art">
-        <img src="assets/restaurant-layout.png" alt="던전의 위아래 계단 사이, 식탁의 손님에게 주인이 음식을 나르는 층계참 식당" width="1586" height="992" fetchpriority="high">
-        <figcaption>식당 공간 콘셉트</figcaption>
-      </figure>
-    </section>
-
-    <section class="chapters" id="chapters" aria-labelledby="chapters-title">
-      <div class="section-heading">
-        <h2 id="chapters-title">기획 읽기</h2>
-      </div>
-      <div class="chapter-layout">
-        <nav class="chapter-nav" aria-label="기획 목차"></nav>
-        <article class="chapter-panel" id="chapter-panel" aria-labelledby="chapter-title" hidden>
-          <div class="chapter-content">
-            <p class="chapter-status"></p>
-            <h3 class="chapter-title" id="chapter-title" aria-live="polite"></h3>
-            <p class="chapter-question"></p>
-            <p class="chapter-summary"></p>
-            <div class="chapter-actions">
-              <a class="chapter-original" target="_blank" rel="noopener">원본 확대</a>
-              <button class="button button-secondary" type="button" data-present="">이 장에서 발표</button>
-            </div>
-          </div>
-          <figure class="chapter-figure">
-            <a target="_blank" rel="noopener"><img class="chapter-image" alt=""></a>
-          </figure>
-        </article>
-      </div>
-      <noscript>
-        <p>발표와 장 선택에는 자바스크립트가 필요합니다. 흐름도 원본은 아래에서 열 수 있습니다.</p>
-        <ul>
-          <li><a href="assets/05-game-overview.png">게임 전체 흐름</a></li>
-          <li><a href="assets/01-first-service.png">첫 영업</a></li>
-          <li><a href="assets/02-guest-clues.png">손님의 단서</a></li>
-          <li><a href="assets/03-expedition-result.png">탐험 판정</a></li>
-          <li><a href="assets/04-guest-reactions.png">손님의 반응</a></li>
-        </ul>
-      </noscript>
-    </section>
+    </div>
+    <footer class="deck-footer">
+      <div class="adventure-trail" aria-hidden="true"></div>
+      <nav class="deck-nav" aria-label="발표 장 이동">
+        <button type="button" id="deck-prev" aria-label="이전 장"><span class="deck-arrow deck-arrow-back" aria-hidden="true"></span>이전</button>
+        <label class="deck-jump">
+          <span class="deck-position" id="deck-position" aria-hidden="true"></span>
+          <select id="deck-picker" aria-label="발표 장 선택"></select>
+        </label>
+        <button type="button" id="deck-next" aria-label="다음 장">다음<span class="deck-arrow" aria-hidden="true"></span></button>
+      </nav>
+    </footer>
+    <span class="deck-sr" role="status" aria-atomic="true" id="deck-announcement"></span>
+    <p class="deck-notice" role="status" id="deck-notice" hidden></p>
   </main>
+  <template id="compare-figure">
+    <figure class="compare-figure">
+      <div class="compare-label"><span></span><strong></strong></div>
+      <button class="compare-open" type="button" aria-haspopup="dialog">
+        <img alt="">
+        <span class="compare-enlarge">원본 확대 <span aria-hidden="true">↗</span></span>
+      </button>
+      <figcaption></figcaption>
+    </figure>
+  </template>
+  <dialog class="compare-viewer" aria-labelledby="compare-viewer-title">
+    <header>
+      <h2 id="compare-viewer-title"></h2>
+      <button type="button" class="compare-zoom" aria-pressed="false">원본 크기</button>
+      <button type="button" class="compare-close" autofocus>닫기</button>
+    </header>
+    <div class="compare-stage" tabindex="-1" role="region" aria-label="확대 이미지"><img alt=""></div>
+    <p class="compare-caption"></p>
+  </dialog>
+  <noscript>
+    <nav class="deck-fallback" aria-label="흐름도 원본">
+      <p>장 이동에는 자바스크립트가 필요합니다. 원본 흐름도를 열어볼 수 있습니다.</p>
+      <a href="assets/05-game-overview.png">게임 전체 흐름</a>
+      <a href="assets/01-first-service.png">첫 영업</a>
+      <a href="assets/02-guest-clues.png">손님의 단서</a>
+      <a href="assets/03-expedition-result.png">탐험 판정</a>
+      <a href="assets/04-guest-reactions.png">손님의 반응</a>
+    </nav>
+  </noscript>
 </body>
 </html>

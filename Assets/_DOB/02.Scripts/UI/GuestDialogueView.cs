@@ -173,10 +173,7 @@ namespace DOB.UI
             // 숨은 단서
             dialogueLinks.LinkClicked += OnKeywordClicked;
             for (int i = 0; i < clueMarkers.Length; i++)
-            {
-                int index = i; // 람다가 반복 변수 대신 고정된 번호를 쓰도록 복사
-                clueMarkers[i].Clicked += () => OnPortraitClueClicked(index);
-            }
+                BindMarker(i);
 
             dialogueText.overflowMode = TextOverflowModes.Page;
             notebookClosedPos = notebookPanel.anchoredPosition;
@@ -268,12 +265,13 @@ namespace DOB.UI
             RefreshDialogueText(keepPage: false);
             ShowNotice(null);
 
-            // 초상화 숨은 단서 자리
+            // 동시에 드러날 외형 단서가 프리팹의 기본 자리 수를 넘으면 같은 입력 영역을 추가한다.
+            EnsureMarkerCount(data.clues.Length);
             for (int i = 0; i < clueMarkers.Length; i++)
             {
                 if (i < data.clues.Length)
                 {
-                    bool found = record.Has(data.guestId, PortraitKey(i));
+                    bool found = record.Has(data.guestId, MarkerKey(i));
                     clueMarkers[i].Show(data.clues[i].description, data.clues[i].position, found);
                 }
                 else
@@ -296,20 +294,41 @@ namespace DOB.UI
         // 숨은 단서 찾기
         // =================================================================
 
+        private void BindMarker(int index) => clueMarkers[index].Clicked += () => OnPortraitClueClicked(index);
+
+        private void EnsureMarkerCount(int required)
+        {
+            int previous = clueMarkers.Length;
+            if (previous == 0 || previous >= required) return;
+            var template = clueMarkers[0];
+            Array.Resize(ref clueMarkers, required);
+            for (int i = previous; i < required; i++)
+            {
+                clueMarkers[i] = Instantiate(template, template.transform.parent);
+                BindMarker(i);
+            }
+        }
+
+        private ClueKeywordData FindKeyword(string phrase) =>
+            Array.Find(current.keywords ?? Array.Empty<ClueKeywordData>(), k => k != null && k.phrase == phrase);
+
+        private string MarkerKey(int index) => FirstNonEmpty(current.clues[index].key, PortraitKey(index));
+
         // 대사의 [[ ]] 키워드를 눌렀다. (TMP 링크가 걸린 곳만 여기로 온다 = 틀린 곳은 무반응)
         private void OnKeywordClicked(string phrase)
         {
             if (!CanAcceptInput())
                 return;
 
-            var keyword = Array.Find(current.keywords ?? Array.Empty<ClueKeywordData>(), k => k != null && k.phrase == phrase);
+            var keyword = FindKeyword(phrase);
             if (keyword != null)
             {
                 Discover(new FoundClue
                 {
-                    key = LineKey(phrase),
+                    key = FirstNonEmpty(keyword.key, LineKey(phrase)),
                     tag = phrase,
                     risk = keyword.risk,
+                    delta = keyword.delta,
                     source = ClueSource.Line,
                     recordTo = keyword.recordTo,
                 });
@@ -328,9 +347,10 @@ namespace DOB.UI
             var clue = current.clues[index];
             Discover(new FoundClue
             {
-                key = PortraitKey(index),
+                key = MarkerKey(index),
                 tag = string.IsNullOrEmpty(clue.tagName) ? clue.description : clue.tagName,
                 risk = clue.risk,
+                delta = clue.delta,
                 source = ClueSource.Portrait,
                 recordTo = clue.recordTo,
             });
@@ -343,6 +363,7 @@ namespace DOB.UI
             string race = FirstNonEmpty(current.race, SplitRaceJob(current.raceJob, 0));
             string job = FirstNonEmpty(current.job, SplitRaceJob(current.raceJob, 1));
 
+            current.discover?.Invoke(clue.key);
             if (!record.Add(current.guestId, clue, race, job, current.destinationLabel))
                 return; // 이미 찾은 단서
 
@@ -372,7 +393,7 @@ namespace DOB.UI
             return KeywordMarkup.Replace(line, m =>
             {
                 string phrase = m.Groups[1].Value;
-                bool found = record.Has(current.guestId, LineKey(phrase));
+                bool found = record.Has(current.guestId, FirstNonEmpty(FindKeyword(phrase)?.key, LineKey(phrase)));
                 return found
                     ? $"<link=\"{phrase}\"><u><color={FoundKeywordColor}>{phrase}</color></u></link>"
                     : $"<link=\"{phrase}\">{phrase}</link>"; // 겉으로는 보통 글자와 똑같다
@@ -429,9 +450,10 @@ namespace DOB.UI
                     continue;
                 }
                 string riskName = risks[i].Key;
-                int count = risks[i].Count();   // 이 위험의 단서를 몇 개 찾았는지 → 칸 수 (최대 5)
+                int count = current.notebookRisk != null ? current.notebookRisk(riskName).GetValueOrDefault() : risks[i].Count();
                 var kind = FindRiskKind(riskName);
-                riskSlots[i].Show(riskName, kind?.icon, kind?.color ?? Color.gray, count);
+                string label = current.notebookRisk == null ? riskName : $"{riskName} {count}";
+                riskSlots[i].Show(label, kind?.icon, kind?.color ?? Color.gray, count);
             }
         }
 
@@ -473,7 +495,7 @@ namespace DOB.UI
             tagView.gameObject.SetActive(true);
             var kind = FindRiskKind(clue.risk);
             Color color = kind.HasValue ? Color.Lerp(kind.Value.color, Color.black, 0.3f) : new Color(0.45f, 0.35f, 0.25f);
-            tagView.Set(clue.tag, clue.risk, color);
+            tagView.Set(clue.tag, clue.RiskLabel, color);
             spawned.Add(tagView.gameObject);
         }
 

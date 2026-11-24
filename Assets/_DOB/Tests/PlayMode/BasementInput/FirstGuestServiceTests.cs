@@ -269,7 +269,8 @@ namespace DOB.Tests
             Assert.That(service.TryInteract(), Is.False, "줌아웃 중 E");
             yield return Until(() => Vector3.Distance(overhead.position, camera.position) < 0.001f
                 && Quaternion.Angle(overhead.rotation, camera.rotation) < 0.01f, "줌아웃 후 전경 복귀");
-            yield return null;
+            var hud = UnityEngine.Object.FindAnyObjectByType<BasementHud>();
+            yield return Until(() => hud.Guidance.text.Contains("손님을 맞이"), "줌아웃 입력 잠금 종료");
 
             layout.Release(1, "stale_visit");
             Assert.That(layout.IsOccupied(1), Is.True);

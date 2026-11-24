@@ -22,7 +22,8 @@ namespace DOB.Manager
     {
         public const string BaseScene = "Basement";
         public const string TitleScene = SceneComposition.Title;
-        public const string RestaurantScene = "BasementRestaurant";
+        // 아트가 배치한 식당 씬을 레벨로 쓴다. 배치 계약(RestaurantLayout)은 DOB > Basement > Restaurant 씬 연결 추가로 붙인다.
+        public const string RestaurantScene = SceneComposition.Restaurant;
         public const string UiScene = "BasementUI";
         private const string SceneFolder = "Assets/_DOB/01.Scenes/";
 
@@ -31,7 +32,7 @@ namespace DOB.Manager
 
         private static BasementComposition active;
         private static bool entering;
-        private static (int Day, int Gold, int GarlicStock)? pendingStart;
+        private static FirstServiceSaveData pendingStart;
         private static bool pendingNewTimeline;
         // 게임 베이스 진입 때 보일 로딩 내용. LoadingScreenContent의 "층계참 식당" 항목을 쓴다.
         private const string LoadingDestination = SceneComposition.Restaurant;
@@ -125,7 +126,7 @@ namespace DOB.Manager
 
             if (!game.Prepare(OpenSaves(), start, newTimeline, hud))
             {
-                Fail("GameManager의 응대·주방 또는 영업 UI의 일시 정지 메뉴 연결을 확인하세요.");
+                Fail("GameManager의 응대·주방·관계·정산·경제·하루 진행 설정(정산의 귀환 보상 기준 포함) 또는 영업 UI의 일시 정지 메뉴·하루 진행 화면 연결을 확인하세요.");
                 yield break;
             }
             ShowProgress(1f);
@@ -142,10 +143,10 @@ namespace DOB.Manager
 
         /// <summary>타이틀 또는 명시적인 불러오기에서 공용 로딩 화면을 먼저 연 뒤 게임 베이스를 추가한다.</summary>
         public static bool EnterDay(FirstServiceSaveData start) =>
-            BeginEntry(start == null ? ((int, int, int)?)null : (start.Day, start.Gold, start.GarlicStock),
-                start == null || start.Slot == FirstServiceSaveSlot.Manual);
+            // 스냅샷을 그대로 넘겨 던전 재료와 미처리 귀환 보고까지 GameManager가 받게 한다.
+            BeginEntry(start, start == null || start.Slot == FirstServiceSaveSlot.Manual);
 
-        private static bool BeginEntry((int Day, int Gold, int GarlicStock)? start, bool newTimeline)
+        private static bool BeginEntry(FirstServiceSaveData start, bool newTimeline)
         {
             if (entering || !CanLoad(RestaurantScene) || !CanLoad(UiScene))
                 return false;

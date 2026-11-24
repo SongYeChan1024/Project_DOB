@@ -349,7 +349,7 @@ namespace DOB.Editor
                 var cameras = Components<Camera>(scene).Length;
                 var inputs = Components<EventSystem>(scene).Length;
                 var needsCamera = name != SceneComposition.Restaurant && name != SceneComposition.Tutorial
-                    && name != BasementComposition.RestaurantScene && name != BasementComposition.UiScene;
+                    && name != BasementComposition.UiScene;
                 var needsInput = name == SceneComposition.Title || name == SceneComposition.Gameplay
                     || name == SceneComposition.ReturnReport || name == BasementComposition.UiScene;
                 Require(cameras == (needsCamera ? 1 : 0), "카메라 역할 불일치: " + name);

@@ -1,0 +1,96 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5acd2b572c5d47d2b75ff568451321ba, type: 3}
+  m_Name: SO_GuestArrivalPool
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.GuestArrivalPool
+  names:
+  - 하루
+  - 보리
+  - 솔
+  - 다온
+  - 가람
+  - 미르
+  - 나린
+  - 라온
+  - 마루
+  - 도담
+  - 초롱
+  - 새벽
+  - 바람
+  - 한별
+  - 노을
+  - 누리
+  - 아라
+  - 여울
+  - 단비
+  - 가온
+  - 하늘
+  - 슬기
+  - 시내
+  - 버들
+  - 아스트라
+  - 아멜
+  - 루
+  - 리안
+  - 세라
+  - 에린
+  - 카야
+  - 레아
+  - 테오
+  - 피오
+  - 로완
+  - 케일
+  - 셀린
+  - 브란
+  - 모리
+  - 핀
+  - 지오
+  - 베른
+  - 엘로
+  - 타샤
+  - 우르
+  - 그렌
+  - 다린
+  - 마야
+  - 오린
+  - 노엘
+  - 시엘
+  - 페리
+  - 루미
+  - 아린
+  - 토비
+  - 하인
+  - 벨라
+  - 코디
+  - 니아
+  - 이벨
+  races:
+  - 인간
+  - 수인
+  - 엘프
+  - 드워프
+  - 하플링
+  jobs:
+  - 전사
+  - 마법사
+  - 도적
+  - 사제
+  - 광부
+  - 궁수
+  weaknessAxes:
+  - 독
+  - 열
+  - 냉기
+  - 어둠
+  - 함정
+  tiredChance: 0.3
+  weaknessChance: 0.3

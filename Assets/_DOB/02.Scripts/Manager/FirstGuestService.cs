@@ -4,8 +4,10 @@
 // 응대가 닫히면 전경으로 줌아웃한다. 줌인·응대·줌아웃·전환 동안 이동과 E를 잠근다.
 // 수락 시 따라오고 빈 자리 가까이서 E를 누르면 자리를 선점하고 의자로 걷는다.
 // 착석한 방문을 한 번 알린다. 돌려보내기 시 문으로 돌아간다. 씬 종료 시 좌석·카메라·화면을 정리한다.
+// 손님이 떠났는지(HasLeft)를 GameManager가 하루 마감 판정에 읽는다.
 using System;
 using DOB.Define;
+using DOB.Systems;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -48,9 +50,16 @@ namespace DOB.Manager
         private Stage stage;
         private string guestId;
         private bool observing;
+        private int serviceDay;
 
+        public GuestDialogueVisit CurrentVisit { get; private set; }
+        private bool CanSendHome => serviceDay > 1 || dialogue.FirstGuestCanSendHome;
         /// <summary>매 영업 진입 시 새로 부여하는 첫 손님의 방문 ID.</summary>
         public string VisitId { get; private set; }
+        /// <summary>현재 방문 손님의 고정 ID. 방명록·호감은 이 값으로 구분한다.</summary>
+        public string GuestId => guestId;
+        /// <summary>손님이 식당을 떠났다 (돌려보냄 또는 던전 출발). 하루 마감 판정에 쓴다.</summary>
+        public bool HasLeft => stage == Stage.SentHome || stage == Stage.InDungeon;
         /// <summary>입장을 마쳐 손님 가까이에서 응대를 열 수 있는 상태.</summary>
         public bool IsWaitingToGreet => layout && stage == Stage.Waiting;
         /// <summary>손님이 실제로 배정된 의자에 도착했는지 확인한다.</summary>
@@ -69,10 +78,13 @@ namespace DOB.Manager
         public Func<bool> KitchenIsOpen { get; set; }
 
         /// <summary>BasementUI가 준비되면 조합 담당이 서비스 활성화 전에 HUD와 응대 Presenter를 전달한다.</summary>
-        public void ConnectHud(Text label, FirstGuestDialogue presenter)
+        public void ConnectHud(Text label, FirstGuestDialogue presenter) => ConnectHud(label, presenter, 0);
+
+        public void ConnectHud(Text label, FirstGuestDialogue presenter, int day)
         {
             guidance = label;
             dialogue = presenter;
+            serviceDay = day;
         }
 
         private void OnEnable()
@@ -101,9 +113,8 @@ namespace DOB.Manager
             uiScene = dialogue.gameObject.scene;
             SceneManager.sceneLoaded += OnSceneLoaded;
             SceneManager.sceneUnloaded += OnSceneUnloaded;
-            if (!TryBindRestaurant(gameObject.scene)
-                && !TryBindRestaurant(SceneManager.GetSceneByName(BasementComposition.RestaurantScene)))
-                TryBindRestaurant(SceneManager.GetSceneByName(SceneComposition.Restaurant));
+            if (!TryBindRestaurant(gameObject.scene))
+                TryBindRestaurant(SceneManager.GetSceneByName(BasementComposition.RestaurantScene));
         }
 
         private void OnDisable()
@@ -118,7 +129,7 @@ namespace DOB.Manager
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (scene == gameObject.scene || scene.name == BasementComposition.RestaurantScene || scene.name == SceneComposition.Restaurant)
+            if (scene == gameObject.scene || scene.name == BasementComposition.RestaurantScene)
                 TryBindRestaurant(scene);
         }
 
@@ -146,10 +157,16 @@ namespace DOB.Manager
                     return false;
                 }
 
+                // 정상 영업은 준비 단계에서 넘겨받은 일차로 생성한다. 단독 프리뷰는 직렬화된 프로필을 쓴다.
+                if (serviceDay > 0)
+                {
+                    CurrentVisit = GuestManager.CreateFirstVisit(serviceDay);
+                    if (CurrentVisit == null) return false;
+                }
+                VisitId = CurrentVisit?.VisitId ?? Guid.NewGuid().ToString("N");
+                guestId = CurrentVisit?.GuestId ?? dialogue.FirstGuestId;
                 layout = candidate;
                 restaurantScene = scene;
-                VisitId = Guid.NewGuid().ToString("N");
-                guestId = dialogue.FirstGuestId;
                 stage = Stage.Entering;
                 controller.enabled = false;
                 player.SetPositionAndRotation(layout.PlayerSpawn.position, layout.PlayerSpawn.rotation);
@@ -178,6 +195,7 @@ namespace DOB.Manager
             layout = null;
             VisitId = null;
             guestId = null;
+            CurrentVisit = null;
             seatIndex = -1;
             restaurantScene = default;
         }
@@ -196,7 +214,8 @@ namespace DOB.Manager
                 {
                     pendingOpen = false;
                     // 줌인을 마친 뒤에야 응대 화면을 연다. 열 수 없으면 전경으로 되돌린다.
-                    if (!dialogue.TryOpenGuest(guestId))
+                    bool opened = CurrentVisit != null ? dialogue.TryOpenVisit(CurrentVisit, CanSendHome) : dialogue.TryOpenGuest(guestId);
+                    if (!opened)
                         RestoreCamera();
                     return;
                 }
@@ -318,7 +337,7 @@ namespace DOB.Manager
 
         private string RequestSendHome(string id)
         {
-            if (!CanRespond(id))
+            if (!CanRespond(id) || !CanSendHome)
                 return "지금은 이 손님을 돌려보낼 수 없어요.";
             stage = Stage.ReturningHome;
             return null;

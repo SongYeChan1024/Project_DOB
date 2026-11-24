@@ -5,8 +5,11 @@ on:
     branches: [main]
     paths:
       - 'Presentation/**'
-      - 'Docs/기획/플레이/Flowcharts/*.png'
       - 'Docs/References/3D/restaurant-layout.png'
+      - 'Docs/References/3D/automatic-kitchen.png'
+      - 'Docs/References/3D/morning-return.png'
+      - 'Assets/_DOB/07.UI/Sprites/Loading/T_UI_Loading*.png'
+      - 'Docs/기획/플레이/Flowcharts/*.png'
       - '.github/workflows/presentation-pages.yml'
   workflow_dispatch:
 

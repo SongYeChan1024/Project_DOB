@@ -1,0 +1,127 @@
+.adventure-trail {
+  /* The sheet has eight right-facing poses per row, each 32 × 32 pixels. */
+  --trail-size: 48px;
+  --trail-crossing: 44s;
+  position: relative;
+  isolation: isolate;
+  container: dob-trail / inline-size;
+  min-inline-size: 0;
+  block-size: calc(var(--trail-size) + 3px);
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.adventure-trail::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 3px;
+  height: 1px;
+  background: linear-gradient(to right, transparent, #a590614d 9%, #a5906180 50%, #a590614d 91%, transparent);
+}
+
+.adventure-trail__walker {
+  position: absolute;
+  inset: 0;
+  animation: dob-trail-cross var(--trail-crossing) linear infinite;
+  animation-delay: calc(var(--trail-crossing) * var(--trail-offset));
+}
+
+.adventure-trail__walker::before {
+  content: "";
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  width: var(--trail-size);
+  height: var(--trail-size);
+  background-image: url("assets/adventurers-walk.png");
+  background-repeat: repeat-x;
+  background-size: calc(8 * var(--trail-size)) calc(4 * var(--trail-size));
+  background-position-y: calc(-1 * var(--trail-row) * var(--trail-size));
+  image-rendering: pixelated;
+  animation: dob-trail-step var(--trail-cadence) steps(8, end) infinite;
+  animation-delay: var(--trail-beat);
+}
+
+.adventure-trail__walker--miner {
+  --trail-row: 3;
+  --trail-offset: -.20;
+  --trail-cadence: .88s;
+  --trail-beat: -.33s;
+}
+.adventure-trail__walker--mage {
+  --trail-row: 2;
+  --trail-offset: -.27;
+  --trail-cadence: .96s;
+  --trail-beat: -.12s;
+}
+.adventure-trail__walker--guard {
+  --trail-row: 0;
+  --trail-offset: -.34;
+  --trail-cadence: .84s;
+  --trail-beat: -.52s;
+}
+.adventure-trail__walker--scout {
+  --trail-row: 1;
+  --trail-offset: -.41;
+  --trail-cadence: .78s;
+  --trail-beat: -.17s;
+}
+
+@keyframes dob-trail-cross {
+  from { transform: translateX(calc(-1 * var(--trail-size))); }
+  to { transform: translateX(100%); }
+}
+
+@keyframes dob-trail-step {
+  from { background-position-x: 0; }
+  to { background-position-x: calc(-8 * var(--trail-size)); }
+}
+
+@container dob-trail (max-width: 720px) {
+  .adventure-trail__walker { --trail-crossing: 31s; }
+  .adventure-trail__walker--miner { --trail-offset: -.19; }
+  .adventure-trail__walker--mage { --trail-offset: -.31; }
+  .adventure-trail__walker--guard { --trail-offset: -.43; }
+  .adventure-trail__walker--scout { --trail-offset: -.55; }
+}
+
+@container dob-trail (max-width: 380px) {
+  .adventure-trail__walker { --trail-size: 32px; --trail-crossing: 20s; }
+  .adventure-trail__walker--miner { --trail-offset: -.20; }
+  .adventure-trail__walker--mage { --trail-offset: -.43; }
+  .adventure-trail__walker--guard { --trail-offset: -.66; }
+  .adventure-trail__walker--scout { --trail-offset: -.89; }
+}
+
+@container dob-trail (max-width: 150px) {
+  .adventure-trail__walker { --trail-size: 24px; --trail-crossing: 13s; }
+}
+
+@media (min-width: 1024px) and (min-height: 511px) {
+  .adventure-trail { --trail-size: 64px; }
+}
+
+@media (max-width: 680px), (max-height: 510px) {
+  .adventure-trail { --trail-size: 32px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adventure-trail {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: clamp(0px, 1vw, 10px);
+  }
+  .adventure-trail__walker {
+    position: relative;
+    inset: auto;
+    flex: 0 1 var(--trail-size);
+    height: var(--trail-size);
+    animation: none;
+  }
+  .adventure-trail__walker::before {
+    animation: none;
+    background-position-x: calc(-2 * var(--trail-size));
+  }
+}
