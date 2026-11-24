@@ -188,7 +188,7 @@ namespace DOB.Tests
             loadedScenes.Clear();
             yield return Click("ConfirmExit");
             // 추가 확인 없이 타이틀로 돌아가야 하므로 이 대기 중에는 아무 입력도 보내지 않는다.
-            yield return Until(() => TitleIsReady() && !SceneManager.GetSceneByName(BasementComposition.BaseScene).isLoaded,
+            yield return Until(() => TitleIsReady() && !SceneManager.GetSceneByName(BasementComposition.BaseScene).isLoaded && !SceneLoadService.IsLoading,
                 "ConfirmExit 후 실제 Title 복귀");
             Assert.That(loadedScenes, Does.Contain(TitleScene));
             Assert.That(BasementComposition.Current, Is.Null);
@@ -266,7 +266,7 @@ namespace DOB.Tests
             SceneManager.GetActiveScene().name == TitleScene && SceneManager.GetActiveScene().isLoaded && EventSystem.current;
 
         private static bool ReadyDay(int day) => BasementComposition.Current && BasementComposition.Current.IsReady &&
-            BasementComposition.Current.Day == day;
+            BasementComposition.Current.Game.Day == day;
 
         // 숨긴 버튼도 찾기 위해 비활성 오브젝트를 포함해 Title 씬 안에서만 찾는다.
         private static Button TitleButton(string name) => SceneManager.GetSceneByPath(TitlePath).GetRootGameObjects()

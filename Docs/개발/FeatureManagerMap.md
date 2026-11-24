@@ -53,7 +53,7 @@ System 이름은 책임 설명용 예시이며 실제 클래스 이름은 구현
 
 | Manager | 총괄 기능 | 아래 둘 System (예) | 현재 | 담당 |
 | --- | --- | --- | --- | --- |
-| GameManager | F1·F2 하루 단계 전환, Manager 연결·초기화 순서 | DayCycle, PauseReasons | 없음 | 김언호 |
+| GameManager | F1·F2 하루 단계 전환, Manager 연결·초기화 순서 | DayCycle, PauseReasons | 있음: 일차·시작 스냅샷·자동·수동 저장·정산을 `BasementComposition`에서 분리. 단계 전환·정지 사유는 미구현 | 김언호 |
 | SceneLoadService · UIManager | 씬 조합·로딩·공용 화면 | SceneComposition | 있음 | 김언호 · 홍준우 |
 | GuestManager | F3·F4 손님 생성·입장·좌석·응대·돌려보내기 | GuestGenerator, GuestRoster, RestaurantSeating(있음), VisitQueue | `FirstGuestService`가 1명 전용으로 대신 | 김언호 |
 | KitchenManager | F6 주문·화구·조리·접시 소유·서빙 | OrderBook, CookingStation, PlateRegistry, TasteScore | `FirstGuestKitchen`·`FirstGuestOrder`가 1명 전용 | 김언호 |
@@ -85,3 +85,4 @@ System 이름은 책임 설명용 예시이며 실제 클래스 이름은 구현
 | 날짜 | 작성자 | 내용 |
 | --- | --- | --- |
 | 2026.11.24 | 김언호 | 노션 GDD·작업 보드와 Git 기획·코드를 대조해 구현 기능 F1~F15와 총괄 Manager 구성안 초안 작성 |
+| 2026.11.24 | 김언호 | GameManager 구현 상태 반영. 나머지 Manager 8개는 기능 없는 파일만 생성 |

@@ -1,6 +1,7 @@
-// 게임 베이스 진입 → 공용 로딩 화면 → 식당과 UI 추가 로드 → 씬 사이 참조 연결 → 영업 시작.
+// 게임 베이스 진입 → 공용 로딩 화면 → 식당과 UI 추가 로드 → GameManager에 하루 준비 요청 → 영업 시작.
 // 베이스가 중간에 종료되면 직접 연 씬과 진행 중이던 로드를 정리한다. 편집자가 함께 연 씬은 빌려 쓴다.
 // 로딩 화면 표시(열기·진행률·최소 표시·페이드·실패 안내)는 UIManager에 요청한다. 타이틀 복귀는 SceneLoadService가 맡는다.
+// 일차·저장·정산 같은 하루 진행은 GameManager가 맡고, 이 클래스는 씬 조립만 한다.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -8,7 +9,6 @@ using System.IO;
 using DOB.Systems;
 using UnityEngine;
 using UnityEngine.SceneManagement;
-using UnityEngine.UI;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -26,8 +26,8 @@ namespace DOB.Manager
         public const string UiScene = "BasementUI";
         private const string SceneFolder = "Assets/_DOB/01.Scenes/";
 
-        [SerializeField] private FirstGuestService service;
-        [SerializeField] private FirstGuestKitchen kitchen;
+        /// <summary>씬 조립이 끝난 뒤 하루를 진행할 같은 베이스의 GameManager.</summary>
+        [SerializeField] private GameManager game;
 
         private static BasementComposition active;
         private static bool entering;
@@ -37,20 +37,18 @@ namespace DOB.Manager
         private const string LoadingDestination = SceneComposition.Restaurant;
 
         private readonly List<Scene> ownedScenes = new List<Scene>(3);
-        private Button settleButton;
         private bool quitting;
-        private bool newTimeline;
-        private FirstServiceSaveData settledCheckpoint;
 
         public bool IsReady { get; private set; }
+        public GameManager Game => game;
         public static BasementComposition Current => active;
+        /// <summary>다음 일차 또는 타이틀로 넘어가는 전환이 진행 중인지.</summary>
+        public static bool IsEntering => entering;
         public static FirstServiceSaveStore OpenSaves()
         {
             var directory = Environment.GetEnvironmentVariable("DOB_BASEMENT_SAVE_DIR");
             return new FirstServiceSaveStore(string.IsNullOrWhiteSpace(directory) ? Path.Combine(Application.persistentDataPath, "Basement") : directory);
         }
-        public FirstServiceSaveStore Saves { get; private set; }
-        public int Day { get; private set; } = 1;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void ResetEntry()
@@ -72,14 +70,13 @@ namespace DOB.Manager
 
             active = this;
             entering = false;
-            Saves = OpenSaves();
             var start = pendingStart;
             pendingStart = null;
-            newTimeline = pendingNewTimeline;
+            bool newTimeline = pendingNewTimeline;
             pendingNewTimeline = false;
-            if (!service || !kitchen)
+            if (!game)
             {
-                Fail("게임 베이스에 응대·주방 서비스가 연결되지 않았습니다.");
+                Fail("게임 베이스에 GameManager가 연결되지 않았습니다.");
                 yield break;
             }
 
@@ -126,21 +123,10 @@ namespace DOB.Manager
                 yield break;
             }
 
-            service.ConnectHud(hud.Guidance, hud.Dialogue);
-            kitchen.ConnectHud(hud);
-            settleButton = hud.Settle;
-            settleButton.interactable = false;
-            settleButton.onClick.AddListener(EndSampleDay);
-            Day = start?.Day ?? 1;
-            kitchen.StartDay(start?.Gold ?? kitchen.DayStartGold, start?.GarlicStock ?? kitchen.DayStartGarlic);
-            try
+            if (!game.Prepare(OpenSaves(), start, newTimeline, hud))
             {
-                if (!Saves.TryLoad(FirstServiceSaveSlot.Auto, out _))
-                    Saves.SavePreparation(FirstServiceSaveSlot.Auto, Day, kitchen.DayStartGold, kitchen.DayStartGarlic);
-            }
-            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
-            {
-                Debug.LogWarning("[DOB] 첫 자동 저장을 만들 수 없습니다. " + e.Message, this);
+                Fail("GameManager의 응대·주방 또는 영업 UI의 일시 정지 메뉴 연결을 확인하세요.");
+                yield break;
             }
             ShowProgress(1f);
             // 최소 표시 시간·진행 바 채움·검은 페이드가 끝난 뒤에 로딩 화면을 닫아 식당이 갑자기 튀어나오지 않게 한다.
@@ -148,36 +134,11 @@ namespace DOB.Manager
             if (ownedScenes.Remove(loading))
                 yield return SceneManager.UnloadSceneAsync(loading);
 
-            service.enabled = true;
-            kitchen.enabled = true;
-            IsReady = service.enabled && kitchen.enabled;
+            game.StartService();
+            IsReady = game.IsReady;
         }
 
         private static Scene GetScene(string name) => SceneManager.GetSceneByPath(SceneFolder + name + ".unity");
-
-        /// <summary>현재 영업을 계속하면서 그 일차의 준비 상태를 수동 슬롯에 기록한다.</summary>
-        public void SaveManual() => Saves.SavePreparation(FirstServiceSaveSlot.Manual, Day, kitchen.DayStartGold, kitchen.DayStartGarlic);
-
-        /// <summary>현재 방문이 서빙된 뒤에만 다음 준비 일차를 자동 저장하고 그 시점으로 진입한다.</summary>
-        public void EndSampleDay()
-        {
-            if (!IsReady || entering || !kitchen.HasServed)
-                return;
-            try
-            {
-                // 새 게임 또는 수동 슬롯 선택 시, 첫 정산에 한해 이 플레이의 결과가 자동 슬롯을 이어받는다.
-                // 샘플 씬을 열지 못해 버튼을 다시 눌러도 이미 확정한 정산을 사용한다.
-                if (settledCheckpoint == null)
-                    settledCheckpoint = newTimeline
-                        ? Saves.SavePreparation(FirstServiceSaveSlot.Auto, checked(Day + 1), kitchen.Gold, kitchen.GarlicStock)
-                        : Saves.SettleDay(Day, kitchen.Gold, kitchen.GarlicStock);
-                BeginEntry((settledCheckpoint.Day, settledCheckpoint.Gold, settledCheckpoint.GarlicStock), false);
-            }
-            catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
-            {
-                Debug.LogWarning("[DOB] 영업 정산을 저장할 수 없습니다. " + e.Message, this);
-            }
-        }
 
         /// <summary>타이틀 또는 명시적인 불러오기에서 공용 로딩 화면을 먼저 연 뒤 게임 베이스를 추가한다.</summary>
         public static bool EnterDay(FirstServiceSaveData start) =>
@@ -314,12 +275,6 @@ namespace DOB.Manager
 
         private void OnApplicationQuit() => quitting = true;
 
-        private void Update()
-        {
-            if (IsReady && settleButton)
-                settleButton.interactable = kitchen.HasServed && !entering && !BasementPauseMenu.IsPaused;
-        }
-
         private static void Unload(Scene scene)
         {
             if (scene.IsValid() && scene.isLoaded && SceneManager.loadedSceneCount > 1)
@@ -333,9 +288,7 @@ namespace DOB.Manager
             active = null;
             StopAllCoroutines();
             IsReady = false;
-            if (settleButton) settleButton.onClick.RemoveListener(EndSampleDay);
-            if (kitchen) kitchen.enabled = false;
-            if (service) service.enabled = false;
+            // 정산 버튼 구독 해제와 응대·주방 정지는 같은 베이스의 GameManager.OnDisable이 맡는다.
             // Single 전환과 앱 종료에서는 Unity가 씬을 함께 정리한다.
             if (!quitting && !entering && !SceneLoadService.IsLoading)
                 foreach (var scene in ownedScenes)
