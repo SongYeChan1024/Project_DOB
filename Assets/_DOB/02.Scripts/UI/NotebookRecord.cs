@@ -4,7 +4,9 @@
 //          종족 · 직업 · 층별 도감에 무엇이 적혔는지 모아 둔다.
 // 호출자 : GuestDialogueView (단서를 찾을 때 Add, 화면을 그릴 때 읽기)
 // 상태   : 이번 플레이 동안만 기억한다. (게임을 껐다 켜면 비어 있음)
-// 비고   : 저장(세이브)은 저장 담당과 합의한 뒤 붙인다.
+// 비고   : 임시 기록 보관소. 💡 구성안(Docs/개발/FeatureManagerMap.md)에서는 수첩 기록을
+//          RelationshipManager 아래 NotebookRecords System이 갖는다 → 생기면 이 클래스는 화면용 읽기 창구로 줄인다.
+//          저장(세이브)은 SaveManager 데이터 계약(홍준우 · 김언호 공동)에 맞춰 붙인다.
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -93,6 +95,19 @@ namespace DOB.UI
             return cluesByGuest.TryGetValue(guestId ?? string.Empty, out var list)
                 ? list
                 : (IReadOnlyList<FoundClue>)Array.Empty<FoundClue>();
+        }
+
+        /// <summary>
+        /// 모든 손님에게서 찾은 단서 (준비 화면 수첩의 단서 사전용).
+        /// 다른 손님에게서 같은 단서(같은 곳 · 태그 · 위험)를 또 찾았으면 한 번만 준다.
+        /// </summary>
+        public IEnumerable<FoundClue> AllClues()
+        {
+            var seen = new HashSet<string>();
+            foreach (var list in cluesByGuest.Values)
+                foreach (var clue in list)
+                    if (seen.Add(clue.source + "|" + clue.tag + "|" + clue.risk))
+                        yield return clue;
         }
 
         /// <summary>
