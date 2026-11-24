@@ -77,7 +77,7 @@ namespace DOB.Tests
         }
 
         [UnityTest]
-        public IEnumerator NewGameGoesThroughLoadingToBasementRestaurantAndUi()
+        public IEnumerator NewGameGoesThroughLoadingToRestaurantAndUi()
         {
             yield return StartFromTitle();
             Assert.That(SceneManager.GetSceneByName(TitleScene).isLoaded, Is.False, "Title은 게임 진입 후 남지 않는다");

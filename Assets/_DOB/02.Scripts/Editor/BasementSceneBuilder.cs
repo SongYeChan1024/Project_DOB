@@ -41,11 +41,10 @@ namespace DOB.Editor
 
         public static void Generate()
         {
-            foreach (var name in new[] { "Basement", "BasementRestaurant", "BasementUI", "BasementTitle" })
+            foreach (var name in new[] { "Basement", "BasementUI", "BasementTitle" })
                 if (System.IO.File.Exists(Scenes + name + ".unity"))
                     throw new InvalidOperationException("이미 있는 프리뷰 씬을 보존합니다. " + name);
             EditorSceneManager.OpenScene(Scenes + "Title.unity", OpenSceneMode.Single);
-            BasementGrayboxBuilder.CreateScene();
             CreateGame();
             CreateHud();
             CreateTitle();
