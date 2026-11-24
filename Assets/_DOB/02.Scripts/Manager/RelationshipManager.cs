@@ -14,6 +14,8 @@
 //     처음이면 AffinityJudge로 방문 호감을 확정하고(💡 입맛 점수 0), S·N을 집계해 다음 영업의 추가 인원을 정해 보관한다.
 //     결과 기록이 없는 파견 방문은 빠지고 오류 로그를 남긴다(정산은 막지 않는다).
 //   조회 — 전날 기록·오늘 추가 인원·전날 S와 N. 상태를 바꾸지 않는다.
+//   PreviewAffinity(방문, 결과) — 개발용. 끝난 방문 하나를 마감 정산과 같은 계산(같은 입맛 점수)으로 미리 본다.
+//     끝나지 않았거나 결과가 없는 파견이면 null. 정산 결과에 넣지 않는다.
 using System;
 using System.Collections.Generic;
 using DOB.Define;
@@ -28,6 +30,9 @@ namespace DOB.Manager
     {
         /// <summary>방문 호감·입소문 기준값(08.Data/SO_AffinityRules).</summary>
         [SerializeField] private AffinityRules rules;
+
+        /// <summary>방문 호감에 넣는 입맛 점수(점). 💡 손님 입맛·요리 태그 데이터가 생길 때까지 0이다 (송예찬 확인 전).</summary>
+        public const int TasteScore = 0;
 
         // 통합 테스트가 방문 최대 점수 등을 바꾸려고 씬 기준값 대신 넣는다. 게임 코드는 쓰지 않는다.
         internal static AffinityRules RulesOverride;
@@ -67,13 +72,21 @@ namespace DOB.Manager
         {
             if (settledAffinities == null)
             {
-                // 💡 입맛 점수는 손님 입맛·요리 태그 데이터가 생길 때까지 0이다 (송예찬 확인 전).
-                settledAffinities = AffinityJudge.SettleDay(Rules, visits, results, 0, out string error);
+                settledAffinities = AffinityJudge.SettleDay(Rules, visits, results, TasteScore, out string error);
                 if (error != null)
                     Debug.LogError("[DOB] " + error, this);
             }
             var (sum, count) = AffinityJudge.Tally(Rules, settledAffinities);
             return (settledAffinities, AffinityJudge.ExtraGuests(Rules, sum, count));
+        }
+
+        /// <summary>개발용 미리보기. 끝난 방문 하나의 호감 내역을 정산과 같은 계산으로 낸다. 끝나지 않았거나 결과가 없는 파견이면 null.</summary>
+        public VisitAffinity PreviewAffinity(ServiceVisit visit, IEnumerable<VisitResult> results)
+        {
+            if (visit == null || !Rules)
+                return null;
+            var preview = AffinityJudge.SettleDay(Rules, new[] { visit }, results, TasteScore, out _);
+            return preview.Count > 0 ? preview[0] : null;
         }
     }
 }

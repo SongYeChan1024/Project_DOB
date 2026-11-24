@@ -323,6 +323,7 @@ GameObject:
   - component: {fileID: 338973289}
   - component: {fileID: 338973288}
   - component: {fileID: 338973290}
+  - component: {fileID: 338973291}
   m_Layer: 0
   m_Name: Systems
   m_TagString: Untagged
@@ -431,6 +432,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.GuestManager
   settings: {fileID: 11400000, guid: 6abf29ec0527bbb468f97f1b96cad6a0, type: 2}
   template: {fileID: 617800610}
+--- !u!114 &338973291
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 338973283}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ab80b653b1e682143b11203ee4133d11, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.Manager::DOB.Manager.GuestDebugLogger
+  guests: {fileID: 338973290}
+  relationship: {fileID: 338973287}
+  settlement: {fileID: 338973289}
+  intervalSeconds: 2
 --- !u!1001 &617800609
 PrefabInstance:
   m_ObjectHideFlags: 0

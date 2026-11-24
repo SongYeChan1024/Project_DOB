@@ -10,7 +10,8 @@
 //   CanAdmit/Admit — 미뤄 둔 입장이 있고 입구 줄에 자리가 있을 때만 새 방문 ID를 등록한다. 등록하면 다음 간격을
 //             주입받은 난수로 최소~최대 사이에서 뽑는다. 줄이 차 있으면 자리가 날 때까지 기다린다.
 //   단계 요청 — 방문 ID로 입구 대기 → 응대 → 안내 → 착석 → 서빙됨 순서만 허용한다. 응대를 닫으면 입구 대기로 돌아간다.
-//             서빙할 때 대기 점수 = max(0, 시작 − floor(대기/간격))를 기록한다.
+//             서빙할 때 대기 점수 = max(0, 시작 − floor(대기/간격))를 기록한다(WaitScoreNow와 같은 계산).
+//   조회 — WaitScoreNow: 지금 서빙하면 받을 대기 점수. PatienceLeft: 대기 이탈까지 남은 시간 max(0, 한도 − 대기). 상태를 바꾸지 않는다.
 //   TryEnd — 파견은 서빙된 방문, 돌려보냄은 응대 중인 방문, 대기 이탈은 입구 대기·착석 방문만 한 번 끝낸다.
 //             없는 ID·이미 끝난 방문은 거절하고 아무것도 바꾸지 않는다. 파견이면 손님 ID를 서빙 인원 집합에 넣는다.
 //   AllEnded — 예정 방문이 모두 입장했고 모두 끝났을 때만 true.
@@ -136,8 +137,22 @@ namespace DOB.Systems
             if (!Move(visitId, ServiceVisitStage.Seated, ServiceVisitStage.Served))
                 return false;
             var visit = Find(visitId);
-            visit.WaitScore = Math.Max(0, settings.WaitStartScore - (int)Math.Floor(visit.WaitSeconds / settings.ScoreStepSeconds));
+            visit.WaitScore = WaitScoreNow(visit);
             return true;
+        }
+
+        /// <summary>지금까지의 대기 시간으로 서빙하면 받을 대기 점수(점). 0 이상.</summary>
+        public int WaitScoreNow(ServiceVisit visit)
+        {
+            if (visit == null) throw new ArgumentNullException(nameof(visit));
+            return Math.Max(0, settings.WaitStartScore - (int)Math.Floor(visit.WaitSeconds / settings.ScoreStepSeconds));
+        }
+
+        /// <summary>대기 이탈까지 남은 대기 시간(초). 0 이상. 응대·안내·서빙 뒤에는 대기 시간이 늘지 않는다.</summary>
+        public float PatienceLeft(ServiceVisit visit)
+        {
+            if (visit == null) throw new ArgumentNullException(nameof(visit));
+            return Math.Max(0f, settings.LeaveAfterSeconds - visit.WaitSeconds);
         }
 
         /// <summary>방문을 한 번 끝낸다. 종료 방식에 맞지 않는 단계, 없는 ID, 이미 끝난 방문은 거절한다.</summary>
