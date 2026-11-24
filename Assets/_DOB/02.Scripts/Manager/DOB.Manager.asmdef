@@ -6,7 +6,9 @@
     "DOB.Utils",
     "DOB.Systems",
     "DOB.UI",
-    "Unity.ugui"
+    "Unity.ugui",
+    "Unity.InputSystem",
+    "Unity.Cinemachine"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

@@ -11,7 +11,10 @@
 // [진행]     실제 진행률을 받으면 바가 부드럽게 따라 차오르고 절대 줄어들지 않는다
 //            불씨는 채워진 끝을 따라 이동한다. 숫자(%)는 보이지 않는다
 // [페이드]   검은 덮개의 투명도를 정해진 시간 동안 바꾼다 (Presenter가 끝날 때까지 기다릴 수 있게 코루틴)
+//            로딩 중에는 덮개가 투명해도 입력을 막아, 아래에 먼저 열린 목적지 씬 버튼이 눌리지 않게 한다
 // [실패]     "불러오지 못했어요" 안내 + [타이틀로] (타이틀도 실패면 [게임 종료]) 버튼을 띄우고 누르면 알린다
+//            버튼은 프리팹에 직렬화한 영구 연결 1개(OnFailureButtonClicked)로만 받는다. 코드로 리스너를 붙이지 않는다
+//            한 번 누르면 버튼을 잠가 같은 요청이 반복되지 않게 한다
 // =====================================================================
 using System;
 using System.Collections;
@@ -66,12 +69,18 @@ namespace DOB.UI
         private void Awake()
         {
             potBasePos = potIcon.anchoredPosition;
-            failureButton.onClick.AddListener(() =>
-            {
-                if (quitInsteadOfTitle) QuitClicked?.Invoke();
-                else ReturnToTitleClicked?.Invoke();
-            });
             failurePanel.SetActive(false);
+        }
+
+        /// <summary>실패 안내 버튼의 영구 연결 대상. 안내 종류에 맞는 이벤트를 한 번만 보낸다.</summary>
+        public void OnFailureButtonClicked()
+        {
+            if (!failurePanel.activeInHierarchy || !failureButton.interactable)
+                return;
+            // 씬 전환이 시작되기 전 연타로 같은 요청이 여러 번 가지 않게 잠근다.
+            failureButton.interactable = false;
+            if (quitInsteadOfTitle) QuitClicked?.Invoke();
+            else ReturnToTitleClicked?.Invoke();
         }
 
         /// <summary>목적지 그림과 팁 한 줄을 보여 주고 진행 바를 0부터 시작한다.</summary>
@@ -102,6 +111,7 @@ namespace DOB.UI
             tipText.text = tip ?? string.Empty;
             targetProgress = shownProgress = 0f;
             failurePanel.SetActive(false);
+            fadeOverlay.raycastTarget = true;
             ApplyProgress();
         }
 
@@ -122,7 +132,8 @@ namespace DOB.UI
                 yield return null;
             }
             SetFade(alpha);
-            fadeOverlay.raycastTarget = alpha > 0.01f;
+            // 로딩 화면이 떠 있는 동안에는 아래에 미리 열린 목적지 씬의 버튼이 눌리지 않게 계속 막는다.
+            fadeOverlay.raycastTarget = true;
         }
 
         /// <summary>바로 덮개 투명도를 정한다 (화면이 처음 켜질 때 검은 상태로 시작하기 등).</summary>
@@ -141,7 +152,12 @@ namespace DOB.UI
                 ? "불러오지 못했어요.\n<size=75%>타이틀로 돌아가 다시 시도해 주세요.</size>"
                 : "불러오지 못했어요.\n<size=75%>게임을 다시 실행해 주세요.</size>";
             failureButtonLabel.text = canReturnToTitle ? "타이틀로" : "게임 종료";
+            failureButton.interactable = true;
             failurePanel.SetActive(true);
+            // 실패 안내는 검은 덮개 위에 떠야 하므로 덮개가 클릭을 막지 않게 한다.
+            fadeOverlay.raycastTarget = false;
+            // 키보드 Enter로도 누를 수 있게 선택한다. EventSystem이 없으면 Unity가 무시한다.
+            failureButton.Select();
         }
 
         private void Update()

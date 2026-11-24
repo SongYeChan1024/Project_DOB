@@ -1,5 +1,6 @@
 // 게임 베이스 진입 → 공용 로딩 화면 → 식당과 UI 추가 로드 → 씬 사이 참조 연결 → 영업 시작.
 // 베이스가 중간에 종료되면 직접 연 씬과 진행 중이던 로드를 정리한다. 편집자가 함께 연 씬은 빌려 쓴다.
+// 로딩 화면 표시(열기·진행률·최소 표시·페이드·실패 안내)는 UIManager에 요청한다. 타이틀 복귀는 SceneLoadService가 맡는다.
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -32,9 +33,10 @@ namespace DOB.Manager
         private static bool entering;
         private static (int Day, int Gold, int GarlicStock)? pendingStart;
         private static bool pendingNewTimeline;
+        // 게임 베이스 진입 때 보일 로딩 내용. LoadingScreenContent의 "층계참 식당" 항목을 쓴다.
+        private const string LoadingDestination = SceneComposition.Restaurant;
+
         private readonly List<Scene> ownedScenes = new List<Scene>(3);
-        private Text loadingLabel;
-        private Slider loadingBar;
         private Button settleButton;
         private bool quitting;
         private bool newTimeline;
@@ -105,13 +107,9 @@ namespace DOB.Manager
             // 미리 열어 둔 경우에도 로딩 화면은 이번 입장 동안만 사용한다.
             if (!ownedScenes.Contains(loading))
                 ownedScenes.Add(loading);
-            var display = FindInScene<LoadingScreenPresenter>(loading);
-            if (display)
-            {
-                display.enabled = false;
-                loadingBar = display.GetComponentInChildren<Slider>(true);
-                loadingLabel = display.transform.Find("ProgressText")?.GetComponent<Text>();
-            }
+            // 에디터에서 베이스 씬을 직접 실행하면 타이틀의 진입 요청을 거치지 않으므로 여기서 화면을 연다.
+            if (!UIManager.IsLoadingOpen)
+                UIManager.OpenLoading(LoadingDestination);
             yield return LoadIfNeeded(RestaurantScene, 0);
             var level = GetScene(RestaurantScene);
             var layout = FindInScene<RestaurantLayout>(level);
@@ -145,6 +143,8 @@ namespace DOB.Manager
                 Debug.LogWarning("[DOB] 첫 자동 저장을 만들 수 없습니다. " + e.Message, this);
             }
             ShowProgress(1f);
+            // 최소 표시 시간·진행 바 채움·검은 페이드가 끝난 뒤에 로딩 화면을 닫아 식당이 갑자기 튀어나오지 않게 한다.
+            yield return UIManager.CloseLoading();
             if (ownedScenes.Remove(loading))
                 yield return SceneManager.UnloadSceneAsync(loading);
 
@@ -193,11 +193,12 @@ namespace DOB.Manager
             return ThroughLoading(BaseScene, LoadSceneMode.Additive);
         }
 
-        public static bool GoToTitle() => !entering && ThroughLoading(TitleScene, LoadSceneMode.Single);
+        /// <summary>공용 전환으로 타이틀에 돌아간다. 로딩 화면의 최소 표시·페이드·실패 안내를 같이 쓴다.</summary>
+        public static bool GoToTitle() => !entering && SceneLoadService.RequestLoad(TitleScene);
 
         private static bool ThroughLoading(string destination, LoadSceneMode mode)
         {
-            if (!CanLoad(SceneComposition.Loading) || !CanLoad(destination))
+            if (SceneLoadService.IsLoading || !CanLoad(SceneComposition.Loading) || !CanLoad(destination))
             {
                 pendingStart = null;
                 pendingNewTimeline = false;
@@ -214,16 +215,17 @@ namespace DOB.Manager
             }
             loading.completed += _ =>
             {
+                UIManager.OpenLoading(LoadingDestination);
                 var next = LoadScene(destination, mode);
-                if (next == null)
-                {
-                    entering = false;
-                    pendingStart = null;
-                    pendingNewTimeline = false;
-                    if (destination != TitleScene) LoadScene(TitleScene, LoadSceneMode.Single);
-                }
-                else if (destination == TitleScene)
-                    next.completed += _result => entering = false;
+                if (next != null)
+                    return;
+                entering = false;
+                pendingStart = null;
+                pendingNewTimeline = false;
+                Debug.LogError("[DOB] 게임 베이스 씬 로드를 시작하지 못했습니다: " + destination);
+                // 안내를 띄울 수 없으면 이전처럼 타이틀을 바로 연다.
+                if (!UIManager.ShowLoadingFailure(true))
+                    LoadScene(TitleScene, LoadSceneMode.Single);
             };
             return true;
         }
@@ -298,15 +300,15 @@ namespace DOB.Manager
             return null;
         }
 
-        private void ShowProgress(float value)
-        {
-            if (loadingBar) loadingBar.normalizedValue = value;
-            if (loadingLabel) loadingLabel.text = $"불러오는 중 {Mathf.RoundToInt(value * 100f)}%";
-        }
+        private static void ShowProgress(float value) => UIManager.SetLoadingProgress(value);
 
         private void Fail(string reason)
         {
             Debug.LogError("[DOB] " + reason, this);
+            // 로딩 화면이 떠 있으면 실패 안내로 타이틀 복귀 길을 준다.
+            // 안내가 떠 있는 Loading 씬은 아래 OnDisable에서 언로드하지 않고, 타이틀 복귀 전환이 함께 닫는다.
+            if (UIManager.IsLoadingOpen && UIManager.ShowLoadingFailure(true))
+                ownedScenes.Remove(GetScene(SceneComposition.Loading));
             enabled = false;
         }
 

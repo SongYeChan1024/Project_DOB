@@ -459,6 +459,7 @@ MonoBehaviour:
   guestSpeed: 3
   interactionRange: 1.35
   followDistance: 0.8
+  zoom: {fileID: 11400000, guid: a8f0e74181554aaaa81d2c8ba4093fa1, type: 2}
 --- !u!4 &993346892
 Transform:
   m_ObjectHideFlags: 0
