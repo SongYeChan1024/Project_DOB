@@ -1,4 +1,4 @@
-// DOB_FEATURES의 첫 항목은 표지다. 장 번호·입력·전체화면은 여기서 관리하고
+// DOB_FEATURES의 플레이 순서대로 장을 연다. 장 번호·입력·전체화면은 여기서 관리하고
 // 자료실은 slides.js, 장 전환에 따른 모험가 표시는 trail.js에 맡긴다.
 (() => {
   "use strict";
@@ -13,6 +13,8 @@
   const lead = document.getElementById("deck-lead");
   const detail = document.getElementById("deck-detail");
   const related = document.getElementById("deck-related");
+  const dialogueGeneratorLink = document.getElementById("dialogue-generator-link");
+  const choices = page.querySelector(".deck-choices");
   const position = document.getElementById("deck-position");
   const picker = document.getElementById("deck-picker");
   const previous = document.getElementById("deck-prev");
@@ -27,6 +29,7 @@
   let swipeStart = null;
   let outgoing = null;
   let transitions = [];
+  let suppressPreviewClick = false;
 
   if (!Array.isArray(features) || features.length === 0) {
     previous.disabled = true;
@@ -38,10 +41,150 @@
 
   features.forEach((feature, i) => {
     const option = document.createElement("option");
-    option.textContent = (i === 0 ? "표지" : "기능 " + String(i).padStart(2, "0")) + " · " + feature.title;
+    const stepTitle = feature.stage && feature.stage !== feature.title ? feature.stage + " · " + feature.title : feature.title;
+    option.textContent = String(i + 1).padStart(2, "0") + " · " + stepTitle;
     option.value = String(i);
     picker.append(option);
   });
+
+  const renderComparison = setupComparisons();
+
+  // 등록된 장면 자료를 한 장 또는 비교 쌍으로 표시한다. 탭과 확대창은 각자 입력을 처리한다.
+  function setupComparisons() {
+    const section = page.querySelector(".deck-comparison");
+    const pair = section.querySelector(".compare-pair");
+    const tabs = [...section.querySelectorAll('[role="tab"]')];
+    const template = document.getElementById("compare-figure");
+    const narrow = window.matchMedia("(max-width: 760px)");
+    const viewer = document.querySelector(".compare-viewer");
+    const stage = viewer.querySelector(".compare-stage");
+    const largeImage = stage.querySelector("img");
+    const zoom = viewer.querySelector(".compare-zoom");
+    const close = viewer.querySelector(".compare-close");
+    let activeSide;
+    let opener;
+
+    function selectSide(side) {
+      activeSide = side;
+      for (const tab of tabs) {
+        const selected = tab.dataset.side === side;
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      }
+      const tabbed = narrow.matches && pair.childElementCount === 2;
+      for (const figure of pair.children) {
+        figure.hidden = tabbed && figure.dataset.side !== side;
+        if (tabbed) {
+          figure.setAttribute("role", "tabpanel");
+          figure.setAttribute("aria-labelledby", "compare-tab-" + figure.dataset.side);
+        } else {
+          figure.removeAttribute("role");
+          figure.removeAttribute("aria-labelledby");
+        }
+      }
+    }
+
+    for (const tab of tabs) {
+      tab.addEventListener("click", () => selectSide(tab.dataset.side));
+      tab.addEventListener("keydown", (event) => {
+        let side;
+        switch (event.key) {
+          case "ArrowLeft": case "ArrowRight": side = activeSide === "before" ? "after" : "before"; break;
+          case "Home": side = "before"; break;
+          case "End": side = "after"; break;
+          default: return;
+        }
+        event.preventDefault();
+        selectSide(side);
+        tabs.find((item) => item.dataset.side === side).focus();
+      });
+    }
+    narrow.addEventListener("change", () => {
+      const focused = document.activeElement.closest(".compare-figure");
+      selectSide(focused?.dataset.side || activeSide);
+    });
+
+    function setZoom(expanded) {
+      stage.classList.toggle("is-zoomed", expanded);
+      stage.tabIndex = expanded ? 0 : -1;
+      stage.scrollTo(0, 0);
+      zoom.setAttribute("aria-pressed", String(expanded));
+      if (expanded) stage.focus();
+    }
+    pair.addEventListener("click", (event) => {
+      const button = event.target.closest(".compare-open");
+      if (!button || viewer.open || (suppressPreviewClick && event.detail > 0)) return;
+      const figure = button.closest("figure");
+      const img = button.querySelector("img");
+      opener = button;
+      viewer.querySelector("h2").textContent = features[index].title + " · " + figure.querySelector("strong").textContent;
+      viewer.querySelector(".compare-caption").textContent = figure.querySelector("figcaption").textContent;
+      largeImage.alt = img.alt;
+      largeImage.src = img.src;
+      setZoom(false);
+      viewer.showModal();
+      close.focus();
+    });
+    zoom.addEventListener("click", () => setZoom(!stage.classList.contains("is-zoomed")));
+    function closeViewer() {
+      viewer.close();
+      if (opener?.isConnected) {
+        if (narrow.matches) selectSide(opener.closest("figure").dataset.side);
+        opener.focus({ preventScroll: true });
+      }
+      opener = null;
+    }
+    close.addEventListener("click", closeViewer);
+    viewer.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      closeViewer();
+    });
+    viewer.addEventListener("keydown", (event) => {
+      if (event.key !== "Tab") return;
+      const last = stage.tabIndex === 0 ? stage : close;
+      if (event.shiftKey && document.activeElement === zoom) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); zoom.focus();
+      }
+    });
+
+    return function render(feature) {
+      const entry = window.DOB_COMPARISONS?.[feature.key];
+      const sceneImage = window.DOB_SCENES?.[feature.key];
+      const paired = Boolean(entry?.before?.src && entry?.after?.src);
+      const ready = paired || Boolean(sceneImage?.src);
+      page.classList.toggle("has-comparison", ready);
+      section.classList.toggle("compare-single", !paired);
+      section.setAttribute("aria-label", paired ? "기획 시안과 구현 화면 비교" : (sceneImage?.label || "장면 자료"));
+      section.hidden = !ready;
+      pair.replaceChildren();
+      if (!ready) return;
+      const sides = paired ? ["before", "after"] : ["single"];
+      for (const side of sides) {
+        const item = paired ? entry[side] : sceneImage;
+        const label = item.label || "장면 자료";
+        const figure = template.content.firstElementChild.cloneNode(true);
+        figure.id = "compare-" + side;
+        figure.dataset.side = side;
+        figure.querySelector(".compare-label span").textContent = paired ? (side === "before" ? "Before" : "After") : "";
+        figure.querySelector("strong").textContent = label;
+        const open = figure.querySelector(".compare-open");
+        open.setAttribute("aria-label", label + " 원본 확대");
+        const img = figure.querySelector("img");
+        img.alt = item.alt || label;
+        img.addEventListener("error", () => {
+          open.disabled = true;
+          open.querySelector(".compare-enlarge").textContent = "이미지를 열 수 없습니다";
+        });
+        img.src = item.src;
+        figure.querySelector("figcaption").textContent = item.caption || "";
+        if (paired) tabs.find((tab) => tab.dataset.side === side).textContent = label;
+        pair.append(figure);
+      }
+      selectSide(paired ? "after" : "single");
+    };
+  }
 
   function finishTransition() {
     for (const animation of transitions) animation.cancel();
@@ -51,6 +194,7 @@
   }
 
   function show(newIndex, direction = 0) {
+    const focused = document.activeElement;
     const animate = newIndex !== index && !reducedMotion.matches && typeof page.animate === "function";
     finishTransition();
     if (animate) {
@@ -67,25 +211,41 @@
     const cover = index === 0;
     deck.toggleAttribute("data-cover", cover);
     page.toggleAttribute("data-cover", cover);
-    number.textContent = cover ? "게임 기획 발표" : "기능 " + String(index).padStart(2, "0");
+    number.textContent = String(index + 1).padStart(2, "0") + (feature.stage ? " · " + feature.stage : "");
     title.textContent = cover ? feature.title.replace(": ", ":\n") : feature.title;
     lead.textContent = feature.lead;
     detail.textContent = feature.detail;
     detail.hidden = !feature.detail;
+    choices.replaceChildren();
+    for (const choice of feature.choices || []) {
+      const target = features.findIndex((item) => item.key === choice.target);
+      if (target < 0 || !choice.label) continue;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = choice.label;
+      button.addEventListener("click", () => {
+        show(target, Math.sign(target - index));
+        title.focus({ preventScroll: true });
+      });
+      choices.append(button);
+    }
+    choices.hidden = !choices.childElementCount;
     position.textContent = String(index + 1).padStart(2, "0") + " / " + String(features.length).padStart(2, "0");
     picker.value = String(index);
-    const focused = document.activeElement;
     previous.disabled = cover;
     next.disabled = index === features.length - 1;
     if (focused === next && next.disabled && !previous.disabled) previous.focus();
     if (focused === previous && previous.disabled && !next.disabled) next.focus();
     const chapter = chapters.find((item) => item.id === feature.chapterId);
-    related.hidden = !chapter || cover;
+    related.hidden = !chapter;
+    dialogueGeneratorLink.hidden = feature.key !== "clues" && feature.key !== "notebook";
     if (chapter) {
       related.dataset.present = chapter.id;
       related.setAttribute("aria-label", chapter.title + " 흐름도 보기");
     }
     if (art.getAttribute("src") !== feature.background) art.src = feature.background;
+    renderComparison(feature);
+    if (focused && (!focused.isConnected || focused.closest("[hidden]"))) title.focus({ preventScroll: true });
     notice.hidden = true;
     reading.scrollTop = 0;
     if (outgoing) {
@@ -97,7 +257,7 @@
       enter.onfinish = () => { if (transitions.includes(enter)) finishTransition(); };
     }
     announcement.textContent = (index + 1) + " / " + features.length + ", " +
-      (cover ? "표지" : number.textContent) + ", " + feature.title;
+      (feature.stage || "") + ", " + feature.title;
     document.dispatchEvent(new CustomEvent("dob:slidechange", {
       detail: { index, total: features.length, feature }
     }));
@@ -130,20 +290,24 @@
   });
 
   scene.addEventListener("pointerdown", (event) => {
-    if (!event.isPrimary || event.pointerType !== "touch" || event.target.closest("button, a")) {
+    suppressPreviewClick = false;
+    const preview = event.target.closest(".compare-open");
+    if (!event.isPrimary || event.pointerType !== "touch" || (!preview && event.target.closest("button, a"))) {
       swipeStart = null;
       return;
     }
-    swipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
-    scene.setPointerCapture(event.pointerId);
+    swipeStart = { id: event.pointerId, x: event.clientX, y: event.clientY, preview };
+    if (!preview) scene.setPointerCapture(event.pointerId);
   });
   scene.addEventListener("pointercancel", () => { swipeStart = null; });
   scene.addEventListener("pointerup", (event) => {
     if (!swipeStart || swipeStart.id !== event.pointerId) return;
     const dx = event.clientX - swipeStart.x;
     const dy = event.clientY - swipeStart.y;
+    const horizontal = Math.abs(dx) >= 45 && Math.abs(dx) > Math.abs(dy) * 1.5;
+    suppressPreviewClick = horizontal && Boolean(swipeStart.preview);
     swipeStart = null;
-    if (Math.abs(dx) >= 45 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+    if (horizontal) step(dx < 0 ? 1 : -1);
   });
 
   function syncFullscreen() {

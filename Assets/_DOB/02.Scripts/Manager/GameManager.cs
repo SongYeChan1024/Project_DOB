@@ -74,7 +74,7 @@ namespace DOB.Manager
             newTimeline = startsNewTimeline;
             startDay = start?.Day ?? 1;
 
-            service.ConnectHud(hud.Guidance, hud.Dialogue);
+            service.ConnectHud(hud.Guidance, hud.Dialogue, startDay);
             kitchen.ConnectHud(hud);
             settleButton = hud.Settle;
             settleButton.interactable = false;
@@ -102,9 +102,10 @@ namespace DOB.Manager
         /// <summary>로딩 화면이 닫힌 뒤 하루를 시작한다.</summary>
         public void StartService()
         {
+            // Begin 전에는 DayCycle.Day가 0이므로 일차를 정한 뒤 메뉴에 넘긴다.
+            cycle.Begin(startDay);
             pauseMenu.Initialize(saves, Day);
             pauseMenu.SaveRequested += SaveManual;
-            cycle.Begin(startDay);
             IsReady = true;
         }
 

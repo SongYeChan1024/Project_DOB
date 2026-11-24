@@ -1,6 +1,6 @@
 // =====================================================================
 // TextLinkClick — TMP 글자의 <link> 부분 클릭 감지
-// 역할   : 대사에서 밑줄 친 단서를 클릭하면 그 단서 문구를 알린다.
+// 역할   : 대사에서 숨은 표현을 클릭하면 원고에 넣은 표현 ID를 알린다.
 // 호출자 : 같은 오브젝트의 TMP_Text (Raycast Target 켜져 있어야 함)
 // 호출   : 없음 (LinkClicked 이벤트로만 알림)
 // =====================================================================
@@ -17,7 +17,7 @@ namespace DOB.UI
     {
         private TMP_Text text;
 
-        /// <summary>클릭한 링크의 보이는 문구(예: "슬라임 점액").</summary>
+        /// <summary>클릭한 링크의 원문 표현 ID(예: "슬라임 점액").</summary>
         public event Action<string> LinkClicked;
 
         private void Awake()
@@ -35,7 +35,8 @@ namespace DOB.UI
             if (text.overflowMode == TextOverflowModes.Page &&
                 text.textInfo.characterInfo[link.linkTextfirstCharacterIndex].pageNumber != text.pageToDisplay - 1)
                 return;
-            LinkClicked?.Invoke(link.GetLinkText());
+            // 표시 글자가 폰트에서 대체되어도 생성기가 붙인 원문 ID로 단서를 찾는다.
+            LinkClicked?.Invoke(link.GetLinkID());
         }
     }
 }

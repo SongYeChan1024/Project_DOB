@@ -6,8 +6,12 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using DOB.Define;
 using DOB.Manager;
+using DOB.Systems;
+using DOB.UI;
 using NUnit.Framework;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -83,7 +87,7 @@ namespace DOB.Tests
         }
 
         [UnityTest]
-        public IEnumerator NewGameServesHaruAndOpensTheAutosavedSecondDay()
+        public IEnumerator NewGameServesTheGeneratedGuestAndOpensTheAutosavedSecondDay()
         {
             yield return StartFromTitle();
             var service = UnityEngine.Object.FindAnyObjectByType<FirstGuestService>();
@@ -95,30 +99,67 @@ namespace DOB.Tests
             var player = actors.Find("PF_Player").GetComponent<CharacterController>();
             var guest = actors.Find("PF_Guest");
             string firstVisit = service.VisitId;
+            var visit = service.CurrentVisit;
+            Assert.That(visit, Is.Not.Null);
+            Assert.That(visit.VisitId, Is.EqualTo(firstVisit));
+            Assert.That(visit.GuestId, Is.EqualTo(service.GuestId).And.Not.EqualTo(hud.Dialogue.FirstGuestId));
+            Assert.That(visit.GuestName, Is.Not.Empty);
+            string servedVisit = null, servedName = null, servedLine = null;
+            kitchen.Served += (id, name, line) => { servedVisit = id; servedName = name; servedLine = line; };
             Assert.That(kitchen.Gold, Is.EqualTo(50));
             Assert.That(kitchen.GarlicStock, Is.EqualTo(2));
             Assert.That(hud.Settle.IsInteractable(), Is.False);
 
-            yield return Until(() => guest.position == layout.GreetingPoint.position, "하루 입장");
+            yield return Until(() => guest.position == layout.GreetingPoint.position, "손님 입장");
             Place(player, layout.GreetingPoint.position + Vector3.right * .9f);
-            yield return Until(() => hud.Guidance.text.Contains("손님을 맞이"), "하루 입장 완료 및 E 응대 가능 안내");
+            yield return Until(() => hud.Guidance.text.Contains("손님을 맞이"), "입장 완료 및 E 응대 가능 안내");
+            var camera = Camera.main.transform;
+            var overhead = new Pose(camera.position, camera.rotation);
             yield return Press(Key.E);
             yield return Until(() => hud.Dialogue.BlocksWorldInput, "E로 실제 응대 화면 생성");
             var fade = SceneManager.GetSceneByName(BasementComposition.UiScene).GetRootGameObjects()
                 .SelectMany(root => root.GetComponentsInChildren<Image>(true)).Single(image => image.name == "FadeOverlay");
             yield return Until(() => FindActiveButton("FollowButton") && !fade.raycastTarget, "동행 버튼 입력 가능");
+            Assert.That(FindActiveButton("SendHomeButton"), Is.Null, "첫날의 튜토리얼 제한 유지");
+            var view = UnityEngine.Object.FindAnyObjectByType<GuestDialogueView>();
+            Assert.That(view.GetComponentsInChildren<TMP_Text>().Single(t => t.name == "NameText").text, Is.EqualTo(visit.GuestName));
+            var lineClue = visit.Clues.First(c => c.Channel == DialogueClueChannel.Dialogue);
+            var observation = visit.Clues.First(c => c.Channel == DialogueClueChannel.Observation);
+            var lineText = view.GetComponentInChildren<TextLinkClick>().GetComponent<TMP_Text>();
+            Assert.That(visit.NotebookRisk(lineClue.Axis), Is.Null);
+            yield return ClickPhrase(lineText, lineClue.Text);
+            Assert.That(visit.IsDiscovered(lineClue.Key), Is.True);
+            var marker = view.GetComponentsInChildren<ClueTooltip>().First();
+            yield return ClickClue(marker);
+            Assert.That(visit.IsDiscovered(observation.Key), Is.True);
+            Assert.That(NotebookRecord.Session.Has(visit.GuestId, observation.Key), Is.True);
+            int? known = visit.NotebookRisk(lineClue.Axis);
+
+            yield return Click("CloseButton");
+            yield return Until(() => !hud.Dialogue.BlocksWorldInput && hud.Guidance.text.Contains("손님을 맞이")
+                && Vector3.Distance(overhead.position, camera.position) < 0.001f
+                && Quaternion.Angle(overhead.rotation, camera.rotation) < 0.01f, "전경 복귀 및 E 응대 재활성");
+            yield return Press(Key.E);
+            yield return Until(DialogueReady, "같은 손님 응대 다시 열기");
+            Assert.That(service.CurrentVisit, Is.SameAs(visit));
+            view = UnityEngine.Object.FindAnyObjectByType<GuestDialogueView>();
+            lineText = view.GetComponentInChildren<TextLinkClick>().GetComponent<TMP_Text>();
+            Assert.That(lineText.text, Does.Contain("<u>").And.Contain(lineClue.Text));
+            Assert.That(view.GetComponentsInChildren<ClueTooltip>().First().transform.Find("FoundMark").gameObject.activeSelf, Is.True);
+            Assert.That(visit.NotebookRisk(lineClue.Axis), Is.EqualTo(known));
             yield return Click("FollowButton");
             yield return Until(() => !hud.Dialogue.BlocksWorldInput, "동행 시작");
             Transform seat = layout.GetSeat(0);
             Place(player, seat.position + Vector3.back * .6f);
             yield return Until(() => Vector3.Distance(guest.position, seat.position) < 1.6f, "손님이 자리 근처에 도착");
             yield return Press(Key.E);
-            yield return Until(() => service.IsSeated, "하루 착석");
+            yield return Until(() => service.IsSeated, "같은 손님 착석");
 
             Place(player, layout.Kitchen.position);
             yield return Press(Key.E);
             Assert.That(hud.RecipePanel.activeInHierarchy, Is.True);
             Assert.That(hud.Ingredients.text, Does.Contain("6초"));
+            Assert.That(hud.Ingredients.text, Does.Contain(visit.GuestName));
             yield return Click("ConfirmCook");
             Assert.That(hud.RecipePanel.activeInHierarchy, Is.False);
             Assert.That(kitchen.GarlicStock, Is.EqualTo(1));
@@ -135,6 +176,24 @@ namespace DOB.Tests
             Assert.That(kitchen.Gold, Is.EqualTo(59));
             Assert.That(kitchen.GarlicStock, Is.EqualTo(1));
             Assert.That(hud.Receipt.text, Does.Contain("+9금화"));
+            Assert.That(servedVisit, Is.EqualTo(visit.VisitId));
+            Assert.That(servedName, Is.EqualTo(visit.GuestName));
+            Assert.That(hud.Receipt.text, Does.Contain(servedName).And.Contain(servedLine));
+            var bread = UnityEditor.AssetDatabase.LoadAssetAtPath<FirstServiceRecipe>("Assets/_DOB/08.Data/SO_FirstService_Bread.asset");
+            int shortfall = bread.GetShortfall(visit.ActualRisk, true);
+            Assert.That(servedLine, Is.EqualTo(visit.TasteLine(true)));
+            Assert.That(hud.Receipt.text, Does.Contain(visit.DepartureLine(shortfall)));
+            Canvas.ForceUpdateCanvases();
+            var receipt = hud.Receipt;
+            var settings = receipt.GetGenerationSettings(receipt.rectTransform.rect.size);
+            settings.verticalOverflow = VerticalWrapMode.Overflow;
+            using (var uncut = new TextGenerator())
+            {
+                uncut.Populate(receipt.text, settings);
+                Assert.That(uncut.lineCount, Is.GreaterThanOrEqualTo(3));
+                Assert.That(receipt.cachedTextGenerator.characterCountVisible, Is.EqualTo(uncut.characterCountVisible),
+                    "영수증의 맛 소감·각오·마지막 금화 줄까지 모두 렌더링");
+            }
             yield return Until(() => hud.Settle.IsInteractable(), "정산 버튼 활성화");
             loadedScenes.Clear();
             yield return Click("SettleDay");
@@ -156,6 +215,47 @@ namespace DOB.Tests
             yield return Click("StartService");
             Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.Service));
             yield return Until(() => UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId != null, "2일차 영업에서 손님 입장");
+        }
+
+        [UnityTest]
+        public IEnumerator AllFourSimultaneousObservationsCanBeFoundInTheRestaurantDialogue()
+        {
+            yield return StartFromTitle();
+            var data = new GuestVisitInput
+            {
+                GuestId = Guid.NewGuid().ToString("N"), VisitId = "four-observations", GuestName = "관찰 시험",
+                Day = 2, Floor = 1, Race = "수인", Job = "사제", IsTired = true, PersonalWeakness = "독"
+            };
+            var rules = Resources.Load<GuestDialogueRules>("SO_GuestDialogueRules");
+            var visit = GuestDialogueGenerator.Generate(rules, data, new System.Random(9));
+            var presenter = UnityEngine.Object.FindAnyObjectByType<FirstGuestDialogue>();
+            Assert.That(presenter.TryOpenVisit(visit, true), Is.True);
+            yield return Until(DialogueReady, "네 관찰 단서를 가진 응대 화면");
+            var clues = visit.Clues.Where(c => c.Channel == DialogueClueChannel.Observation).ToArray();
+            var view = UnityEngine.Object.FindAnyObjectByType<GuestDialogueView>();
+            var markers = view.GetComponentsInChildren<ClueTooltip>();
+            Assert.That(clues.Length, Is.EqualTo(4));
+            Assert.That(markers.Length, Is.EqualTo(clues.Length));
+            // 성표부터 보면 독은 미확인에서 확인된 0으로 바뀐다.
+            int priest = Array.FindIndex(clues, c => c.Condition == DialogueCondition.Job);
+            yield return ClickClue(markers[priest]);
+            Assert.That(visit.NotebookRisk("독"), Is.EqualTo(0));
+            Assert.That(view.GetComponentsInChildren<TMP_Text>().Any(t => t.text == "독 0"), Is.True);
+            foreach (int i in Enumerable.Range(0, clues.Length).Where(i => i != priest))
+                yield return ClickClue(markers[i]);
+            Assert.That(clues.All(c => visit.IsDiscovered(c.Key)), Is.True);
+            Assert.That(NotebookRecord.Session.CluesOf(visit.GuestId).Count, Is.EqualTo(4));
+            Assert.That(visit.NotebookRisk("독"), Is.EqualTo(1), "수인 +1, 사제 -1, 개인 취약 +1");
+            Assert.That(visit.NotebookRisk("체력"), Is.EqualTo(1));
+
+            // 정적 SDF에서 '톡'과 '쏘'가 빠져 있던 수인 원고. 말과 초상은 같은 종족 원인이다.
+            var scent = visit.Clues.Single(c => c.Channel == DialogueClueChannel.Dialogue && c.Condition == DialogueCondition.Race);
+            Assert.That(scent.Text, Is.EqualTo("톡 쏘는 냄새"));
+            yield return Click("ExpandTab");
+            var dialogue = view.GetComponentInChildren<TextLinkClick>().GetComponent<TMP_Text>();
+            yield return ClickPhrase(dialogue, scent.Text);
+            Assert.That(visit.IsDiscovered(scent.Key), Is.True);
+            Assert.That(visit.NotebookRisk("독"), Is.EqualTo(1), "같은 원인을 다른 채널에서 찾아도 중복 가산하지 않는다");
         }
 
         [UnityTest]
@@ -304,6 +404,55 @@ namespace DOB.Tests
         private static Button FindActiveButton(string name) =>
             UnityEngine.Object.FindObjectsByType<Button>().SingleOrDefault(button => button.name == name);
 
+        private static bool DialogueReady()
+        {
+            var view = UnityEngine.Object.FindAnyObjectByType<GuestDialogueView>();
+            return view && view.IsOpen && !view.transform.Find("FadeOverlay").GetComponent<Image>().raycastTarget;
+        }
+
+        private static IEnumerator ClickPhrase(TMP_Text text, string phrase)
+        {
+            int index = -1;
+            yield return Until(() =>
+            {
+                Canvas.ForceUpdateCanvases();
+                text.ForceMeshUpdate();
+                index = Array.FindIndex(text.textInfo.linkInfo, 0, text.textInfo.linkCount, item => item.GetLinkID() == phrase);
+                return index >= 0;
+            }, $"대사 원문의 링크 ID 생성: {phrase}");
+            var link = text.textInfo.linkInfo[index];
+            Assert.That(link.GetLinkText(), Is.EqualTo(phrase), "원문의 한글이 대체 글자 없이 그려져야 한다");
+            var letter = text.textInfo.characterInfo[link.linkTextfirstCharacterIndex];
+            var localPoint = (letter.bottomLeft + letter.topRight) * .5f;
+            yield return ClickAt(text.gameObject, text.transform.TransformPoint(localPoint));
+        }
+
+        private static IEnumerator ClickClue(ClueTooltip marker)
+        {
+            var tab = FindActiveButton("ExpandTab");
+            if (tab.GetComponentInChildren<TMP_Text>().text == "접기")
+                yield return Click("ExpandTab");
+            var rect = (RectTransform)marker.transform;
+            yield return ClickAt(marker.gameObject, rect.TransformPoint(rect.rect.center));
+        }
+
+        private static IEnumerator ClickAt(GameObject target, Vector3 worldPoint)
+        {
+            var canvas = target.GetComponentInParent<Canvas>().rootCanvas;
+            var camera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+            var point = RectTransformUtility.WorldToScreenPoint(camera, worldPoint);
+            var data = new PointerEventData(EventSystem.current) { position = point, button = PointerEventData.InputButton.Left };
+            yield return Until(() =>
+            {
+                RaycastHits.Clear();
+                EventSystem.current.RaycastAll(data, RaycastHits);
+                return RaycastHits.Count > 0 && ExecuteEvents.GetEventHandler<IPointerClickHandler>(RaycastHits[0].gameObject) == target;
+            }, target.name + " 단서가 화면의 포인터를 받음");
+            data.pointerPressRaycast = RaycastHits[0];
+            data.pointerCurrentRaycast = RaycastHits[0];
+            ExecuteEvents.Execute(target, data, ExecuteEvents.pointerClickHandler);
+        }
+
         // 버튼 중심에서 EventSystem 레이캐스트의 최상단 클릭 대상이 그 버튼일 때만 실제 포인터 이벤트로 누른다.
         // 새로 만든 UI는 한 번 그려진 뒤에야 레이캐스트 깊이가 생기므로 프레임을 넘기며 기다린다.
         private static IEnumerator Click(string name)
@@ -359,7 +508,7 @@ namespace DOB.Tests
             public string stage = "", slot = "";
         }
 
-        // 테스트 어셈블리는 DOB.Systems를 참조하지 않으므로 저장소의 DataContract JSON 형식을 직접 쓴다(멤버 이름순).
+        // 저장 로더가 읽는 기존 DataContract JSON 형식으로 이전 진행을 준비한다.
         private void SeedAutosave(int day, int gold, int garlic)
         {
             Directory.CreateDirectory(directory);

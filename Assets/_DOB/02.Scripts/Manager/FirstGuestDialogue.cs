@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using DOB.Define;
+using DOB.Systems;
 using DOB.UI;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -19,11 +20,13 @@ namespace DOB.Manager
         private readonly Dictionary<string, int[]> memosByGuest = new Dictionary<string, int[]>();
         private GuestDialogueView activeView;
         private Image fadeOverlay;
-        private GuestDialogueProfile currentGuest;
+        private GuestDialogueProfile legacyGuest;
+        private GuestDialogueData display;
         private Func<string, string> requestFollow;
         private Func<string, string> requestSendHome;
 
         public string FirstGuestId => guests.Length > 0 && guests[0] ? guests[0].GuestId : null;
+        public bool FirstGuestCanSendHome => guests.Length > 0 && guests[0] && guests[0].CanSendHome;
         public bool BlocksWorldInput => activeView != null;
 
         /// <summary>요청이 수락되면 빈 문자열 또는 null, 거절되면 표시할 이유를 반환하는 함수를 연결한다.</summary>
@@ -38,10 +41,25 @@ namespace DOB.Manager
             if (!isActiveAndEnabled || BlocksWorldInput || !viewPrefab || string.IsNullOrEmpty(guestId))
                 return false;
 
-            currentGuest = Array.Find(guests, guest => guest && guest.GuestId == guestId);
-            if (!currentGuest)
+            legacyGuest = Array.Find(guests, guest => guest && guest.GuestId == guestId);
+            if (!legacyGuest)
                 return false;
 
+            return Open(BuildDisplayData(legacyGuest));
+        }
+
+        public bool TryOpenVisit(GuestDialogueVisit visit, bool canSendHome)
+        {
+            if (!isActiveAndEnabled || BlocksWorldInput || !viewPrefab || visit == null)
+                return false;
+            var data = BuildDisplayData(visit);
+            data.canSendHome = canSendHome;
+            return Open(data);
+        }
+
+        private bool Open(GuestDialogueData data)
+        {
+            display = data;
             activeView = Instantiate(viewPrefab);
             SceneManager.MoveGameObjectToScene(activeView.gameObject, gameObject.scene);
             // PF_GuestDialogue가 직접 소유하는 페이드 이미지의 입력 차단 상태로 전환 종료를 확인한다.
@@ -57,9 +75,12 @@ namespace DOB.Manager
             activeView.FollowClicked += OnFollow;
             activeView.SendHomeConfirmed += OnSendHome;
             activeView.CloseClicked += activeView.Close;
-            activeView.ClueClicked += OnClue;
-            activeView.MemoChanged += OnMemo;
-            if (activeView.Open(BuildDisplayData(currentGuest)))
+            if (legacyGuest)
+            {
+                activeView.ClueClicked += OnClue;
+                activeView.MemoChanged += OnMemo;
+            }
+            if (activeView.Open(display))
                 return true;
             CancelDialogue();
             return false;
@@ -86,7 +107,8 @@ namespace DOB.Manager
                 Destroy(activeView.gameObject);
             }
             activeView = null;
-            currentGuest = null;
+            legacyGuest = null;
+            display = null;
             fadeOverlay = null;
         }
 
@@ -94,13 +116,13 @@ namespace DOB.Manager
 
         private void OnSendHome()
         {
-            if (currentGuest.CanSendHome)
+            if (display.canSendHome)
                 ApplyRequest(requestSendHome);
         }
 
         private void ApplyRequest(Func<string, string> request)
         {
-            string reason = request == null ? "아직 요청을 처리할 수 없어요." : request(currentGuest.GuestId);
+            string reason = request == null ? "아직 요청을 처리할 수 없어요." : request(display.guestId);
             if (!activeView) return; // 수락 처리 중 방문이나 씬이 끝날 수 있다.
             if (string.IsNullOrEmpty(reason))
                 activeView.Close();
@@ -108,13 +130,65 @@ namespace DOB.Manager
                 activeView.ShowNotice(reason);
         }
 
-        private void OnClue(string phrase) => activeView.ShowDictionaryEntry(phrase, currentGuest.LookupClue(phrase));
+        private void OnClue(string phrase) => activeView.ShowDictionaryEntry(phrase, legacyGuest.LookupClue(phrase));
 
         private void OnMemo(int axis, int memo)
         {
-            var memos = memosByGuest[currentGuest.GuestId];
+            var memos = memosByGuest[legacyGuest.GuestId];
             if (axis >= 0 && axis < memos.Length)
                 memos[axis] = memo;
+        }
+
+        private static GuestDialogueData BuildDisplayData(GuestDialogueVisit visit)
+        {
+            var keywords = new List<ClueKeywordData>();
+            var markers = new List<ClueMarkerData>();
+            foreach (var clue in visit.Clues)
+            {
+                var target = RecordTarget(clue.Condition);
+                if (clue.Channel == DialogueClueChannel.Dialogue)
+                    keywords.Add(new ClueKeywordData
+                    {
+                        key = clue.Key, phrase = clue.Text, risk = clue.Axis, delta = clue.Delta, recordTo = target
+                    });
+                else if (clue.Channel == DialogueClueChannel.Observation)
+                    markers.Add(new ClueMarkerData
+                    {
+                        key = clue.Key, description = clue.Text, risk = clue.Axis, delta = clue.Delta, recordTo = target,
+                        position = PortraitPosition(clue.Condition)
+                    });
+            }
+            return new GuestDialogueData
+            {
+                guestId = visit.GuestId, guestName = visit.GuestName, race = visit.Race, job = visit.Job,
+                destinationLabel = visit.Floor == 1 ? "1층 슬라임 숲" : $"{visit.Floor}층",
+                line = visit.Line, keywords = keywords.ToArray(), clues = markers.ToArray(),
+                discover = visit.Discover, notebookRisk = visit.NotebookRisk
+            };
+        }
+
+        private static ClueRecordTarget RecordTarget(DialogueCondition condition)
+        {
+            switch (condition)
+            {
+                case DialogueCondition.Floor:
+                case DialogueCondition.Event: return ClueRecordTarget.Floor;
+                case DialogueCondition.Race: return ClueRecordTarget.Race;
+                case DialogueCondition.Job: return ClueRecordTarget.Job;
+                default: return ClueRecordTarget.None;
+            }
+        }
+
+        // 문양·도구·자세·몸 상태는 서로 다른 영역에서 관찰한다.
+        private static Vector2 PortraitPosition(DialogueCondition condition)
+        {
+            switch (condition)
+            {
+                case DialogueCondition.Race: return new Vector2(-85, 105);
+                case DialogueCondition.Job: return new Vector2(120, -45);
+                case DialogueCondition.Fatigue: return new Vector2(-120, -110);
+                default: return new Vector2(60, 105);
+            }
         }
 
         private GuestDialogueData BuildDisplayData(GuestDialogueProfile guest)

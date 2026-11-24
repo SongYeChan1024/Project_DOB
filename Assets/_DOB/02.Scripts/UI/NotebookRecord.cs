@@ -46,6 +46,8 @@ namespace DOB.UI
         public string tag;
         /// <summary>위험 이름 (독 · 열 · 냉기 · 어둠 · 체력 · 함정). 모르면 비어 있음.</summary>
         public string risk;
+        public int delta;
+        public string RiskLabel => delta == 0 ? risk : $"{risk} {delta:+0;-0}";
         public ClueSource source;
         public ClueRecordTarget recordTo;
     }
