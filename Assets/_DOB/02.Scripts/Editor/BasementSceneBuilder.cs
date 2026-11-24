@@ -123,7 +123,8 @@ namespace DOB.Editor
             player.GetComponent<DOB.Manager.PlayerMovementController>().enabled = false;
             var service = (Behaviour)ComponentOn(flow, "FirstGuestService");
             service.enabled = false;
-            Wire(service, ("player",player.transform), ("guest",guest.transform), ("worldCamera",camera));
+            Wire(service, ("player",player.transform), ("guest",guest.transform), ("worldCamera",camera),
+                ("zoom", Asset<ScriptableObject>("08.Data/SO_GuestCloseUp.asset")));
             var kitchen = (Behaviour)ComponentOn(Child("CookingConnections", systems.transform),"FirstGuestKitchen");
             kitchen.enabled = false;
             Wire(kitchen, ("service",service), ("recipe",Asset<ScriptableObject>("08.Data/SO_FirstService_Bread.asset")), ("guest", Asset<ScriptableObject>("08.Data/SO_Guest_Haru.asset")));

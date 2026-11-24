@@ -426,6 +426,7 @@ GameObject:
   - component: {fileID: 142036050}
   - component: {fileID: 142036052}
   - component: {fileID: 142036051}
+  - component: {fileID: 142036053}
   m_Layer: 0
   m_Name: TitleLogoImage
   m_TagString: Untagged
@@ -490,6 +491,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 142036049}
   m_CullTransparentMesh: 1
+--- !u!114 &142036053
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 142036049}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a79f727cfc40b4846916090264213f87, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.FloatingMotion
+  height: 4
+  period: 2
 --- !u!1 &149130390
 GameObject:
   m_ObjectHideFlags: 0
@@ -1046,7 +1061,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "1일차부터 새로 시작할까요? 다음 정산 때 자동 저장이 갱신됩니다."
+  m_text: "1\uC77C\uCC28\uBD80\uD130 \uC0C8\uB85C \uC2DC\uC791\uD560\uAE4C\uC694?
+    \uB2E4\uC74C \uC815\uC0B0 \uB54C \uC790\uB3D9 \uC800\uC7A5\uC774 \uAC31\uC2E0\uB429\uB2C8\uB2E4."
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 05bd8d960abd0494c8025bcf5e3e9030, type: 2}
   m_sharedMaterial: {fileID: -9127159169657081176, guid: 05bd8d960abd0494c8025bcf5e3e9030, type: 2}
