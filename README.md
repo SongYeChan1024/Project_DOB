@@ -4,7 +4,7 @@
 
 기획 자료는 [Git 기획 목차](Docs/기획/README.md)에서 범위별로 찾을 수 있습니다. 기획 기준은 [팀 노션 「기획」](https://app.notion.com/p/3fff7d6373c381a49d71e04d2750ef15)입니다.
 Git에서는 [최신 결정](Docs/기획/CurrentDecisions.md)과 [메인 기획서 동기화본](Docs/기획/MainPlanning.md)을 먼저 읽습니다.
-팀 회의에서 게임의 흐름을 소개할 때는 [다섯 장으로 보는 기획·발표 사이트](Presentation/README.md)를 사용합니다.
+팀 회의에서는 [기획 발표 사이트](https://songyechan1024.github.io/Project_DOB/)를 열어 기능을 플레이 순서대로 소개합니다. 인터넷 없이 발표할 때는 [로컬 실행 안내](Presentation/README.md)를 따릅니다.
 노션 17장의 타깃·카엘과 3인 파티·시간 정책·개인 취약점·튜토리얼 결정까지 반영했습니다.
 옛 웹 시제품의 구현 기록은 현재 Unity 제작 기준과 구분합니다.
 
