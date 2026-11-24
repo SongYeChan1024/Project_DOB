@@ -49,8 +49,11 @@ namespace DOB.Manager
 
         /// <summary>서빙이 성공한 방문의 결과를 확정한다. 축별 부족은 RiskAxes.All 순서.</summary>
         public bool RecordVisit(string guestId, string visitId, string guestName, int floor, string dish, bool usedSeasoning,
-            IReadOnlyList<int> shortfalls) =>
-            results != null && results.TryRecord(guestId, visitId, guestName, floor, dish, usedSeasoning, shortfalls, out _);
+            IReadOnlyList<int> shortfalls, IReadOnlyList<int> risks = null, IReadOnlyList<int> protections = null) =>
+            results != null && results.TryRecord(guestId, visitId, guestName, floor, dish, usedSeasoning, shortfalls, risks, protections, out _);
+
+        /// <summary>오늘 아침 보고에서 처음 얻는 재료인지 (보고 화면의 "신규" 표시용). 하루를 열기 전이면 false.</summary>
+        public bool IsNewMaterial(string material) => reports != null && reports.IsNewMaterial(material);
 
         /// <summary>이 방문의 귀환 보고를 이미 처리했는지.</summary>
         public bool IsReportConfirmed(string visitId) => reports != null && reports.IsConfirmed(visitId);

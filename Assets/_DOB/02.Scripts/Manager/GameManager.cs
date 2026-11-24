@@ -11,6 +11,7 @@
 // 의사코드:
 //   Prepare  — 연결이 하나라도 없으면 아무것도 바꾸지 않고 실패. 주방·마감 버튼을 UI에 연결하고 시작 스냅샷으로 주방을 연다.
 //              스냅샷의 던전 재료로 재고를, 미처리 귀환 보고로 오늘 아침 보고를 연다(새 게임은 둘 다 비어 있다).
+//              귀환 보고 화면의 Presenter가 있으면 보고 조회와 신규 재료 판별을 넘겨 준다.
 //              DayCycle·방명록·Presenter를 만들어 구독한다. 자동 슬롯이 없으면 1일차 시작을 저장한다(파일 오류는 경고만).
 //   StartService — 로딩 화면이 닫힌 뒤 일시 정지 메뉴를 잇고 DayCycle.Begin(일차). 1일차는 영업, 이후는 아침보고부터.
 //   단계 변경 — 준비가 되면 남은 귀환 보고를 모두 확정해 전리품을 재고에 한 번씩 반영한다(화면이 일부를 먼저 확정했어도 안전).
@@ -63,6 +64,8 @@ namespace DOB.Manager
         private FirstServiceSaveData dayStart;
         private DayCycle cycle;
         private DayFlowPresenter dayFlow;
+        // 귀환 보고 화면의 Presenter. 임시 보고 화면이 연결돼 있으면 null이다.
+        private ReturnReportPresenter returnReport;
         private int startDay = 1;
 
         /// <summary>현재 일차. 1부터 시작한다.</summary>
@@ -104,6 +107,9 @@ namespace DOB.Manager
             kitchen.Served += RecordMeal;
 
             relationship.BeginDay(settings.GuestbookWriteSeconds);
+            // 보고 화면은 UI 씬에 있어 정산 총괄을 직접 참조할 수 없다. 화면과 같은 프리팹에 있는 Presenter에 조회 함수를 넘겨 준다.
+            returnReport = hud.MorningReport.transform.root.GetComponentInChildren<ReturnReportPresenter>(true);
+            if (returnReport) returnReport.Bind(() => settlement.Reports, settlement.IsNewMaterial);
             cycle = new DayCycle();
             cycle.PhaseChanged += OnPhaseChanged;
             dayFlow = new DayFlowPresenter(cycle, relationship.Guestbook, hud.MorningReport, hud.Preparation, hud.Guestbook,
@@ -185,7 +191,8 @@ namespace DOB.Manager
             // 생성된 방문이 없으면 실제 위험을 알 수 없어 탐험 결과를 남기지 않는다.
             var visit = service.CurrentVisit;
             if (visit != null && meal.Shortfalls != null)
-                settlement.RecordVisit(service.GuestId, meal.VisitId, meal.GuestName, visit.Floor, meal.Dish, meal.UsedSeasoning, meal.Shortfalls);
+                settlement.RecordVisit(service.GuestId, meal.VisitId, meal.GuestName, visit.Floor, meal.Dish, meal.UsedSeasoning,
+                    meal.Shortfalls, meal.Risks, meal.Protections);
         }
 
         private void Update()
@@ -211,6 +218,8 @@ namespace DOB.Manager
             dayFlow = null;
             if (cycle != null) cycle.PhaseChanged -= OnPhaseChanged;
             if (kitchen) kitchen.Served -= RecordMeal;
+            if (returnReport) returnReport.Bind(null, null);
+            returnReport = null;
             if (settleButton) settleButton.onClick.RemoveListener(Settle);
             if (pauseMenu) pauseMenu.SaveRequested -= SaveManual;
             if (kitchen) kitchen.enabled = false;

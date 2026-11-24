@@ -34,7 +34,7 @@ namespace DOB.Manager
         public int GarlicStock => order?.GarlicStock ?? DayStartGarlic;
         public bool HasServed => order != null && order.State == FirstGuestOrderState.Served;
         public bool IsCarrying => order != null && order.State == FirstGuestOrderState.Carrying;
-        /// <summary>서빙이 성공한 한 끼. 축별 부족은 RiskAxes.All 순서이며, 생성된 방문이 없으면 null이다.</summary>
+        /// <summary>서빙이 성공한 한 끼. 축별 부족·실제 위험·요리가 막은 칸은 RiskAxes.All 순서이며, 생성된 방문이 없으면 셋 다 null이다.</summary>
         public readonly struct ServedMeal
         {
             public readonly string VisitId;
@@ -43,8 +43,11 @@ namespace DOB.Manager
             public readonly string Dish;
             public readonly bool UsedSeasoning;
             public readonly IReadOnlyList<int> Shortfalls;
+            public readonly IReadOnlyList<int> Risks;
+            public readonly IReadOnlyList<int> Protections;
 
-            public ServedMeal(string visitId, string guestName, string line, string dish, bool usedSeasoning, IReadOnlyList<int> shortfalls)
+            public ServedMeal(string visitId, string guestName, string line, string dish, bool usedSeasoning,
+                IReadOnlyList<int> shortfalls, IReadOnlyList<int> risks, IReadOnlyList<int> protections)
             {
                 VisitId = visitId;
                 GuestName = guestName;
@@ -52,6 +55,8 @@ namespace DOB.Manager
                 Dish = dish;
                 UsedSeasoning = usedSeasoning;
                 Shortfalls = shortfalls;
+                Risks = risks;
+                Protections = protections;
             }
         }
 
@@ -152,12 +157,15 @@ namespace DOB.Manager
                 bool hasGarlic = GarlicForBread > 0;
                 string line;
                 string resolve = string.Empty;
-                int[] shortfalls = null;
+                int[] shortfalls = null, risks = null, protections = null;
                 if (orderGuest != null)
                 {
                     line = orderGuest.TasteLine(hasGarlic);
                     // 출발 한마디와 방문 결과의 등급이 어긋나지 않도록 부족을 한 번만 계산해 함께 쓴다.
                     shortfalls = ExpeditionJudge.Shortfalls(orderGuest.ActualRisk, axis => recipe.Protection(axis, hasGarlic));
+                    // 보고 화면이 "막아냈다" 줄을 그릴 수 있도록 같은 입력의 위험과 효과 칸도 함께 넘긴다.
+                    risks = ExpeditionJudge.PerAxis(orderGuest.ActualRisk);
+                    protections = ExpeditionJudge.PerAxis(axis => recipe.Protection(axis, hasGarlic));
                     resolve = $"\n“{orderGuest.DepartureLine(ExpeditionJudge.Total(shortfalls))}”";
                 }
                 else
@@ -166,7 +174,7 @@ namespace DOB.Manager
                 if (receipt.preferredHeight > receipt.rectTransform.rect.height)
                     receipt.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, receipt.preferredHeight);
                 string servedVisit = order.VisitId;
-                Served?.Invoke(new ServedMeal(servedVisit, GuestName, line, Dish, hasGarlic, shortfalls));
+                Served?.Invoke(new ServedMeal(servedVisit, GuestName, line, Dish, hasGarlic, shortfalls, risks, protections));
                 service.TryDepartForDungeon(servedVisit);
                 return true;
             }

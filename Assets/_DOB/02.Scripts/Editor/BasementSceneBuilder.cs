@@ -313,6 +313,36 @@ namespace DOB.Editor
             return anchor;
         }
 
+        // 프론트엔드가 만든 귀환 보고 화면(PF_ReturnReport)을 BasementUI의 아침 보고 칸에 연결하고 임시 보고 카드를 지운다.
+        // 화면 프리팹은 고치지 않는다. 단추 이름 ConfirmMorningReport는 프리팹이 유지한다 (통합 테스트가 이름으로 누른다).
+        [MenuItem("DOB/Basement/귀환 보고 화면 연결 추가")]
+        public static void AddReturnReport()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var scene = EditorSceneManager.OpenScene(Scenes + "BasementUI.unity", OpenSceneMode.Single);
+            var hud = scene.GetRootGameObjects().Select(root => root.GetComponentInChildren<DOB.Manager.BasementHud>(true)).Single(found => found);
+            var view = scene.GetRootGameObjects().Select(root => root.GetComponentInChildren<DOB.UI.ReturnReportView>(true)).FirstOrDefault(found => found);
+            if (!view)
+            {
+                var prefab = Asset<GameObject>("03.Prefabs/UI/PF_ReturnReport.prefab");
+                if (!prefab) throw new InvalidOperationException("PF_ReturnReport 프리팹 누락");
+                // 프리팹이 자기 Canvas를 가지므로 씬 루트에 둔다.
+                view = ((GameObject)PrefabUtility.InstantiatePrefab(prefab, scene)).GetComponentInChildren<DOB.UI.ReturnReportView>(true);
+                if (!view) throw new InvalidOperationException("PF_ReturnReport에 ReturnReportView가 없습니다.");
+            }
+
+            if (hud.MorningReport is DOB.UI.TempMorningReportView temp)
+            {
+                var card = new SerializedObject(temp).FindProperty("panel").objectReferenceValue as GameObject;
+                if (card) UnityEngine.Object.DestroyImmediate(card);
+                UnityEngine.Object.DestroyImmediate(temp);
+            }
+            Wire(hud,("morningReport",view));
+            Save("BasementUI");
+            Debug.Log("DOB_BASEMENT_RETURN_REPORT_READY");
+        }
+
         private const string ExpeditionRewardsPath = "08.Data/SO_ExpeditionRewards.asset";
 
         // 이미 있는 Basement 씬에 정산·경제 총괄(F7·F9 방문 결과와 귀환 보고, 던전 재료 재고) 연결만 추가한다.
