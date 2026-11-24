@@ -130,8 +130,10 @@ namespace DOB.Editor
             Wire(kitchen, ("service",service), ("recipe",Asset<ScriptableObject>("08.Data/SO_FirstService_Bread.asset")), ("guest", Asset<ScriptableObject>("08.Data/SO_Guest_Haru.asset")));
             var plate = ComponentOn(player,"FirstGuestPlateView");
             Wire(plate, ("kitchen", kitchen), ("carryAnchor",player.transform.Find("Anchors/PlatePoint")));
+            var game = ComponentOn(systems,"GameManager");
+            Wire(game,("service",service),("kitchen",kitchen));
             var composer = ComponentOn(systems,"BasementComposition");
-            Wire(composer,("service",service),("kitchen",kitchen));
+            Wire(composer,("game",game));
             Save("Basement");
         }
 

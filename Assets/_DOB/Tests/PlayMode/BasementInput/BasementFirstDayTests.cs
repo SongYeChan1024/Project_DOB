@@ -266,7 +266,7 @@ namespace DOB.Tests
             SceneManager.GetActiveScene().name == TitleScene && SceneManager.GetActiveScene().isLoaded && EventSystem.current;
 
         private static bool ReadyDay(int day) => BasementComposition.Current && BasementComposition.Current.IsReady &&
-            BasementComposition.Current.Day == day;
+            BasementComposition.Current.Game.Day == day;
 
         // 숨긴 버튼도 찾기 위해 비활성 오브젝트를 포함해 Title 씬 안에서만 찾는다.
         private static Button TitleButton(string name) => SceneManager.GetSceneByPath(TitlePath).GetRootGameObjects()

@@ -12,6 +12,7 @@ namespace DOB.Manager
     public sealed class BasementPauseMenu : MonoBehaviour
     {
         [SerializeField] private Font font;
+        // ESC 메뉴는 BasementComposition.Current를 읽지 않는다. 저장소·일차·저장 요청은 GameManager가 Initialize·이벤트로 잇는다.
         private const string VolumeKey = "DOB.Basement.MasterVolume";
         private enum Page { Main, Save, Load, ConfirmLoad, Settings, Exit }
         private Page page;
@@ -19,7 +20,18 @@ namespace DOB.Manager
         private GameObject previousFocus;
         private float previousScale;
         private static BasementPauseMenu openMenu;
+        private FirstServiceSaveStore saves;
+        private int day;
         public static bool IsPaused => openMenu;
+        /// <summary>수동 저장 확인을 눌렀을 때. 파일 오류는 이 호출로 그대로 올라와 메뉴에 안내된다.</summary>
+        public event Action SaveRequested;
+
+        /// <summary>영업이 시작될 때 GameManager가 저장소와 현재 일차를 넘긴다. 그 전에는 ESC를 무시한다.</summary>
+        public void Initialize(FirstServiceSaveStore store, int currentDay)
+        {
+            saves = store;
+            day = currentDay;
+        }
 
         private void Awake()
         {
@@ -30,7 +42,7 @@ namespace DOB.Manager
 
         public void HandleEscape()
         {
-            if (!isActiveAndEnabled || !BasementComposition.Current || !BasementComposition.Current.IsReady)
+            if (!isActiveAndEnabled || saves == null)
                 return;
             if (!IsPaused)
             {
@@ -68,7 +80,7 @@ namespace DOB.Manager
             string recent = "최근 자동 저장 없음";
             TryIo(() =>
             {
-                if (BasementComposition.Current.Saves.TryLoad(FirstServiceSaveSlot.Auto, out var saved))
+                if (saves.TryLoad(FirstServiceSaveSlot.Auto, out var saved))
                     recent = "최근 자동 저장  " + Format(saved);
             }, error => recent = error);
             view.Action("Resume", "이어하기\n" + recent, Close);
@@ -84,10 +96,10 @@ namespace DOB.Manager
         {
             page = Page.Save;
             view.Begin("수동 저장");
-            view.Label($"불러오면 {BasementComposition.Current.Day}일차 시작 시점부터 다시 시작합니다. 저장하시겠습니까?", 24, 76);
+            view.Label($"불러오면 {day}일차 시작 시점부터 다시 시작합니다. 저장하시겠습니까?", 24, 76);
             view.Action("ConfirmSave", "저장", () => TryIo(() =>
             {
-                BasementComposition.Current.SaveManual();
+                SaveRequested?.Invoke();
                 Main("수동 저장했습니다. 현재 영업을 계속할 수 있어요.");
             }, Main));
             view.Action("CancelSave", "취소", () => Main());
@@ -110,7 +122,7 @@ namespace DOB.Manager
             string details = "비어 있음";
             TryIo(() =>
             {
-                if (BasementComposition.Current.Saves.TryLoad(slot, out saved))
+                if (saves.TryLoad(slot, out saved))
                     details = Format(saved);
             }, error => details = error);
             view.Action(slot.ToString(), title + "\n" + details, () => ConfirmLoad(saved), saved != null);
