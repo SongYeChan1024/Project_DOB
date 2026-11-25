@@ -1,5 +1,7 @@
 # 씬 분리와 조합 로드 설계
 
+> **2026-11-25 김언호 — 현재 씬 구성**: Title·Loading·Restaurant·Basement·BasementUI·CharacterTest의 여섯 씬이다. 영업은 `Basement` + `Restaurant` + `BasementUI` 조합 하나로 진행한다. 아래 「초기 씬 구성」의 Gameplay·Tutorial·ReturnReport 씬과 시험용 BasementTitle 씬은 플레이 경로에서 쓰이지 않아 삭제했다. `SceneComposition`의 진입 경로는 Title만 남고, 영업 진입은 `BasementComposition.EnterDay`가 맡는다. 아트가 Gameplay에 넣었던 추적 카메라(`FollowCamera`, Cinemachine Brain, 메인 카메라 위치)는 Basement로 옮겼고, `FirstGuestService`가 이 카메라를 평소 화면의 전경 카메라로 쓴다. 메인 카메라는 직교 그대로이며, 오프셋·감쇠·보이는 범위·투영 방식 조정은 💡 이기혁에게 인계한다. 아래 「초기 씬 구성」 이후 내용은 2026-11-01 당시 기록이다.
+
 ## Basement 브랜치의 타이틀 진입
 
 `Title`의 ‘새로 시작’과 ‘이어하기’는 `Loading`을 거쳐 `Basement`(플레이어·카메라·진행), `Restaurant`(레벨), `BasementUI`(영업 화면)를 함께 연다. 2026-11-24 김언호: 레벨을 그레이박스 `BasementRestaurant`에서 아트가 배치한 `Restaurant`으로 바꿨다. `Restaurant`의 `LayoutAnchors`에 배치 계약(`RestaurantLayout`, 💡 시작 3석)과 이동 경계(`FloorBounds`)를 붙였고(`DOB > Basement > Restaurant 씬 연결 추가`), 기준점 위치와 가구·조명은 그대로다. 전환을 플레이와 PlayMode 테스트로 확인한 뒤 `BasementRestaurant` 씬과 그 그레이박스 빌더, 그 씬만 쓰던 재질을 삭제했다. 새 게임은 1일차에서, 이어하기는 최근 유효한 자동·수동 슬롯에 저장된 일차에서 시작한다. ESC 메뉴에서 끝내기를 확인하면 `Title`로 복귀한다. 기존 `Restaurant + Gameplay` 및 `Tutorial` 조합은 아래 초기 설계의 개발·검증 경로로 유지한다.

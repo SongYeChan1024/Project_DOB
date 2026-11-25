@@ -1,6 +1,6 @@
 // =====================================================================
 // LoadingScreenContent — 로딩 화면에 보여 줄 그림·팁 데이터 (ScriptableObject)
-// 역할   : 목적지(Title·Restaurant·Tutorial·ReturnReport)마다 제목·그림 1장·팁 목록을 담는다.
+// 역할   : 목적지(Title·Restaurant 등 로딩 화면을 여는 쪽이 넘기는 이름)마다 제목·그림 1장·팁 목록을 담는다.
 //          팁 문구는 기획(송예찬), 그림은 아트(이기혁)가 에셋에서 직접 채운다. 코드에 문구를 쓰지 않는다.
 //          로딩 화면의 최소 표시 시간과 페이드 시간도 기획 값으로 함께 담는다.
 // 호출자 : 로딩 화면 Presenter (GetHeadingImage, GetHeading, GetIllustration, GetTips, GetRandomTip,
@@ -25,7 +25,7 @@ namespace DOB.Define
         [Serializable]
         public sealed class Entry
         {
-            /// <summary>SceneComposition의 진입 경로 이름 (Title, Restaurant, Tutorial, ReturnReport).</summary>
+            /// <summary>로딩 화면을 여는 쪽이 넘기는 목적지 이름 (Title, Restaurant).</summary>
             [SerializeField] private string destination;
             /// <summary>로딩 화면 위에 크게 보이는 목적지 제목 (예: 층계참 식당).</summary>
             [SerializeField] private string heading;

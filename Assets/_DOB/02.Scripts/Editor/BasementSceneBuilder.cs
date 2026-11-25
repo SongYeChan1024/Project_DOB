@@ -1,4 +1,4 @@
-// 새 프리뷰 씬을 한 번 생성한다. EventSystem은 기존 Gameplay의 입력 바인딩을 복사해 사용한다.
+// 새 프리뷰 씬을 한 번 생성한다. EventSystem은 기존 Title의 입력 바인딩을 복사해 사용한다.
 // 이미 있는 씬에는 'DOB/Basement/하루 진행 연결 추가' 메뉴로 하루 진행(F1) 연결과 임시 화면만 추가한다.
 using System;
 using System.Linq;
@@ -41,13 +41,12 @@ namespace DOB.Editor
 
         public static void Generate()
         {
-            foreach (var name in new[] { "Basement", "BasementUI", "BasementTitle" })
+            foreach (var name in new[] { "Basement", "BasementUI" })
                 if (System.IO.File.Exists(Scenes + name + ".unity"))
                     throw new InvalidOperationException("이미 있는 프리뷰 씬을 보존합니다. " + name);
             EditorSceneManager.OpenScene(Scenes + "Title.unity", OpenSceneMode.Single);
             CreateGame();
             CreateHud();
-            CreateTitle();
             AssetDatabase.SaveAssets();
             Debug.Log("DOB_BASEMENT_SCENES_READY");
         }
@@ -55,7 +54,7 @@ namespace DOB.Editor
         private static void NewScene(bool input)
         {
             if (!input) { EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single); return; }
-            var source = EditorSceneManager.OpenScene(Scenes + "Gameplay.unity", OpenSceneMode.Single);
+            var source = EditorSceneManager.OpenScene(Scenes + "Title.unity", OpenSceneMode.Single);
             var original = source.GetRootGameObjects().Single(o => o.name == "EventSystem");
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
             SceneManager.SetActiveScene(scene);
@@ -486,30 +485,6 @@ namespace DOB.Editor
             var view=ComponentOn(canvas.gameObject,viewClass);
             Wire(view,("panel",card),("body",body),(buttonField,button));
             return view;
-        }
-
-        private static void CreateTitle()
-        {
-            NewScene(true);
-            CameraObject(new Vector3(0,0,-10),Vector3.zero);
-            var canvas=Canvas("TitleCanvas");
-            var card=Panel(canvas.transform,"Menu",new Vector2(575,500),Vector2.zero,Card);
-            Label(card.transform,"Title","다녀왔어: 층계참 식당",44,new Vector2(550,78),new Vector2(0,166));
-            Label(card.transform,"Mode","첫 손님 시험 영업",25,new Vector2(500,50),new Vector2(0,109));
-            var begin=Action(card.transform,"NewGame","새 게임",new Vector2(340,55),new Vector2(0,32));
-            var resume=Action(card.transform,"ContinueGame","이어하기",new Vector2(340,55),new Vector2(0,-40));
-            var last=Label(card.transform,"LastSave","",22,new Vector2(530,50),new Vector2(0,-94));
-            var exit=Action(card.transform,"Exit","끝내기",new Vector2(340,52),new Vector2(0,-163));
-            var menu=ComponentOn(canvas,"BasementTitleMenu");
-            Wire(menu,("continueButton",resume),("lastSave",last));
-            Bind(begin,menu,"NewGame"); Bind(resume,menu,"ContinueGame"); Bind(exit,menu,"Exit");
-            Save("BasementTitle");
-        }
-
-        private static void Bind(Button button, Component target, string method)
-        {
-            var action=(UnityAction)Delegate.CreateDelegate(typeof(UnityAction),target,method);
-            UnityEventTools.AddPersistentListener(button.onClick,action);
         }
     }
 }
