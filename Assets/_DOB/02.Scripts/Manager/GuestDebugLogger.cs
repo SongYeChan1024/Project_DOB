@@ -6,6 +6,7 @@
 // 의사코드:
 //   OnEnable — 개발 빌드(에디터 포함)가 아니거나 참조가 빠졌으면 경고 후 스스로 끈다. 손님 종료 알림을 구독한다.
 //   Update — 관계 총괄이 새 일차를 열었으면(방명록이 바뀌면) 전날 방문 호감 기록과 S·N·입소문 추가 인원을 한 번 남긴다.
+//            같은 때 손님 명부(손님별 누적 호감·영구 거절·복귀 일차)와 오늘 올 수 있는 손님 수도 남긴다.
 //            명단이 열려 있으면 간격(실시간 초)마다 아직 끝나지 않은 방문의 단계·대기 시간·남은 인내심·
 //            지금 서빙하면 받을 대기 점수·입맛 점수를 한 줄씩 남긴다.
 //   방문 종료 — 종료 방식과 호감 미리보기(정산과 같은 계산)를 남긴다. 결과가 아직 없는 파견이면 그 사실을 남긴다.
@@ -83,6 +84,10 @@ namespace DOB.Manager
                 $" → 오늘 입소문 +{relationship.WordOfMouthBonus}명");
             foreach (var a in relationship.YesterdayAffinities)
                 text.Append($"\n  {Short(a.VisitId)} {a.End} 대기 {a.Wait} + 입맛 {a.Taste} + 탐험 {a.Expedition} = {a.Total}");
+            // 명부: 누가 다시 오고 누가 빠지는지 아침에 한 번 본다.
+            text.Append($"\n[DOB 디버그] 손님 명부 {relationship.Guests.Count}명 · 오늘 올 수 있는 손님 {relationship.GuestsComingToday.Count}명");
+            foreach (var g in relationship.Guests)
+                text.Append($"\n  {g.Name}({Short(g.GuestId)}) 누적 {g.Affinity} · {(g.Rejected ? "영구 거절" : g.ReturnDay + "일차부터 옴")}");
             Debug.Log(text.ToString(), this);
         }
 

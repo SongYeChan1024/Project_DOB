@@ -26,7 +26,7 @@ namespace DOB.Tests
         {
             var settings = ScriptableObject.CreateInstance<ServiceRosterSettings>();
             JsonUtility.FromJsonOverwrite(
-                $"{{\"dailyGrowthMin\":0,\"dailyGrowthMax\":0,\"firstArrivalSeconds\":0,\"baseGuests\":{guests},\"arrivalMinSeconds\":{min},\"arrivalMaxSeconds\":{max},\"queueCapacity\":{queue}," +
+                $"{{\"firstArrivalSeconds\":0,\"baseGuests\":{guests},\"arrivalMinSeconds\":{min},\"arrivalMaxSeconds\":{max},\"queueCapacity\":{queue}," +
                 "\"waitStartScore\":2,\"scoreStepSeconds\":10,\"leaveAfterSeconds\":30}", settings);
             created.Add(settings);
             return settings;
@@ -37,23 +37,6 @@ namespace DOB.Tests
             var roster = new ServiceRoster(Settings(guests, min, max, queue), new System.Random(seed));
             roster.Tick(0f);
             return roster;
-        }
-
-        [Test]
-        public void BaseGuestsGrowByOneOrTwoEachDayAfterTheFirst()
-        {
-            var settings = Settings();
-            JsonUtility.FromJsonOverwrite("{\"dailyGrowthMin\":1,\"dailyGrowthMax\":2}", settings);
-            Assert.That(new ServiceRoster(settings, new System.Random(1), 0, 1).Planned, Is.EqualTo(3), "1일차는 늘지 않는다");
-            int previous = 3;
-            for (int day = 2; day <= 6; day++)
-            {
-                int planned = new ServiceRoster(settings, new System.Random(1), 0, day).Planned;
-                Assert.That(planned - previous, Is.InRange(1, 2), $"{day}일차 증가");
-                Assert.That(new ServiceRoster(settings, new System.Random(9), 0, day).Planned, Is.EqualTo(planned), "불러와도 같은 인원");
-                previous = planned;
-            }
-            Assert.That(new ServiceRoster(settings, new System.Random(1), 2, 2).Planned, Is.InRange(6, 7), "입소문 추가와 따로 더한다");
         }
 
         [Test]
@@ -129,10 +112,13 @@ namespace DOB.Tests
         }
 
         [Test]
-        public void WordOfMouthExtraGuestsAddToThePlannedCount()
+        public void PlannedCountIsGivenByTheCallerAndZeroEndsTheDayAtOnce()
         {
-            Assert.That(new ServiceRoster(Settings(), new System.Random(1), 1).Planned, Is.EqualTo(4));
+            Assert.That(new ServiceRoster(Settings(), new System.Random(1), 4).Planned, Is.EqualTo(4));
             Assert.Throws<ArgumentOutOfRangeException>(() => new ServiceRoster(Settings(), new System.Random(1), -1));
+            var empty = new ServiceRoster(Settings(), new System.Random(1), 0);
+            empty.Tick(0f);
+            Assert.That((empty.Planned, empty.CanAdmit, empty.AllEnded), Is.EqualTo((0, false, true)), "손님이 없는 날은 열자마자 마감할 수 있다");
         }
 
         [Test]
