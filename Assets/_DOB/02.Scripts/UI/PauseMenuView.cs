@@ -1,11 +1,18 @@
 // =====================================================================
-// PauseMenuView — ESC 메뉴 화면 (BasementPauseView를 다른 화면과 같은 나무 창 · 이름표 단추로 바꾼 것)
-// 역할   : 쪽(첫 화면 · 저장 확인 · 불러오기 · 끝내기 확인)마다 제목 · 안내 글 · 단추를 새로 쌓아 그린다.
-//          설정 쪽은 SettingsView 프리팹을 띄운다. 무엇을 할지는 BasementPauseMenu가 정한다.
+// PauseMenuView — ESC 메뉴 화면 (PF_PauseMenu 프리팹의 루트)
+// 역할   : 쪽(첫 화면 · 저장 확인 · 불러오기 · 끝내기 확인)마다 제목을 바꾸고, 프리팹 안의 단추 · 안내 글 견본을 복제해 쌓는다.
+//          설정 쪽은 프리팹 안의 SettingsView(PF_Settings)를 띄운다. 무엇을 할지는 BasementPauseMenu가 정한다.
 // 호출자 : BasementPauseMenu (Begin, Label, Action, Focus, ShowSettings, Hide)
-// 상태   : 지금 쪽의 단추 목록, 설정 창
+// 상태   : 지금 쪽에 복제한 단추 · 글 목록, 고를 수 있는 단추 목록
 // 비고   : 단추 오브젝트 이름은 BasementPauseMenu가 주는 이름 그대로 (팀 테스트가 Save · Load · Exit 등으로 누른다).
-//          스킨이 없으면 그림 없이 기본 글꼴로 그린다 (Resources/UI/PauseMenuSkin.asset).
+//          (홍준우 2026-11-25) 코드로 창을 쌓던 방식을 프리팹(PF_PauseMenu)으로 옮겼다. 겉모습은 프리팹에서 고친다.
+//
+// 의사코드
+// [Begin]  창을 켜고 설정 창을 숨긴다 → 지난 쪽에 복제한 단추 · 글을 지운다 → 제목을 바꾼다
+// [Label]  안내 글 견본을 복제해 글 · 크기 · 높이를 넣는다
+// [Action] 단추 견본을 복제해 이름 · 글 · 누름 동작을 넣는다. 글에 줄바꿈이 있으면 둘째 줄을 작게, 단추를 높게
+// [Focus]  고를 수 있는 단추끼리 위 · 아래로 돌게 잇고 첫 단추를 고른다
+// [설정]   메뉴 창을 숨기고 설정 창을 연다 / [Hide] 설정 창과 전체를 숨긴다
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -13,121 +20,74 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using Object = UnityEngine.Object;
 
 namespace DOB.UI
 {
-    /// <summary>ESC 메뉴를 코드로 쌓아 그린다.</summary>
-    public sealed class PauseMenuView
+    /// <summary>ESC 메뉴. 프리팹 안의 견본을 복제해 쪽을 그린다.</summary>
+    public sealed class PauseMenuView : MonoBehaviour
     {
-        private const float Width = 620f;
-        private readonly GameObject overlay;
-        private readonly RectTransform panel;
-        private readonly TMP_Text titleText;
-        private readonly PauseMenuSkin skin;
-        private readonly TMP_FontAsset font;
+        /// <summary>단추 · 글을 쌓는 나무 창 (VerticalLayoutGroup).</summary>
+        [SerializeField] private RectTransform panel;
+        [SerializeField] private TMP_Text titleText;
+        /// <summary>이름표 단추 견본. 자식 Label에 글. 평소 비활성.</summary>
+        [SerializeField] private Button buttonTemplate;
+        /// <summary>안내 글 견본. 평소 비활성.</summary>
+        [SerializeField] private TMP_Text labelTemplate;
+        /// <summary>환경설정 창 (PF_Settings).</summary>
+        [SerializeField] private SettingsView settings;
+        /// <summary>두 줄 단추의 둘째 줄 색.</summary>
+        [SerializeField] private Color subColor = new Color32(225, 205, 170, 255);
+
+        private const float OneLineHeight = 78f, TwoLineHeight = 92f;
+        private readonly List<GameObject> spawned = new List<GameObject>();
         private readonly List<Selectable> controls = new List<Selectable>();
 
-        /// <summary>설정 창 (스킨에 프리팹이 없으면 null).</summary>
-        public SettingsView Settings { get; }
+        /// <summary>설정 창 (프리팹에 없으면 null).</summary>
+        public SettingsView Settings => settings;
 
-        public PauseMenuView(Transform parent, PauseMenuSkin menuSkin)
+        private void Awake()
         {
-            skin = menuSkin ? menuSkin : ScriptableObject.CreateInstance<PauseMenuSkin>();
-            if (!menuSkin) Debug.LogWarning("[DOB] Resources/UI/PauseMenuSkin이 없어 ESC 메뉴를 그림 없이 그립니다.");
-            font = skin.font ? skin.font : TMP_Settings.defaultFontAsset;
-
-            overlay = new GameObject("BasementPauseCanvas", typeof(RectTransform), typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            overlay.transform.SetParent(parent, false);
-            if (parent.GetComponentInParent<Canvas>())
-                Stretch((RectTransform)overlay.transform);
-            var canvas = overlay.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.overrideSorting = true;
-            canvas.sortingOrder = 850; // 모든 게임 화면 위
-            var scaler = overlay.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
-
-            // 뒤 화면을 어둡게 하고 입력을 막는다
-            var shade = Rect("Backdrop", overlay.transform);
-            Stretch(shade);
-            shade.gameObject.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
-
-            // 나무 창: 내용 높이에 맞춰 늘어난다
-            panel = Rect("Menu", shade);
-            panel.sizeDelta = new Vector2(Width, 0);
-            var window = panel.gameObject.AddComponent<Image>();
-            Slice(window, skin.window, 1f);
-            var stack = panel.gameObject.AddComponent<VerticalLayoutGroup>();
-            stack.padding = new RectOffset(80, 80, 84, 44);
-            stack.spacing = 20;
-            stack.childAlignment = TextAnchor.UpperCenter;
-            stack.childControlWidth = true;
-            stack.childForceExpandWidth = true;
-            stack.childControlHeight = true;
-            stack.childForceExpandHeight = false;
-            panel.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            // 제목판: 창 위 가운데에 걸침 (쌓기에서 빠짐)
-            var plate = Rect("TitlePlate", panel);
-            plate.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
-            plate.anchorMin = plate.anchorMax = new Vector2(0.5f, 1f);
-            plate.sizeDelta = new Vector2(400, 78);
-            plate.anchoredPosition = new Vector2(0, 0);
-            Slice(plate.gameObject.AddComponent<Image>(), skin.plate, 3f);
-            titleText = CreateText(Stretched("Title", plate), string.Empty, 40, skin.titleColor);
-
-            if (skin.settingsPrefab)
-            {
-                Settings = Object.Instantiate(skin.settingsPrefab, overlay.transform);
-                Settings.name = "SettingsWindow"; // ESC 메뉴의 "Settings" 단추와 이름이 겹치지 않게
-                Settings.Hide();
-            }
-            Hide();
+            if (buttonTemplate) buttonTemplate.gameObject.SetActive(false);
+            if (labelTemplate) labelTemplate.gameObject.SetActive(false);
+            if (settings) settings.Hide();
         }
 
         /// <summary>새 쪽을 시작한다: 지난 단추 · 글을 지우고 제목을 바꾼다.</summary>
         public void Begin(string title)
         {
-            overlay.SetActive(true);
+            gameObject.SetActive(true);
             panel.gameObject.SetActive(true);
-            if (Settings) Settings.Hide();
+            if (settings) settings.Hide();
             controls.Clear();
-            for (int i = panel.childCount - 1; i >= 0; i--)
+            foreach (var go in spawned)
             {
-                var child = panel.GetChild(i).gameObject;
-                if (child.name == "TitlePlate") continue;
-                child.SetActive(false);
-                Object.Destroy(child);
+                if (!go) continue;
+                go.SetActive(false); // 같은 프레임에 레이아웃에서 바로 빠지게
+                Destroy(go);
             }
+            spawned.Clear();
             titleText.text = title;
         }
 
         /// <summary>안내 글 한 줄 (여러 줄이면 height를 늘린다).</summary>
         public void Label(string caption, int size = 24, float height = 48)
         {
-            var rect = Rect("Message", panel);
-            CreateText(rect, caption, size, skin.textColor);
-            rect.gameObject.AddComponent<LayoutElement>().preferredHeight = height;
+            var text = Instantiate(labelTemplate, panel);
+            text.name = "Message";
+            text.text = caption;
+            text.fontSize = size;
+            text.GetComponent<LayoutElement>().preferredHeight = height;
+            text.gameObject.SetActive(true);
+            spawned.Add(text.gameObject);
         }
 
         /// <summary>이름표 단추. 글에 줄바꿈이 있으면 둘째 줄을 작게 (예: 이어하기 + 최근 자동 저장).</summary>
         public Button Action(string objectName, string caption, Action onClick, bool enabled = true)
         {
             bool twoLines = caption.Contains("\n");
-            var rect = Rect(objectName, panel);
-            rect.gameObject.AddComponent<LayoutElement>().preferredHeight = twoLines ? 92 : 78;
-            var background = rect.gameObject.AddComponent<Image>();
-            Slice(background, skin.plate, 3f);
-            var button = rect.gameObject.AddComponent<Button>();
-            button.targetGraphic = background;
-            var colors = button.colors;
-            colors.highlightedColor = new Color(1.1f, 1.05f, 0.95f);
-            colors.pressedColor = new Color(0.8f, 0.75f, 0.7f);
-            colors.disabledColor = new Color(0.45f, 0.42f, 0.4f);
-            button.colors = colors;
+            var button = Instantiate(buttonTemplate, panel);
+            button.name = objectName;
+            button.GetComponent<LayoutElement>().preferredHeight = twoLines ? TwoLineHeight : OneLineHeight;
             button.interactable = enabled;
             button.onClick.AddListener(() => onClick());
 
@@ -135,9 +95,11 @@ namespace DOB.UI
             if (twoLines)
             {
                 int cut = caption.IndexOf('\n');
-                text = caption.Substring(0, cut) + $"\n<size=18><color=#{ColorUtility.ToHtmlStringRGB(skin.subColor)}>{caption.Substring(cut + 1)}</color></size>";
+                text = caption.Substring(0, cut) + $"\n<size=18><color=#{ColorUtility.ToHtmlStringRGB(subColor)}>{caption.Substring(cut + 1)}</color></size>";
             }
-            CreateText(Stretched("Label", rect), text, 32, skin.textColor);
+            button.GetComponentInChildren<TMP_Text>(true).text = text;
+            button.gameObject.SetActive(true);
+            spawned.Add(button.gameObject);
             if (enabled) controls.Add(button);
             return button;
         }
@@ -145,11 +107,11 @@ namespace DOB.UI
         /// <summary>설정 창을 띄운다 (메뉴 창은 숨김). 창이 없으면 false.</summary>
         public bool ShowSettings()
         {
-            if (!Settings) return false;
-            overlay.SetActive(true);
+            if (!settings) return false;
+            gameObject.SetActive(true);
             panel.gameObject.SetActive(false);
             controls.Clear();
-            Settings.Open();
+            settings.Open();
             return true;
         }
 
@@ -169,52 +131,8 @@ namespace DOB.UI
 
         public void Hide()
         {
-            if (Settings) Settings.Hide();
-            overlay.SetActive(false);
-        }
-
-        // ---------------- 도우미 ----------------
-
-        private static void Slice(Image image, Sprite sprite, float multiplier)
-        {
-            image.sprite = sprite;
-            if (!sprite) { image.color = new Color(0.3f, 0.2f, 0.12f); return; }
-            image.type = Image.Type.Sliced;
-            image.pixelsPerUnitMultiplier = multiplier;
-        }
-
-        private static RectTransform Rect(string name, Transform parent)
-        {
-            var rect = (RectTransform)new GameObject(name, typeof(RectTransform)).transform;
-            rect.SetParent(parent, false);
-            return rect;
-        }
-
-        private static RectTransform Stretched(string name, Transform parent)
-        {
-            var rect = Rect(name, parent);
-            Stretch(rect);
-            return rect;
-        }
-
-        private static void Stretch(RectTransform rect)
-        {
-            rect.anchorMin = Vector2.zero;
-            rect.anchorMax = Vector2.one;
-            rect.offsetMin = rect.offsetMax = Vector2.zero;
-        }
-
-        private TMP_Text CreateText(RectTransform rect, string caption, int size, Color color)
-        {
-            var text = rect.gameObject.AddComponent<TextMeshProUGUI>();
-            text.font = font;
-            text.fontSize = size;
-            text.text = caption;
-            text.alignment = TextAlignmentOptions.Center;
-            text.color = color;
-            text.richText = true;
-            text.raycastTarget = false;
-            return text;
+            if (settings) settings.Hide();
+            if (this) gameObject.SetActive(false);
         }
     }
 }
