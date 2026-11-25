@@ -247,7 +247,9 @@ namespace DOB.UI
             noteEmpty.SetActive(g.noteAxes.Length == 0);
 
             // 호감
-            affectionDelta.text = g.affectionDelta >= 0 ? "+" + g.affectionDelta : g.affectionDelta.ToString();
+            // 내역이 없으면 호감 기록이 없는 것 → "+0" 대신 비운다
+            bool hasAffection = !string.IsNullOrEmpty(g.affectionWhy);
+            affectionDelta.text = !hasAffection ? "" : g.affectionDelta >= 0 ? "+" + g.affectionDelta : g.affectionDelta.ToString();
             affectionWhy.text = g.affectionWhy;
             affectionNext.text = g.affectionNext;
             var max = affectionFill.anchorMax;
