@@ -41,8 +41,12 @@ namespace DOB.Manager
         {
             view.ShowMenu(false);
             if (TryReadLatest(out var saved))
-                view.ShowMenu(saved != null, saved == null ? null : BasementPauseMenu.Format(saved));
+                view.ShowMenu(saved != null, saved == null ? null : ShortSaveLine(saved));
         }
+
+        // 타이틀은 짧게 「n일차 · yy.MM.dd」만 보인다. ESC 불러오기 목록은 시각까지 보이는 BasementPauseMenu.Format을 그대로 쓴다.
+        private static string ShortSaveLine(FirstServiceSaveData saved) =>
+            $"{saved.Day}일차 · {saved.SavedAtUtc.ToLocalTime():yy.MM.dd}";
 
         private void OnNewGameClicked()
         {

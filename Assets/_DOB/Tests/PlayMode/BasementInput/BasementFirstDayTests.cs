@@ -347,8 +347,8 @@ namespace DOB.Tests
             SeedAutosave(2, 59, 1);
             yield return LoadTitle();
             yield return Until(() => FindActiveButton("ContinueButton"), "저장이 있으면 이어하기 표시");
-            var label = FindActiveButton("ContinueButton").transform.Find("Message").GetComponent<TMPro.TMP_Text>();
-            Assert.That(label.text, Does.Contain("2일차 시작"), "타이틀의 이어하기 버튼에 저장된 일차를 표시한다");
+            var label = FindActiveButton("ContinueButton").transform.Find("Detail").GetComponent<TMPro.TMP_Text>();
+            Assert.That(label.text, Does.Contain("2일차"), "타이틀의 이어하기 버튼에 저장된 일차를 표시한다");
             loadedScenes.Clear();
             yield return Click("ContinueButton");
             yield return Until(() => ReadyDay(2), "이어하기로 2일차 진입");
