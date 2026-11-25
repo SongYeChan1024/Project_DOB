@@ -6,7 +6,7 @@
 
 - [첫 플레이 범위와 완료 기준](FirstPlayScope.md) · [대사 생성기](DialogueGenerator.md) · [첫 손님 원고](FirstGuestsScript.md) · [단골 사연 목록·배정](RegularStories.md)
 - [단서표 CSV](../05-데이터/DialogueClueRules.csv) · [첫 플레이 경제](../05-데이터/FirstPlayEconomy.md)
-- 흐름도: [01 첫 영업](../플레이/Flowcharts/01-first-service.png) · [02 손님 단서](../플레이/Flowcharts/02-guest-clues.png) · [03 탐험 결과](../플레이/Flowcharts/03-expedition-result.png) · [04 손님 반응](../플레이/Flowcharts/04-guest-reactions.png) · [05 전체](../플레이/Flowcharts/05-game-overview.png)
+- 흐름도: [01 첫 영업](Flowcharts/01-first-service.png) · [02 손님 단서](Flowcharts/02-guest-clues.png) · [03 탐험 결과](Flowcharts/03-expedition-result.png) · [04 손님 반응](Flowcharts/04-guest-reactions.png) · [05 전체](Flowcharts/05-game-overview.png)
 - [입소문으로 다음 영업 손님 수 정하기 · F10](../../개발/FeatureManagerMap.md#입소문으로-다음-영업의-손님-수-정하기--f10)
 
 ---
