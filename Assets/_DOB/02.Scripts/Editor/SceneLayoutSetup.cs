@@ -17,7 +17,7 @@ using UnityEngine.UI;
 
 namespace DOB.Editor
 {
-    /// <summary>배경·실행·튜토리얼·개발 검증 역할을 구분해 승인된 씬 골격을 만든다.</summary>
+    /// <summary>전환·식당 배경·개발 검증 씬의 골격을 만들고, 타이틀과 영업 씬(Basement·BasementUI) 구성을 검사한다.</summary>
     public static class SceneLayoutSetup
     {
         private const string SceneFolder = "Assets/_DOB/01.Scenes/";
@@ -54,9 +54,6 @@ namespace DOB.Editor
             EditorSettings.serializationMode = SerializationMode.ForceText;
             CreateLoading();
             CreateRestaurant();
-            CreateGameplay();
-            CreateTutorial();
-            CreateScreen(SceneComposition.ReturnReport, "아침 귀환 보고", new[] { ("식당으로", SceneComposition.Restaurant), ("타이틀로", SceneComposition.Title) });
             CreateCharacterTest();
             EditorBuildSettings.scenes = SceneComposition.RuntimeSceneNames.Select(n => new EditorBuildSettingsScene(ScenePath(n), true)).ToArray();
             AssetDatabase.SaveAssets();
@@ -75,18 +72,6 @@ namespace DOB.Editor
         }
 
         private static string ScenePath(string name) => SceneFolder + name + ".unity";
-
-        private static void CreateScreen(string name, string title, (string label, string route)[] destinations)
-        {
-            var scene = NewScene();
-            CreateCamera(new Vector3(0, 8, -8), new Vector3(35, 0, 0));
-            var canvas = CreateCanvas("NavigationCanvas");
-            CreateText(canvas.transform, "SceneTitle", title, new Vector2(0, 220), new Vector2(1200, 90), 48);
-            CreateText(canvas.transform, "DevelopmentNotice", "개발 중 · 씬 연결 확인용 화면", new Vector2(0, 150), new Vector2(1100, 70), 26);
-            CreateButtons(canvas, destinations, new Vector2(0, 30));
-            CreateEventSystem();
-            Save(scene, name);
-        }
 
         private static void CreateLoading()
         {
@@ -144,39 +129,6 @@ namespace DOB.Editor
             AddAnchor(layout.transform, "Kitchen", new Vector3(4, 0, 0));
             AddAnchor(layout.transform, "StairsExit", new Vector3(4, 0, 4));
             Save(scene, SceneComposition.Restaurant);
-        }
-
-        private static void CreateGameplay()
-        {
-            var scene = NewScene();
-            var characters = new GameObject("RuntimeCharacters");
-            InstantiateCharacter("Player", characters.transform, new Vector3(0, 0, -1));
-            InstantiateCharacter("Guest", characters.transform, new Vector3(-2, 0, -1));
-            var systems = new GameObject("Systems");
-            // 후속 기능의 연결 위치만 마련한다. 영업·조리·정산 컴포넌트는 아직 구현하지 않았다.
-            AddAnchor(systems.transform, "SessionConnections", Vector3.zero);
-            AddAnchor(systems.transform, "GuestFlowConnections", Vector3.zero);
-            AddAnchor(systems.transform, "CookingConnections", Vector3.zero);
-            CreateCamera(new Vector3(0, 8, -8), new Vector3(35, 0, 0));
-            var canvas = CreateCanvas("GameplayCanvas");
-            CreateText(canvas.transform, "SceneTitle", "층계참 식당", new Vector2(0, 470), new Vector2(1000, 70), 38);
-            CreateText(canvas.transform, "DevelopmentNotice", "개발 중 · 캐릭터는 공용 프리팹 골격입니다", new Vector2(0, 415), new Vector2(1200, 65), 24);
-            CreateButtons(canvas, new[] { ("귀환 보고로", SceneComposition.ReturnReport), ("타이틀로", SceneComposition.Title) }, new Vector2(690, -290));
-            CreateEventSystem();
-            Save(scene, SceneComposition.Gameplay);
-        }
-
-        private static void CreateTutorial()
-        {
-            var scene = NewScene();
-            var flow = new GameObject("TutorialFlow");
-            for (var index = 1; index <= 3; index++)
-                AddAnchor(flow.transform, "TutorialGuest" + index.ToString("00"), Vector3.zero);
-            var canvas = CreateCanvas("TutorialCanvas", 100);
-            CreateText(canvas.transform, "TutorialTitle", "첫 영업 안내", new Vector2(0, 285), new Vector2(1100, 75), 36);
-            CreateText(canvas.transform, "DevelopmentNotice", "개발 중 · 첫 손님 세 명의 단계·안내 연결 영역", new Vector2(0, 225), new Vector2(1300, 65), 24);
-            CreateButtons(canvas, new[] { ("일반 영업으로", SceneComposition.Restaurant) }, new Vector2(-650, -400));
-            Save(scene, SceneComposition.Tutorial);
         }
 
         private static void CreateCharacterTest()
@@ -263,41 +215,6 @@ namespace DOB.Editor
             return text;
         }
 
-        private static void CreateButtons(GameObject canvas, (string label, string route)[] destinations, Vector2 firstPosition)
-        {
-            var presenter = canvas.AddComponent<SceneNavigationPresenter>();
-            for (var index = 0; index < destinations.Length; index++)
-            {
-                var target = destinations[index];
-                var buttonObject = new GameObject("Load_" + target.route, typeof(RectTransform), typeof(Image), typeof(Button));
-                buttonObject.transform.SetParent(canvas.transform, false);
-                var rect = buttonObject.GetComponent<RectTransform>();
-                rect.sizeDelta = new Vector2(400, 80);
-                rect.anchoredPosition = firstPosition + new Vector2(0, -index * 110);
-                buttonObject.GetComponent<Image>().color = new Color(0.20f, 0.27f, 0.31f);
-                CreateText(buttonObject.transform, "Label", target.label, Vector2.zero, new Vector2(380, 70), 30);
-                UnityEventTools.AddStringPersistentListener(buttonObject.GetComponent<Button>().onClick, presenter.LoadScene, target.route);
-            }
-        }
-
-        private static void CreateEventSystem()
-        {
-            // 일시 기본 액션 대신 프로젝트 입력 에셋을 직렬화해 씬 전환 뒤에도 참조를 유지한다.
-            var eventSystem = new GameObject("EventSystem");
-            eventSystem.SetActive(false);
-            eventSystem.AddComponent<EventSystem>();
-            var module = eventSystem.AddComponent<InputSystemUIInputModule>();
-            var serializedModule = new SerializedObject(module);
-            const string actionsPath = "Assets/InputSystem_Actions.inputactions";
-            serializedModule.FindProperty("m_ActionsAsset").objectReferenceValue = AssetDatabase.LoadAssetAtPath<InputActionAsset>(actionsPath);
-            var references = AssetDatabase.LoadAllAssetsAtPath(actionsPath).OfType<InputActionReference>().ToArray();
-            var bindings = new[] { ("m_PointAction", "Point"), ("m_MoveAction", "Navigate"), ("m_SubmitAction", "Submit"), ("m_CancelAction", "Cancel"), ("m_LeftClickAction", "Click"), ("m_ScrollWheelAction", "ScrollWheel") };
-            foreach (var binding in bindings)
-                serializedModule.FindProperty(binding.Item1).objectReferenceValue = references.First(r => r.action.actionMap.name == "UI" && r.action.name == binding.Item2);
-            serializedModule.ApplyModifiedPropertiesWithoutUndo();
-            eventSystem.SetActive(true);
-        }
-
         private static void AddAnchor(Transform parent, string name, Vector3 position)
         {
             var anchor = new GameObject(name);
@@ -309,14 +226,7 @@ namespace DOB.Editor
         public static void OpenRestaurantComposition()
         {
             if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-                OpenComposition(false);
-        }
-
-        [MenuItem("DOB/Scenes/Open Tutorial Composition")]
-        public static void OpenTutorialComposition()
-        {
-            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-                OpenComposition(true);
+                OpenComposition();
         }
 
         [MenuItem("DOB/Scenes/Open Character Test")]
@@ -326,12 +236,12 @@ namespace DOB.Editor
                 EditorSceneManager.OpenScene(ScenePath(SceneComposition.CharacterTest));
         }
 
-        private static void OpenComposition(bool tutorial)
+        // 영업 조합: 식당 공간 + 실행(Basement) + 화면(BasementUI). BasementComposition이 플레이 중 여는 조합과 같다.
+        private static void OpenComposition()
         {
             var restaurant = EditorSceneManager.OpenScene(ScenePath(SceneComposition.Restaurant), OpenSceneMode.Single);
-            EditorSceneManager.OpenScene(ScenePath(SceneComposition.Gameplay), OpenSceneMode.Additive);
-            if (tutorial)
-                EditorSceneManager.OpenScene(ScenePath(SceneComposition.Tutorial), OpenSceneMode.Additive);
+            EditorSceneManager.OpenScene(ScenePath(BasementComposition.BaseScene), OpenSceneMode.Additive);
+            EditorSceneManager.OpenScene(ScenePath(BasementComposition.UiScene), OpenSceneMode.Additive);
             SceneManager.SetActiveScene(restaurant);
         }
 
@@ -348,10 +258,8 @@ namespace DOB.Editor
                 var scene = EditorSceneManager.OpenScene(ScenePath(name));
                 var cameras = Components<Camera>(scene).Length;
                 var inputs = Components<EventSystem>(scene).Length;
-                var needsCamera = name != SceneComposition.Restaurant && name != SceneComposition.Tutorial
-                    && name != BasementComposition.UiScene;
-                var needsInput = name == SceneComposition.Title || name == SceneComposition.Gameplay
-                    || name == SceneComposition.ReturnReport || name == BasementComposition.UiScene;
+                var needsCamera = name != SceneComposition.Restaurant && name != BasementComposition.UiScene;
+                var needsInput = name == SceneComposition.Title || name == BasementComposition.UiScene;
                 Require(cameras == (needsCamera ? 1 : 0), "카메라 역할 불일치: " + name);
                 Require(inputs == (needsInput ? 1 : 0), "입력 역할 불일치: " + name);
                 foreach (var module in Components<InputSystemUIInputModule>(scene))
@@ -383,17 +291,11 @@ namespace DOB.Editor
                     foreach (var anchor in new[] { "PlayerSpawn", "GuestEntrance", "GreetingPoint", "Seat01", "Seat02", "Seat03", "Kitchen", "StairsExit" })
                         Require(anchors.transform.Find(anchor) != null, "식당 기준점 누락: " + anchor);
                 }
-                if (name == SceneComposition.Gameplay)
+                if (name == BasementComposition.BaseScene)
                 {
-                    Require(scene.GetRootGameObjects().Any(o => o.name == "RuntimeCharacters") && scene.GetRootGameObjects().Any(o => o.name == "Systems"), "Gameplay 실행 영역 누락");
+                    Require(scene.GetRootGameObjects().Any(o => o.name == "RuntimeCharacters") && scene.GetRootGameObjects().Any(o => o.name == "Systems"), "Basement 실행 영역 누락");
                     ValidateCharacter(scene, "Player");
                     ValidateCharacter(scene, "Guest");
-                }
-                if (name == SceneComposition.Tutorial)
-                {
-                    var flow = scene.GetRootGameObjects().SingleOrDefault(o => o.name == "TutorialFlow");
-                    Require(flow != null && flow.transform.childCount == 3, "튜토리얼 첫 손님 세 명의 연결 영역 누락");
-                    Require(Components<AudioListener>(scene).Length == 0, "튜토리얼에 중복 AudioListener 포함");
                 }
                 if (name == SceneComposition.Loading)
                 {
@@ -410,24 +312,23 @@ namespace DOB.Editor
                     foreach (var kind in new[] { "Player", "Guest", "Enemy" })
                         ValidateCharacter(scene, kind);
             }
-            ValidateComposition(false);
-            ValidateComposition(true);
+            ValidateComposition();
             EditorSceneManager.OpenScene(ScenePath(SceneComposition.Title));
             Debug.Log($"DOB_SCENE_COMPOSITION_VALIDATED: {AllScenes.Length} scenes; {buildScenes.Length} runtime build entries.");
         }
 
-        private static void ValidateComposition(bool tutorial)
+        private static void ValidateComposition()
         {
-            OpenComposition(tutorial);
-            Require(SceneManager.sceneCount == (tutorial ? 3 : 2), "편집 조합 씬 수 불일치");
+            OpenComposition();
+            Require(SceneManager.sceneCount == 3, "편집 조합 씬 수 불일치");
             Require(SceneManager.GetActiveScene().name == SceneComposition.Restaurant, "식당 활성 씬 불일치");
             var roots = Enumerable.Range(0, SceneManager.sceneCount).SelectMany(i => SceneManager.GetSceneAt(i).GetRootGameObjects()).ToArray();
             Require(roots.SelectMany(o => o.GetComponentsInChildren<Camera>(true)).Count() == 1, "조합에 카메라 중복 또는 누락");
             Require(roots.SelectMany(o => o.GetComponentsInChildren<AudioListener>(true)).Count() == 1, "조합에 AudioListener 중복 또는 누락");
             Require(roots.SelectMany(o => o.GetComponentsInChildren<EventSystem>(true)).Count() == 1, "조합에 EventSystem 중복 또는 누락");
-            var gameplay = SceneManager.GetSceneByName(SceneComposition.Gameplay);
-            ValidateCharacter(gameplay, "Player");
-            ValidateCharacter(gameplay, "Guest");
+            var basement = SceneManager.GetSceneByName(BasementComposition.BaseScene);
+            ValidateCharacter(basement, "Player");
+            ValidateCharacter(basement, "Guest");
         }
 
         private static T[] Components<T>(Scene scene) where T : Component
