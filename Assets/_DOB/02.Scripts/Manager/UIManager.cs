@@ -39,7 +39,7 @@
 // [열기]      등록된 화면이 없으면 경고하고 false → 있으면 그 화구의 요리 화면을 연다
 // [열림 여부] 재료 고르는 중에는 손님 대기 시간을 멈춘다(기획 4-1). 손님 쪽이 IsKitchenOpen을 읽는다
 // [실제 주문] 주방(FirstGuestKitchen)이 ConnectKitchenOrders로 IKitchenOrders를 붙이면 요리 화면이 그 주문을 읽는다. 없으면 더미
-// [Esc 순서] IsScreenOpen: 준비 · 요리 화면이 열려 있으면 Esc는 그 화면을 닫는 데 쓰고 ESC 메뉴는 열지 않는다 (BasementPauseInput)
+// [Esc 순서] IsScreenOpen: 준비 · 요리 · 방명록 화면이 열려 있으면 Esc는 그 화면을 닫는 데 쓰고 ESC 메뉴는 열지 않는다 (BasementPauseInput)
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -87,8 +87,8 @@ namespace DOB.Manager
         private IKitchenOrders kitchenOrders;
         internal static IKitchenOrders KitchenOrders => instance ? instance.kitchenOrders : null;
 
-        /// <summary>Esc로 닫히는 화면(준비 · 요리)이 열려 있는지. 열려 있으면 Esc는 그 화면만 닫고 ESC 메뉴를 열지 않는다.</summary>
-        public static bool IsScreenOpen => IsPrepScreenOpen || IsKitchenOpen;
+        /// <summary>Esc로 닫히는 화면(준비 · 요리 · 방명록)이 열려 있는지. 열려 있으면 Esc는 그 화면만 닫고 ESC 메뉴를 열지 않는다.</summary>
+        public static bool IsScreenOpen => IsPrepScreenOpen || IsKitchenOpen || GuestbookBookView.IsAnyOpen;
 
         /// <summary>준비 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패) 중 하나가 열려 있는지.</summary>
         public static bool IsPrepScreenOpen => instance && instance.prepScreens.Exists(p => p && p.IsOpen);
