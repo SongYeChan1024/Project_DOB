@@ -27,7 +27,10 @@
 //              영업 중 명단의 예정 방문이 모두 끝나고 방명록이 완성되면 DayCycle.TrySettle로 마감하고 바로 정산을 저장한다.
 //              마감 확인 버튼은 마감 단계에서만 누를 수 있다.
 //   SaveManual — 현재 진행이 아니라 보관해 둔 일차 시작 스냅샷(금화·마늘·재료·미처리 보고·전날 호감·입소문 인원)을 수동 슬롯에 쓴다.
-//   Settle   — 정산 저장이 아직이면 다시 시도하고, 저장한 정산으로 다음 일차에 진입한다.
+//   Settle   — 정산 저장이 아직이면 다시 시도한다. 마감한 순간에 적어 둔 그날 서빙 인원이 데모 엔딩 기준(08.Data/SO_DayCycle)
+//              이상이면 DayCycle.TryEndDemo로 엔딩 단계에 들어가 임시 엔딩 창을 띄우고, 미달이면 저장한 정산으로 다음 일차에 진입한다.
+//              돌려보낸 손님·대기 이탈은 명단이 서빙 인원에 넣지 않는다. 엔딩 창의 [타이틀로]는 타이틀 복귀만 요청한다.
+//              🔴 데모 완료 슬롯(엔딩을 본 일차의 시작을 보관)은 아직 없다. 정산은 평소처럼 다음 일차 시작을 자동 저장한다 (F13 후속).
 //              정산에는 지금의 금화·마늘·던전 재료와 오늘의 방문 결과(다음 아침의 미처리 보고)가 들어간다.
 //              스냅샷을 만들기 직전에 관계 총괄이 명단과 방문 결과로 방문 호감·다음 영업 추가 인원을 한 번 확정해 함께 넣는다.
 //              정산 결과가 이미 있으면 재사용해 금화·전리품을 두 번 지급하지 않는다.
@@ -76,6 +79,9 @@ namespace DOB.Manager
         // 귀환 보고 화면의 Presenter. 임시 보고 화면이 연결돼 있으면 null이다.
         private ReturnReportPresenter returnReport;
         private int startDay = 1;
+        // 마감한 순간의 서빙 인원. 명단은 식당 씬이 내려가면 비워지므로 따로 적어 둔다.
+        private int servedToday;
+        private BasementHud dayHud;
         private FirstGuestDialogue dialogue;
         private readonly ServicePauseReasons pauses = new ServicePauseReasons();
 
@@ -119,6 +125,7 @@ namespace DOB.Manager
 
             service.ConnectHud(hud.Guidance, hud.Dialogue, startDay, start?.WordOfMouthBonus ?? 0);
             dialogue = hud.Dialogue;
+            dayHud = hud;
             kitchen.ConnectHud(hud);
             settleButton = hud.Settle;
             settleButton.interactable = false;
@@ -163,12 +170,25 @@ namespace DOB.Manager
         private void SaveDayStart(FirstServiceSaveSlot slot) => saves.SavePreparation(slot, startDay, kitchen.DayStartGold,
             kitchen.DayStartGarlic, dayStart?.Materials, dayStart?.PendingReports, dayStart?.VisitAffinities, dayStart?.WordOfMouthBonus ?? 0);
 
-        /// <summary>마감 확인. 마감 단계에서만 정산을 저장(이미 했으면 재사용)하고 다음 일차로 진입한다.</summary>
+        /// <summary>마감 확인. 마감 단계에서만 정산을 저장(이미 했으면 재사용)하고, 서빙 인원이 기준 이상이면 데모 엔딩, 아니면 다음 일차로 진입한다.</summary>
         public void Settle()
         {
             if (!IsReady || BasementComposition.IsEntering || cycle.Phase != DayPhase.Closing || !SaveSettlement())
                 return;
-            BasementComposition.EnterDay(settledCheckpoint);
+            if (cycle.TryEndDemo(servedToday, settings.DemoEndingServedGuests, out _))
+                ShowDemoEnding();
+            else
+                BasementComposition.EnterDay(settledCheckpoint);
+        }
+
+        // shortcut: 코드로 만든 임시 창이다. 실제 엔딩 화면이 생기면 DayPhase.DemoEnding을 받는 View로 바꾼다 (홍준우 인계).
+        private void ShowDemoEnding()
+        {
+            var view = new BasementPauseView(dayHud.transform, dayHud.Guidance.font);
+            view.Begin("데모 엔딩");
+            view.Label($"{Day}일차에 손님 {servedToday}명에게 서빙했습니다.\n금고 {kitchen.Gold}금", 23, 76);
+            view.Action("Title", "타이틀로", () => BasementComposition.GoToTitle());
+            view.Focus();
         }
 
         // 다음 씬을 열지 못하거나 저장이 실패해 다시 불려도, 이미 확정한 정산을 그대로 쓴다.
@@ -242,7 +262,10 @@ namespace DOB.Manager
 
             // 마지막 방문이 끝난 순간 한 번 마감·정산한다.
             if (cycle.Phase == DayPhase.Service && cycle.TrySettle(AllVisitsEnded, out _))
+            {
+                servedToday = guests.Roster.ServedGuestCount;
                 SaveSettlement();
+            }
 
             if (settleButton)
                 settleButton.interactable = cycle.Phase == DayPhase.Closing && !paused;

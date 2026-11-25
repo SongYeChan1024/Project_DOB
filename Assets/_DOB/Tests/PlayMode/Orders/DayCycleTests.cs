@@ -53,6 +53,20 @@ namespace DOB.Tests
         }
 
         [Test]
+        public void DemoEndsOnlyFromClosingWhenEnoughGuestsWereServed()
+        {
+            var cycle = new DayCycle();
+            cycle.Begin(1);
+            Assert.That(cycle.TryEndDemo(12, 12, out _), Is.False, "영업 중에는 엔딩으로 가지 않는다");
+            cycle.TrySettle(true, out _);
+            Assert.That(cycle.TryEndDemo(11, 12, out _), Is.False, "11명 이하면 다음 일차로 간다");
+            Assert.That(cycle.Phase, Is.EqualTo(DayPhase.Closing));
+            Assert.That(cycle.TryEndDemo(12, 12, out _), Is.True);
+            Assert.That(cycle.Phase, Is.EqualTo(DayPhase.DemoEnding));
+            Assert.That(cycle.TryEndDemo(12, 12, out _), Is.False, "엔딩 전환은 한 번만");
+        }
+
+        [Test]
         public void GuestbookCompletesOnceAndIgnoresDuplicateVisits()
         {
             var log = new GuestbookLog(3f);

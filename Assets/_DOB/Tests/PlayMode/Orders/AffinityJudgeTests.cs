@@ -37,7 +37,7 @@ namespace DOB.Tests
         {
             var settings = ScriptableObject.CreateInstance<ServiceRosterSettings>();
             JsonUtility.FromJsonOverwrite(
-                $"{{\"baseGuests\":{guests},\"arrivalMinSeconds\":1,\"arrivalMaxSeconds\":1,\"queueCapacity\":{guests}," +
+                $"{{\"dailyGrowthMin\":0,\"dailyGrowthMax\":0,\"firstArrivalSeconds\":0,\"baseGuests\":{guests},\"arrivalMinSeconds\":1,\"arrivalMaxSeconds\":1,\"queueCapacity\":{guests}," +
                 "\"waitStartScore\":2,\"scoreStepSeconds\":10,\"leaveAfterSeconds\":300}", settings);
             created.Add(settings);
             var roster = new ServiceRoster(settings, new System.Random(1));
