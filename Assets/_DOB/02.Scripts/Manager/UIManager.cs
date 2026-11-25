@@ -39,6 +39,7 @@
 // [열기]      등록된 화면이 없으면 경고하고 false → 있으면 그 화구의 요리 화면을 연다
 // [열림 여부] 재료 고르는 중에는 손님 대기 시간을 멈춘다(기획 4-1). 손님 쪽이 IsKitchenOpen을 읽는다
 // [실제 주문] 주방(FirstGuestKitchen)이 ConnectKitchenOrders로 IKitchenOrders를 붙이면 요리 화면이 그 주문을 읽는다. 없으면 더미
+// [손님 말풍선] 손님 쪽이 ConnectGuestMoods로 IGuestMoods를 붙이면 손님 머리 위에 기다림 원 · 불평 · 기쁨 · 퇴장 표정이 뜬다
 // [화구 표시] 주방이 ConnectKitchenBurners로 IKitchenBurners를 붙이면 조리 중인 화구 위에 요리 그림 · 남은 초가 뜬다
 // [상호작용 표시] 상호작용하는 쪽이 ConnectInteractionPrompt로 IInteractionPrompt를 붙이면 대상 위에 [E] 동작 표시가 뜬다
 // [Esc 순서] IsScreenOpen: 준비 · 요리 · 방명록 화면이 열려 있으면 Esc는 그 화면을 닫는 데 쓰고 ESC 메뉴는 열지 않는다 (BasementPauseInput)
@@ -105,6 +106,24 @@ namespace DOB.Manager
         {
             if (instance && instance.interactionPrompt == prompt)
                 instance.interactionPrompt = null;
+        }
+
+        // 손님 말풍선 상태 (FirstGuestService 💡). 없으면 말풍선을 숨긴다
+        private IGuestMoods guestMoods;
+        internal static IGuestMoods GuestMoods => instance ? instance.guestMoods : null;
+
+        /// <summary>손님 말풍선 상태를 알려 줄 곳을 잇는다 (손님 쪽이 켜질 때).</summary>
+        public static void ConnectGuestMoods(IGuestMoods moods)
+        {
+            if (moods != null)
+                Instance.guestMoods = moods;
+        }
+
+        /// <summary>손님 쪽이 꺼질 때 연결을 푼다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        public static void DisconnectGuestMoods(IGuestMoods moods)
+        {
+            if (instance && instance.guestMoods == moods)
+                instance.guestMoods = null;
         }
 
         // 화구들의 조리 상태 (FirstGuestKitchen 💡). 없으면 화구 위 표시를 숨긴다
