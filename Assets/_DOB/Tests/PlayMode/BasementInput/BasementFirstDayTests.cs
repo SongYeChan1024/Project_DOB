@@ -117,7 +117,8 @@ namespace DOB.Tests
             Place(player, layout.GreetingPoint.position + Vector3.right * .9f);
             yield return Until(() => hud.Guidance.text.Contains("손님을 맞이"), "입장 완료 및 E 응대 가능 안내");
             var camera = Camera.main.transform;
-            var overhead = new Pose(camera.position, camera.rotation);
+            // 전경은 플레이어를 따라가는 추적 카메라다. 줌아웃 뒤 메인 카메라가 그 카메라와 같은 자리로 돌아오는지 본다.
+            var overhead = GameObject.Find("FollowCamera").transform;
             yield return Press(Key.E);
             yield return Until(() => hud.Dialogue.BlocksWorldInput, "E로 실제 응대 화면 생성");
             var fade = SceneManager.GetSceneByName(BasementComposition.UiScene).GetRootGameObjects()

@@ -1,6 +1,6 @@
 # 씬 분리와 조합 로드 설계
 
-> **2026-11-25 김언호 — 현재 씬 구성**: Title·Loading·Restaurant·Basement·BasementUI·CharacterTest의 여섯 씬이다. 영업은 `Basement` + `Restaurant` + `BasementUI` 조합 하나로 진행한다. 아래 「초기 씬 구성」의 Gameplay·Tutorial·ReturnReport 씬과 시험용 BasementTitle 씬은 플레이 경로에서 쓰이지 않아 삭제했다. `SceneComposition`의 진입 경로는 Title만 남고, 영업 진입은 `BasementComposition.EnterDay`가 맡는다. 아래 「초기 씬 구성」 이후 내용은 2026-11-01 당시 기록이다.
+> **2026-11-25 김언호 — 현재 씬 구성**: Title·Loading·Restaurant·Basement·BasementUI·CharacterTest의 여섯 씬이다. 영업은 `Basement` + `Restaurant` + `BasementUI` 조합 하나로 진행한다. 아래 「초기 씬 구성」의 Gameplay·Tutorial·ReturnReport 씬과 시험용 BasementTitle 씬은 플레이 경로에서 쓰이지 않아 삭제했다. `SceneComposition`의 진입 경로는 Title만 남고, 영업 진입은 `BasementComposition.EnterDay`가 맡는다. 아트가 Gameplay에 넣었던 추적 카메라(`FollowCamera`, Cinemachine Brain, 메인 카메라 위치)는 Basement로 옮겼고, `FirstGuestService`가 이 카메라를 평소 화면의 전경 카메라로 쓴다. 메인 카메라는 직교 그대로이며, 오프셋·감쇠·보이는 범위·투영 방식 조정은 💡 이기혁에게 인계한다. 아래 「초기 씬 구성」 이후 내용은 2026-11-01 당시 기록이다.
 
 ## Basement 브랜치의 타이틀 진입
 

@@ -240,7 +240,8 @@ namespace DOB.Tests
             var player = runtime.Find("PF_Player").GetComponent<CharacterController>();
             var guest = runtime.Find("PF_Guest");
             var camera = Camera.main.transform;
-            var overhead = new Pose(camera.position, camera.rotation);
+            // 전경은 플레이어를 따라가는 추적 카메라다. 줌아웃 뒤 메인 카메라가 그 카메라와 같은 자리로 돌아오는지 본다.
+            var overhead = GameObject.Find("FollowCamera").transform;
             yield return Until(() => service.IsWaitingToGreet && guest.position == layout.GreetingPoint.position, "입장");
 
             Assert.That(service.TryInteract(), Is.False, "멀리서 손님을 열 수 없어야 함");
