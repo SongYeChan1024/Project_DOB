@@ -24,7 +24,7 @@ namespace DOB.Tests
             Clear();
             var settings = ScriptableObject.CreateInstance<ServiceRosterSettings>();
             JsonUtility.FromJsonOverwrite(
-                $"{{\"baseGuests\":{guests},\"arrivalMinSeconds\":{arrivalSeconds},\"arrivalMaxSeconds\":{arrivalSeconds}," +
+                $"{{\"dailyGrowthMin\":0,\"dailyGrowthMax\":0,\"firstArrivalSeconds\":0,\"baseGuests\":{guests},\"arrivalMinSeconds\":{arrivalSeconds},\"arrivalMaxSeconds\":{arrivalSeconds}," +
                 $"\"queueCapacity\":{queue},\"waitStartScore\":2,\"scoreStepSeconds\":{scoreStep},\"leaveAfterSeconds\":{leaveAfter}}}", settings);
             GuestManager.SettingsOverride = settings;
         }

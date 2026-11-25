@@ -1,4 +1,5 @@
-// 프리뷰 UI 씬에서만 일시정지 오버레이와 선택 항목을 만든다. 화면 전환 시 이전 버튼 리스너와 선택을 정리한다.
+// 코드로 오버레이와 선택 항목을 만든다. 화면 전환 시 이전 버튼 리스너와 선택을 정리한다.
+// 호출자: GameManager(임시 데모 엔딩 창). 일시정지 메뉴는 PauseMenuView로 옮겨 갔다.
 using System;
 using System.Collections.Generic;
 using UnityEngine;

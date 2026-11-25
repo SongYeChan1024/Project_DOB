@@ -125,6 +125,18 @@ PrefabInstance:
       propertyPath: m_Name
       value: SM_Guest_Human_Warrior
       objectReference: {fileID: 0}
+    - target: {fileID: 5084040141805370456, guid: 9c1428853d7701b47b3c56cde4b934cc, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0.09344238
+      objectReference: {fileID: 0}
+    - target: {fileID: 5084040141805370456, guid: 9c1428853d7701b47b3c56cde4b934cc, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: -0.014789155
+      objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: 9c1428853d7701b47b3c56cde4b934cc, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 22100000, guid: f479fc1155935c344ba5d23050e60899, type: 2}
     - target: {fileID: 5866666021909216657, guid: 9c1428853d7701b47b3c56cde4b934cc, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
@@ -138,7 +150,9 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 2100000, guid: 48e3f96029936cc44a586c1cf99f1fad, type: 2}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 5508685585077804344, guid: 9c1428853d7701b47b3c56cde4b934cc, type: 3}
+    - {fileID: 6641916198917295501, guid: 9c1428853d7701b47b3c56cde4b934cc, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 9c1428853d7701b47b3c56cde4b934cc, type: 3}
