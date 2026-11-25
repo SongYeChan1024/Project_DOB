@@ -13,12 +13,16 @@
 //            VisitResult → 이 화면: GuestId·VisitId·GuestName 그대로 / Grade(ExpeditionGrade) → ReturnResult (이름 순서 같음)
 //            Risks · Protections · Shortfalls(독·열·냉기·어둠·체력·함정 순서) → 위험이 있었거나 모자랐던 축의 줄과 칸
 //            Loot(재료 이름) → 그림 · 신규 표시 (이름 → 그림은 IconIds 표)
-//            아직 계약에 없는 것: 종족·직업, 층 이름, 한마디, 수첩 기록, 호감 변화, 얼굴, 그날 일러스트 등급 → 비워 둔다
+//            아직 계약에 없는 것: 종족·직업, 층 이름, 한마디, 수첩 기록, 얼굴, 그날 일러스트 등급 → 비워 둔다
+//          호감 (홍준우 2026-11-25): Bind 세 번째 인자로 RelationshipManager.YesterdayAffinities(VisitAffinity 목록)를 받으면
+//            VisitId로 보고와 짝을 지어 Total → 변화량, Wait · Taste · Expedition → "대기 · 맛 · 던전" 내역을 채운다
+//            단골까지 남은 값 · 막대는 단골 기준값이 계약에 없어 비워 둔다. 3단계 PR에서 GameManager가 세 번째 인자를 넘긴다 (김언호)
 //            확정: 화면은 확정하지 않아도 된다 (준비로 넘어갈 때 백엔드가 남은 보고를 모두 한 번씩 확정)
 //
 // 의사코드
 // [켜질 때]   화면의 Opened를 구독한다 / [꺼질 때] 구독을 푼다
-// [연결]      보고 조회 함수와 신규 재료 판별 함수를 받아 둔다
+// [연결]      보고 조회 함수와 신규 재료 판별 함수, (있으면) 방문 호감 조회 함수를 받아 둔다
+// [호감]      보고마다 같은 VisitId의 호감을 찾아 합계와 내역만 옮긴다. 없으면 호감 칸을 비운다 (다시 계산하지 않는다)
 // [열림]      연결 전이면 더미 보고를, 연결됐으면 전날 방문 결과를 화면 데이터로 옮겨 넘긴다 (판정은 다시 계산하지 않는다)
 // =====================================================================
 using System;
@@ -51,12 +55,16 @@ namespace DOB.Manager
         // GameManager가 하루를 준비할 때 조회 함수를 넘겨 준다 (2026-11-24 김언호, 실행 연결).
         private Func<IReadOnlyList<VisitResult>> readReports;
         private Func<string, bool> isNewMaterial;
+        private Func<IReadOnlyList<VisitAffinity>> readAffinities;
 
-        /// <summary>오늘 아침 보고와 신규 재료 판별을 읽을 곳을 연결한다. 둘 다 null을 넘기면 연결을 푼다.</summary>
-        public void Bind(Func<IReadOnlyList<VisitResult>> reports, Func<string, bool> isNew)
+        /// <summary>오늘 아침 보고 · 신규 재료 판별 · 전날 방문 호감을 읽을 곳을 연결한다. null을 넘기면 연결을 푼다.
+        /// 호감은 선택이다 (넘기지 않으면 호감 칸이 빈다).</summary>
+        public void Bind(Func<IReadOnlyList<VisitResult>> reports, Func<string, bool> isNew,
+            Func<IReadOnlyList<VisitAffinity>> affinities = null)
         {
             readReports = reports;
             isNewMaterial = isNew;
+            readAffinities = affinities;
         }
 
         private void OnOpened(int day)
@@ -73,12 +81,26 @@ namespace DOB.Manager
             }
 
             // 실제 게임: 전날 파견한 손님별 확정 결과를 그대로 옮긴다. 판정은 다시 계산하지 않는다.
+            var affinities = readAffinities?.Invoke() ?? Array.Empty<VisitAffinity>();
             view.ShowReport(new ReturnReportViewData
             {
                 illustrationTier = 0, // 🔴 그날 총합 점수 계산식이 정해지기 전에는 일러스트를 비운다
-                guests = (readReports() ?? Array.Empty<VisitResult>()).Select(ToGuest).ToArray(),
+                guests = (readReports() ?? Array.Empty<VisitResult>())
+                    .Select(visit => WithAffinity(ToGuest(visit), affinities.FirstOrDefault(a => a != null && a.VisitId == visit.VisitId)))
+                    .ToArray(),
             });
         }
+
+        // 같은 방문의 호감 합계와 내역만 옮긴다. 기록이 없으면 호감 칸을 비운다 ("+0"으로 보이지 않게)
+        private static ReturnGuestData WithAffinity(ReturnGuestData guest, VisitAffinity affinity)
+        {
+            if (affinity == null) return guest;
+            guest.affectionDelta = affinity.Total;
+            guest.affectionWhy = $"대기 {Signed(affinity.Wait)} · 맛 {Signed(affinity.Taste)} · 던전 {Signed(affinity.Expedition)}";
+            return guest;
+        }
+
+        private static string Signed(int value) => value > 0 ? "+" + value : value.ToString();
 
         // ---------------- 실제 보고 (SettlementManager.Reports의 VisitResult → 화면 데이터) ----------------
 
