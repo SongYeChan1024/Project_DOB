@@ -123,15 +123,19 @@ namespace DOB.Editor
             player.GetComponent<DOB.Manager.PlayerMovementController>().enabled = false;
             var service = (Behaviour)ComponentOn(flow, "FirstGuestService");
             service.enabled = false;
-            Wire(service, ("player",player.transform), ("guest",guest.transform), ("worldCamera",camera),
+            var guests = ComponentOn(systems,"GuestManager");
+            Wire(guests, ("settings",ServiceRosterSettings()), ("template",guest.transform));
+            Wire(service, ("player",player.transform), ("guests",guests), ("worldCamera",camera),
                 ("zoom", Asset<ScriptableObject>("08.Data/SO_GuestCloseUp.asset")));
             var kitchen = (Behaviour)ComponentOn(Child("CookingConnections", systems.transform),"FirstGuestKitchen");
             kitchen.enabled = false;
-            Wire(kitchen, ("service",service), ("recipe",Asset<ScriptableObject>("08.Data/SO_FirstService_Bread.asset")), ("guest", Asset<ScriptableObject>("08.Data/SO_Guest_Haru.asset")));
+            Wire(kitchen, ("service",service), ("recipe",Asset<ScriptableObject>("08.Data/SO_FirstService_Bread.asset")));
             var plate = ComponentOn(player,"FirstGuestPlateView");
             Wire(plate, ("kitchen", kitchen), ("carryAnchor",player.transform.Find("Anchors/PlatePoint")));
             var game = ComponentOn(systems,"GameManager");
-            Wire(game,("service",service),("kitchen",kitchen),("relationship",ComponentOn(systems,"RelationshipManager")),("settings",DayCycleSettings()));
+            var relationship = ComponentOn(systems,"RelationshipManager");
+            Wire(relationship,("rules",AffinityRules()));
+            Wire(game,("service",service),("kitchen",kitchen),("guests",guests),("relationship",relationship),("settings",DayCycleSettings()));
             var settlement = ComponentOn(systems,"SettlementManager");
             Wire(settlement,("rewards",ExpeditionRewards()));
             Wire(game,("settlement",settlement),("economy",ComponentOn(systems,"EconomyManager")));
@@ -390,6 +394,67 @@ namespace DOB.Editor
             data.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.CreateAsset(rewards, Root + ExpeditionRewardsPath);
             return rewards;
+        }
+
+        private const string ServiceRosterPath = "08.Data/SO_ServiceRoster.asset";
+
+        // 이미 있는 Basement 씬에 여러 손님 명단(GuestManager)과 영업 손님 기준값만 연결한다. 손님 템플릿은 첫 손님 서비스의 기존 PF_Guest다.
+        [MenuItem("DOB/Basement/여러 손님 연결 추가")]
+        public static void AddGuestRoster()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var roots = EditorSceneManager.OpenScene(Scenes + "Basement.unity", OpenSceneMode.Single).GetRootGameObjects();
+            var game = roots.Select(root => root.GetComponentInChildren<DOB.Manager.GameManager>(true)).Single(found => found);
+            var service = new SerializedObject(game).FindProperty("service").objectReferenceValue as DOB.Manager.FirstGuestService;
+            var guest = roots.SingleOrDefault(root => root.name == "RuntimeCharacters")?.transform.Find("PF_Guest");
+            if (!service || !guest) throw new InvalidOperationException("Basement의 첫 손님 서비스와 RuntimeCharacters/PF_Guest를 확인하세요.");
+            var guests = game.GetComponent<DOB.Manager.GuestManager>();
+            if (!guests) guests = game.gameObject.AddComponent<DOB.Manager.GuestManager>();
+            Wire(guests,("settings",ServiceRosterSettings()),("template",guest));
+            Wire(service,("guests",guests));
+            Wire(game,("guests",guests));
+            Save("Basement");
+            Debug.Log("DOB_BASEMENT_GUEST_ROSTER_READY");
+        }
+
+        private const string AffinityRulesPath = "08.Data/SO_AffinityRules.asset";
+
+        // 이미 있는 Basement 씬의 관계 총괄(RelationshipManager)에 호감·입소문 기준값만 연결한다.
+        [MenuItem("DOB/Basement/호감·입소문 기준 연결 추가")]
+        public static void AddAffinityRules()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                return;
+            var relationship = EditorSceneManager.OpenScene(Scenes + "Basement.unity", OpenSceneMode.Single).GetRootGameObjects()
+                .Select(root => root.GetComponentInChildren<DOB.Manager.RelationshipManager>(true)).Single(found => found);
+            Wire(relationship,("rules",AffinityRules()));
+            Save("Basement");
+            Debug.Log("DOB_BASEMENT_AFFINITY_RULES_READY");
+        }
+
+        // 💡 시험값: 대성공 +2·성공 +1·실패 −1·대실패 −2, 돌려보냄·대기 이탈 −4, 방문 최대 6, 문턱 60·75·85·100%, 돌려보낸 방문 제외
+        // (FeatureManagerMap F10, 송예찬 확인 전). 값은 AffinityRules의 기본값이다. 에셋이 이미 있으면 값을 건드리지 않는다.
+        private static ScriptableObject AffinityRules()
+        {
+            var rules = Asset<ScriptableObject>(AffinityRulesPath);
+            if (rules)
+                return rules;
+            rules = ScriptableObject.CreateInstance<DOB.Define.AffinityRules>();
+            AssetDatabase.CreateAsset(rules, Root + AffinityRulesPath);
+            return rules;
+        }
+
+        // 💡 시험값: 기본 3명, 입장 간격 8~20초, 줄 2명, 대기 2점·10초마다 −1·30초 이탈 (FeatureManagerMap F1·F2·F10 시험안, 송예찬 확인 전).
+        // 값은 ServiceRosterSettings의 기본값이다. 에셋이 이미 있으면 값을 건드리지 않는다.
+        private static ScriptableObject ServiceRosterSettings()
+        {
+            var settings = Asset<ScriptableObject>(ServiceRosterPath);
+            if (settings)
+                return settings;
+            settings = ScriptableObject.CreateInstance<DOB.Define.ServiceRosterSettings>();
+            AssetDatabase.CreateAsset(settings, Root + ServiceRosterPath);
+            return settings;
         }
 
         private static ScriptableObject DayCycleSettings()

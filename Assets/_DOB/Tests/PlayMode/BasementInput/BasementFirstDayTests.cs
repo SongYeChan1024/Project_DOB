@@ -22,7 +22,7 @@ using UnityEngine.UI;
 
 namespace DOB.Tests
 {
-    public sealed class BasementFirstDayTests
+    public sealed partial class BasementFirstDayTests
     {
         private const string SaveVariable = "DOB_BASEMENT_SAVE_DIR";
         private const string TitleScene = "Title";
@@ -45,6 +45,8 @@ namespace DOB.Tests
             loadedScenes.Clear();
             SceneManager.sceneLoaded += RecordScene;
             input = new BasementTestKeyboard();
+            // 기존 한 손님 흐름은 손님 1명·넉넉한 대기 한도로 검증한다. 여러 손님 테스트는 본문에서 다시 정한다.
+            TestGuestRoster.Use(guests: 1);
         }
 
         [UnityTearDown]
@@ -59,6 +61,7 @@ namespace DOB.Tests
             {
                 Time.timeScale = previousTimeScale;
                 input?.Dispose();
+                TestGuestRoster.Clear();
                 Environment.SetEnvironmentVariable(SaveVariable, previousDirectory);
                 if (Directory.Exists(directory)) Directory.Delete(directory, true);
             }
