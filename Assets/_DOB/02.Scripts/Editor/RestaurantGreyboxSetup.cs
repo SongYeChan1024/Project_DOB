@@ -46,19 +46,23 @@ namespace DOB.Editor
         /// </summary>
         private static readonly (string id, Vector3 seat, bool start, string table, Vector3 tablePos, string prop, Vector3 propPos, float propYaw)[] Seats =
         {
-            // 앞줄(시작 3석): 창가 1인석 + 2인 단체 테이블
-            ("Seat01", new Vector3(-4.3f, 0, 1.4f), true, "Table", new Vector3(-4.3f, 0, 0.6f), "Curtain", new Vector3(-5.85f, 0.3f, 1f), -90), // 바람 드는 창가 · 내열
-            ("Seat02", new Vector3(-1.2f, 0, 1.4f), true, "TableLong", new Vector3(-0.6f, 0, 0.6f), "HerbPot", new Vector3(-2.3f, 0, 1.5f), 0), // 약초 화분 옆 · 해독
-            ("Seat03", new Vector3(0f, 0, 1.4f), true, null, Vector3.zero, "GlowLamp", new Vector3(1f, 0, 1.6f), 0),                           // 빛나는 장식 · 야광
-            // 뒷줄(좌석 늘리기로 열림): 난로 구석 1인석 + 2인 단체 테이블
-            ("Seat04", new Vector3(-4.3f, 0, 4f), false, "Table", new Vector3(-4.3f, 0, 3.2f), "Stove", new Vector3(-5.2f, 0, 5f), 0),         // 난로 옆 · 방한
-            ("Seat05", new Vector3(-1.2f, 0, 4f), false, "TableLong", new Vector3(-0.6f, 0, 3.2f), "Sofa", new Vector3(-1.2f, 0, 4f), 0),      // 푹신한 소파 · 활력(의자를 대신함)
+            // 앞줄(시작 3석): 1인석 3개. 2026-11-25 이기혁이 테이블·의자를 1.4m 뒤(의자 z 2.8)로 옮긴 배치를 따른다.
+            // 소품은 의자와 겹치지 않게 좌석 옆으로 둔다. 창가 커튼은 창(z 0~2)에 붙어 있어 그대로 둔다.
+            ("Seat01", new Vector3(-4.3f, 0, 2.8f), true, "Table", new Vector3(-4.3f, 0, 2.0f), "Curtain", new Vector3(-5.85f, 0.3f, 1f), -90), // 바람 드는 창가 · 내열
+            ("Seat02", new Vector3(-1.8f, 0, 2.8f), true, "Table", new Vector3(-1.8f, 0, 2.0f), "HerbPot", new Vector3(-2.9f, 0, 2.9f), 0),     // 약초 화분 옆 · 해독
+            ("Seat03", new Vector3(0.7f, 0, 2.8f), true, "Table", new Vector3(0.7f, 0, 2.0f), "GlowLamp", new Vector3(1.6f, 0, 3.0f), 0),       // 빛나는 장식 · 야광
+            // 뒷줄(좌석 늘리기로 열림): 난로 구석 1인석 + 2인 단체 테이블. 앞줄 의자(z 2.8)와 겹치지 않게 1m 뒤(의자 z 5.0)에 둔다.
+            ("Seat04", new Vector3(-4.3f, 0, 5f), false, "Table", new Vector3(-4.3f, 0, 4.2f), "Stove", new Vector3(-5.2f, 0, 5.3f), 0),       // 난로 옆 · 방한
+            ("Seat05", new Vector3(-1.2f, 0, 5f), false, "TableLong", new Vector3(-0.6f, 0, 4.2f), "Sofa", new Vector3(-1.2f, 0, 5f), 0),      // 푹신한 소파 · 활력(의자를 대신함)
             // 칸막이 천 면(-Z)이 Seat06 쪽(-X)을 보도록 90°로 돌려 단체 테이블 오른쪽 끝을 막는다.
-            ("Seat06", new Vector3(0f, 0, 4f), false, null, Vector3.zero, "Booth", new Vector3(0.9f, 0, 4f), 90),                              // 조용한 칸막이석 · 감각
+            ("Seat06", new Vector3(0f, 0, 5f), false, null, Vector3.zero, "Booth", new Vector3(0.9f, 0, 5f), 90),                              // 조용한 칸막이석 · 감각
         };
 
         // 소파는 의자 자리에 놓이므로 소파가 보이면 그 좌석의 의자를 숨긴다.
         private const string ChairReplacingProp = "Sofa";
+
+        // 개량 후에만 보이는 주방 조각. 실제 화구 수(조리 로직)는 08.Data·개발의 해금 연결이 정한다.
+        private static readonly string[] UpgradeOnlyKitchen = { "Stove_02" };
 
         // 아트 01 2-1의 건물 격자(m). 바닥은 x -6~6, z -4~6 범위를 덮는다.
         private const float Grid = 2f;
@@ -96,14 +100,14 @@ namespace DOB.Editor
             BuildDining(Group(root, "Dining"));
             BuildDecor(Group(root, "Decor"));
 
-            // 확인 화면은 시작 상태를 먼저 찍고, 씬은 '전부 개량' 상태로 저장한다(2026-11-23 결정).
-            // 배치를 최종 모습 기준으로 보고 다듬기 위해서이며, 게임 시작 시 좌석·소품을 숨기는 일은 해금 연결이 맡는다.
-            SetSeatState(scene, false);
-            CapturePreview("Start_GameplayCamera", new Vector3(0, 8, -8), new Vector3(35, 0, 0));
-            CapturePreview("Start_Overview", new Vector3(-9, 12, -11), new Vector3(38, 37, 0));
+            // 확인 화면은 '전부 개량' 상태를 먼저 찍고, 씬은 업그레이드 전 시작 상태(1인석 3개, 소품 없음)로 저장한다.
+            // 2026-11-25 이기혁 요청으로 11-23의 '전부 개량 저장'을 바꿨다. 게임 화면이 처음 영업 모습과 같아야 하기 때문이다.
             SetSeatState(scene, true);
             CapturePreview("GameplayCamera", new Vector3(0, 8, -8), new Vector3(35, 0, 0));
             CapturePreview("Overview", new Vector3(-9, 12, -11), new Vector3(38, 37, 0));
+            SetSeatState(scene, false);
+            CapturePreview("Start_GameplayCamera", new Vector3(0, 8, -8), new Vector3(35, 0, 0));
+            CapturePreview("Start_Overview", new Vector3(-9, 12, -11), new Vector3(38, 37, 0));
 
             EditorSceneManager.MarkSceneDirty(scene);
             Require(EditorSceneManager.SaveScene(scene), "Restaurant 씬 저장 실패");
@@ -154,7 +158,8 @@ namespace DOB.Editor
             // 나무 기둥은 벽 두께 중앙의 뒤 모서리와 입장 계단 옆에 세운다.
             // 앞 모서리 기둥은 Gameplay 카메라 화면 아래쪽을 가려 두지 않는다(2026-11-23 결정).
             Pillar(parent, "Pillar_BackLeft", new Vector3(MinX - 0.2f, 0, MaxZ + 0.2f));
-            Pillar(parent, "Pillar_EntranceBack", new Vector3(MinX - 0.2f, 0, -2f));
+            // 입장 계단의 벽 쪽 난간(z -2.28~-2.03)이 기둥에 박히지 않게 기둥을 벽 쪽으로 0.3m 옮긴다(기둥 z -2.0~-1.4).
+            Pillar(parent, "Pillar_EntranceBack", new Vector3(MinX - 0.2f, 0, -1.7f));
 
             // 벽 이음새 기둥: 바르코3D 벽은 가장자리가 둥글어 2m 이음새마다 틈이 보이므로 가는 나무 기둥으로 가린다.
             // 벽 안쪽 면(두께 0.4m 중 실내 쪽)에 걸치도록 중심을 벽 면에서 0.1m 바깥에 둔다.
@@ -276,8 +281,10 @@ namespace DOB.Editor
         private static void BuildKitchen(Transform parent)
         {
             // 주방 앞쪽 칸막이: 응대 구역과 주방을 쿼터뷰에서 바로 구분한다. 2m 단위.
-            if (PlaceEnv(parent, "KitchenDivider", "Divider_Kitchen", new Vector3(3f, 0, MinZ), -90) == null)
-                CornerPiece(parent, "Divider_Kitchen", new Vector3(3f, 0, MinZ), -90, new Vector3(2, 1.2f, 0.2f), "Wood");
+            // 앞 난간(z -4~-3.7) 안쪽에서 시작해 난간과 겹치지 않게 한다. 끝(z -1.7)은 픽업대(z -1.6~) 앞에서 멈춘다.
+            var dividerCorner = new Vector3(3f, 0, MinZ + 0.3f);
+            if (PlaceEnv(parent, "KitchenDivider", "Divider_Kitchen", dividerCorner, -90) == null)
+                CornerPiece(parent, "Divider_Kitchen", dividerCorner, -90, new Vector3(2, 1.2f, 0.2f), "Wood");
 
             // 주방 가구 모델은 길이가 로컬 X·앞면이 -Z이므로 90° 돌려 오른쪽 벽을 따라 놓고 앞면이 홀(-X)을 보게 한다.
             // 재료 투입 조리대(높이 0.9m)와 기본 재료(밀가루·감자·고기). Kitchen 기준점이 조리대 앞에 온다.
@@ -289,11 +296,12 @@ namespace DOB.Editor
                 Visual(counter, "IngredientBox_Meat", new Vector3(0, 1.1f, 0.6f), new Vector3(0.4f, 0.4f, 0.4f), "Meat");
             }
 
-            // 화구 2개(시작 화구 수는 시험값)와 그 위 후드.
+            // 화구 2개와 그 위 후드. 시작 상태에서는 Stove_02를 숨긴다(UpgradeOnlyKitchen, SetSeatState).
             for (var i = 0; i < 2; i++)
             {
                 var name = "Stove_" + (i + 1).ToString("00");
-                var position = new Vector3(5.6f, 0, 1.5f + i * 1.1f);
+                // 오른쪽 벽면(x 6.0)과 벽 이음새 기둥(x 5.95~, z 2.0±0.15)에 박히지 않고 조리대(z ~1.0)에 붙도록 둔다.
+                var position = new Vector3(5.52f, 0, 1.45f + i * 1.15f);
                 var range = PlaceEnv(parent, "CookingRange", name, position, 90);
                 if (range != null)
                 {
@@ -308,9 +316,11 @@ namespace DOB.Editor
                 Visual(parent, "Hood", new Vector3(5.55f, 2.5f, 2.05f), new Vector3(0.9f, 0.6f, 2.1f), "Metal");
 
             // 양념 선반: 첫날 마늘·소금만 보인다.
-            if (PlaceEnv(parent, "SpiceShelf", "SpiceShelf", new Vector3(5.8f, 0, -2.6f), 90) == null)
+            // 벽면(x 6.0)과 벽 이음새 기둥(z -2.0±0.15)에서 떼어 둔다(선반 z -3.5~-2.2).
+            var shelfPosition = new Vector3(5.77f, 0, -2.85f);
+            if (PlaceEnv(parent, "SpiceShelf", "SpiceShelf", shelfPosition, 90) == null)
             {
-                var shelf = CenterPiece(parent, "SpiceShelf", new Vector3(5.8f, 0, -2.6f), 0, new Vector3(0.4f, 1.8f, 1.4f), "WoodDark");
+                var shelf = CenterPiece(parent, "SpiceShelf", shelfPosition, 0, new Vector3(0.4f, 1.8f, 1.4f), "WoodDark");
                 Visual(shelf, "Jar_Garlic", new Vector3(-0.1f, 1.3f, -0.3f), new Vector3(0.18f, 0.22f, 0.18f), "Flour");
                 Visual(shelf, "Jar_Salt", new Vector3(-0.1f, 1.3f, 0.3f), new Vector3(0.18f, 0.22f, 0.18f), "Glass");
             }
@@ -391,7 +401,7 @@ namespace DOB.Editor
             }
         }
 
-        /// <summary>미리보기: false = 게임 시작(시작 좌석 가구만), true = 좌석·소품 개량을 모두 마친 상태.</summary>
+        /// <summary>미리보기: false = 게임 시작(시작 좌석 가구·화구 1개만), true = 좌석·소품·화구 개량을 모두 마친 상태.</summary>
         private static void SetSeatState(Scene scene, bool full)
         {
             var dining = FindPath(scene, "Environment/ArtPlacement/" + RootName + "/Dining");
@@ -405,13 +415,21 @@ namespace DOB.Editor
                 if (seat.prop == ChairReplacingProp)
                     group.Find("Furniture/Chair").gameObject.SetActive(!full);
             }
+            // 화구도 처음엔 1개, 개량하면 2개(2026-11-25 이기혁 배치 요청). 후드는 두 화구 자리를 함께 덮는 그대로 둔다.
+            var kitchen = FindPath(scene, "Environment/ArtPlacement/" + RootName + "/Kitchen");
+            foreach (var name in UpgradeOnlyKitchen)
+            {
+                var piece = kitchen.Find(name);
+                Require(piece != null, "주방 개량 조각 누락: " + name);
+                piece.gameObject.SetActive(full);
+            }
             EditorSceneManager.MarkSceneDirty(scene);
         }
 
-        [MenuItem("DOB/Art/Preview Seats/Start (3 seats, no props)")]
+        [MenuItem("DOB/Art/Preview Seats/Start (3 seats, 1 stove, no props)")]
         public static void PreviewSeatsStart() => SetSeatState(SceneManager.GetActiveScene(), false);
 
-        [MenuItem("DOB/Art/Preview Seats/Full Upgrade (6 seats, 6 props)")]
+        [MenuItem("DOB/Art/Preview Seats/Full Upgrade (6 seats, 2 stoves, 6 props)")]
         public static void PreviewSeatsFull() => SetSeatState(SceneManager.GetActiveScene(), true);
 
         private static void Table(Transform parent, string name, Vector3 position, Vector3 size)
@@ -438,17 +456,24 @@ namespace DOB.Editor
         {
             // 장식에는 식물·불·빛나는 결정·쿠션·칸막이·커튼을 쓰지 않는다. 자리 효과 소품과 헷갈리지 않게 하기 위해서다.
 
-            // GreetingPoint 표시: 환영 깔개와 접수대(방명록). E 응대 자리가 눈에 띄게 한다.
-            // 접수대는 입장(-4,-2) → 응대 동선과 플레이어 시작점 사이 동선을 막지 않게 응대 지점 오른쪽 앞에 둔다.
+            // GreetingPoint 표시: 환영 깔개. E 응대 자리가 눈에 띄게 한다.
             var greeting = ExpectedAnchors["GreetingPoint"];
             if (PlaceEnv(parent, "WelcomeRug", "GreetingMarker", greeting, 0) == null)
                 Visual(parent, "GreetingMarker", greeting + new Vector3(0, 0.01f, 0), new Vector3(0.9f, 0.02f, 0.9f), "Marker", PrimitiveType.Cylinder);
-            DecorPiece(parent, "ReceptionPodium", "ReceptionPodium", greeting + new Vector3(1f, 0, -0.8f), 0, "WoodDark");
+            // 재료 주문 장부(2026-11-25 이기혁 배치): 주방 칸막이(x 2.8) 앞에 오른쪽 옆면을 3cm 띄워 붙인 계산대 자리.
+            // 장부를 펼친 면이 카메라 쪽(-Z)이고 재료 견본 상자가 홀 쪽(-X)이라 게임 카메라에서 함께 보인다.
+            // 앞 난간(z -3.7)까지 0.82m, 픽업대(z -1.6)까지 0.42m를 비워 둔다.
+            DecorPiece(parent, "OrderLedger", "OrderLedger", new Vector3(2.14f, 0, -2.45f), 0, "Wood");
+            // 방명록: 손님이 식사 후 글을 남기고 던전으로 내려가므로(기획 MainPlanning 5. 서빙) 출구 계단 아치 왼쪽,
+            // 통 더미와 아치 기둥 사이에 둔다. 펼친 면(-Z)이 출구 동선(+X)을 보도록 -90° 돌린다.
+            DecorPiece(parent, "ReceptionPodium", "Guestbook", new Vector3(3.3f, 0, 5.2f), -90, "WoodDark");
 
             // 입구 쪽 왼쪽 벽 게시판(준비 화면 '오늘의 소식'과 같은 물건). 벽걸이라 바닥에서 0.9m 띄운다.
-            DecorPiece(parent, "NoticeBoard", "NoticeBoard", new Vector3(MinX + 0.05f, 0.9f, -1f), -90, "Wood");
+            // 입구 기둥(z -1.4까지)과 벽 이음새 기둥(z -0.15부터) 사이 칸 가운데.
+            DecorPiece(parent, "NoticeBoard", "NoticeBoard", new Vector3(MinX + 0.05f, 0.9f, -0.78f), -90, "Wood");
             // 뒤 벽 단골 물건 진열 선반(기획: 단골 사연 보상 물건을 식당에 진열).
-            DecorPiece(parent, "DisplayShelf", "DisplayShelf_Regulars", new Vector3(-1f, 0, MaxZ - 0.2f), 0, "WoodDark");
+            // 깊이 0.45m 선반의 뒷면이 뒷벽(z 6.0)에 박히지 않게 0.23m 앞에 둔다.
+            DecorPiece(parent, "DisplayShelf", "DisplayShelf_Regulars", new Vector3(-1f, 0, MaxZ - 0.23f), 0, "WoodDark");
             // 뒤 오른쪽 통 더미. 던전 출구 아치(x 3.5~6.5) 통로 밖에 둔다.
             // 통 더미는 1.31m 정사각이라 뒤 벽(z 6)에 닿지 않게 0.7m 띄운다.
             DecorPiece(parent, "BarrelSet", "BarrelSet", new Vector3(2.3f, 0, MaxZ - 0.7f), 0, "Wood");
@@ -538,9 +563,13 @@ namespace DOB.Editor
             // 게시판은 바르코3D가 '눕힌 쟁반'으로 만들어 Blender에서 얇은 판 + 정면 이미지 텍스처로 직접 만들었다.
             ("NoticeBoard", new Vector3(1.2f, 1f, 0.08f), false, false),
             ("DisplayShelf", new Vector3(1.6f, 1.8f, 0.45f), false, true),
-            ("BarrelSet", new Vector3(1.31f, 1.1f, 1.31f), false, true),
+            // 2026-11-25 통 밖으로 떠 있던 상자를 뒤쪽 통 위로 옮겨 높이 1.17m(상자가 통 테두리 위에 얹힘).
+            ("BarrelSet", new Vector3(1.31f, 1.17f, 1.31f), false, true),
             ("WelcomeRug", new Vector3(1.4f, 0.03f, 1f), false, false),
             ("ReceptionPodium", new Vector3(0.59f, 1.1f, 0.52f), false, true),
+            // 재료 주문 장부대(2026-11-25 바르코3D 재제작): 펼친 장부 + 뒷판(주문서·저울) + 오른쪽 재료 견본 상자.
+            // 책상 윗면이 0.85m가 되도록 균일 확대한 실측값. 장부를 펼친 앞면이 -Z, 뒷판이 +Z, 견본 상자가 +X 쪽이다.
+            ("OrderLedger", new Vector3(1.25f, 1.25f, 0.87f), false, true),
         };
 
         // 바르코3D가 아닌 외부 텍스처를 쓰는 조각. 출처는 README 5장 「외부 에셋 출처」에 적는다.
