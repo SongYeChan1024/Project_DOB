@@ -315,8 +315,9 @@ namespace DOB.Tests
             yield return Click("Manual");
             loadedScenes.Clear();
             yield return Click("ConfirmLoad");
-            yield return Until(() => ReadyDay(1) &&
-                UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId != firstVisit, "수동 저장에서 새 방문 복원");
+            // 일차 시작 스냅샷에 그날의 시드가 들어 있어, 불러오면 같은 손님이 같은 방문 ID로 다시 온다.
+            yield return Until(() => loadedScenes.Contains("Loading") && ReadyDay(1) &&
+                UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId == firstVisit, "수동 저장에서 같은 방문 복원");
             Assert.That(loadedScenes, Does.Contain("Loading"));
             var kitchen = UnityEngine.Object.FindAnyObjectByType<FirstGuestKitchen>();
             Assert.That(kitchen.Gold, Is.EqualTo(50));

@@ -1,15 +1,20 @@
-// GuestManager — 하루 영업의 손님 명단(ServiceRoster)과 식당 안 손님 오브젝트를 소유한다.
-// 호출자: FirstGuestService(식당이 준비되면 BeginService, 끝나면 EndService), GameManager(입장·대기 Δ로 Tick, 마감 판정),
-//         FirstGuestKitchen(VisitEnded로 주문 취소).
-// 호출  : ServiceRoster, GuestArrivalPool·GuestDialogueGenerator(Resources의 손님 후보·대사 규칙), GuestAgent.
-// 상태  : 기준값·손님 템플릿(직렬화), 현재 일차, 입구 위치, 명단, 입장한 손님 에이전트 목록.
+// GuestManager — 하루 영업의 손님 명단(ServiceRoster)과 그날 올 손님 목록, 식당 안 손님 오브젝트를 소유한다.
+// 호출자: GameManager(PrepareDay로 그날 입력 전달, 입장·대기 Δ로 Tick, 마감 판정, 정산 때 TodaysGuests),
+//         FirstGuestService(식당이 준비되면 BeginService, 끝나면 EndService), FirstGuestKitchen(VisitEnded로 주문 취소).
+// 호출  : DailyRoster(그날 명단 구성), ServiceRoster, GuestArrivalPool·GuestDialogueGenerator(Resources의 손님 후보·대사 규칙), GuestAgent.
+// 상태  : 기준값·손님 템플릿(직렬화), 그날 입력(일차·입소문 신규 인원·올 수 있는 손님·쓰는 이름·시드), 그날 난수,
+//         입장 순서대로의 그날 손님 신원, 입구 위치, 명단, 입장한 손님 에이전트 목록.
 // 의사코드:
-//   BeginService — 이미 열렸거나 기준값이 잘못되면 거절. 그 일차와 입소문 추가 인원으로 새 명단을 열고
-//                  Tick(0)을 한 번 돌린다. 첫 손님은 입장 시계가 첫 입장 대기만큼 흐른 뒤 들어온다.
+//   PrepareDay  — GameManager가 일차 시작 스냅샷에서 읽은 그날 입력을 보관한다. 명부(누가 올 수 있는지)는 RelationshipManager가 소유한다.
+//   BeginService — 이미 열렸거나 기준값·후보가 없으면 거절. 준비된 입력이 그 일차 것이 아니면 재방문 없음·새 시드로 연다.
+//                  그날 시드로 난수를 만들고 DailyRoster로 재방문 + 신규 손님의 신원과 입장 순서를 한 번에 정한다.
+//                  예정 수(= 그날 손님 수)로 새 명단을 열고 Tick(0)을 한 번 돌린다. 첫 손님은 첫 입장 대기 뒤 들어온다.
 //   Tick(Δ)     — 명단에 입장·대기 Δ를 넘긴다(대기 이탈은 명단이 확정하고 VisitEnded로 알린다).
-//                  명단이 입장을 허락하는 동안 방문 원고를 만들어 등록하고 에이전트를 입구에 세운다.
+//                  명단이 입장을 허락하는 동안 그날 손님 목록의 다음 신원으로 방문 원고를 만들어 등록하고 에이전트를 입구에 세운다.
+//                  재방문 손님은 명부의 신원과 누적 호감을, 처음 온 손님은 호감 0을 대사 생성기에 넘긴다. 피로는 방문마다 뽑는다.
 //                  첫 손님은 씬의 템플릿을 그대로 쓰고 이후 손님은 템플릿을 복제한다.
-//   EndService  — 구독을 풀고 복제한 손님을 파괴하고 템플릿을 끈다. 명단을 비운다.
+//   EndService  — 구독을 풀고 복제한 손님을 파괴하고 템플릿을 끈다. 명단을 비운다. 그날 손님 목록은 정산이 읽도록 남긴다.
+// 손님·방문 ID, 입장 간격, 대사 추첨이 모두 그날 난수를 쓰므로 같은 일차 시작 스냅샷으로 열면 같은 손님이 같은 순서로 온다.
 // 방문 원고를 만들 수 없으면(Resources 누락) 오류를 남기고 그 입장을 미룬 채 둔다.
 using System;
 using System.Collections.Generic;
@@ -24,22 +29,31 @@ namespace DOB.Manager
     {
         /// <summary>손님 수·입장 간격·대기 기준값(08.Data/SO_ServiceRoster).</summary>
         [SerializeField] private ServiceRosterSettings settings;
-        /// <summary>복제할 손님 오브젝트(Gameplay의 PF_Guest). 첫 손님은 이 오브젝트 자체다.</summary>
+        /// <summary>복제할 손님 오브젝트(Basement의 PF_Guest). 첫 손님은 이 오브젝트 자체다.</summary>
         // shortcut: 씬의 손님 인스턴스를 복제한다. 손님 외형 프리팹을 따로 두게 되면 프리팹 직렬화 참조로 바꾼다.
         [SerializeField] private Transform template;
 
-        private static readonly System.Random random = new System.Random();
         // 통합 테스트가 손님 수·간격을 줄이려고 씬 기준값 대신 넣는다. 게임 코드는 쓰지 않는다.
         internal static ServiceRosterSettings SettingsOverride;
         private readonly List<GuestAgent> agents = new List<GuestAgent>();
+        private List<GuestRecord> todaysGuests = new List<GuestRecord>();
+        private System.Random random;
         private int day;
         private Transform entrance;
+        // PrepareDay가 넘긴 그날 입력. 그 일차의 것이 아니면 쓰지 않는다.
+        private int preparedDay;
+        private int wordOfMouthBonus;
+        private IReadOnlyList<GuestRecord> returning;
+        private IEnumerable<string> takenNames;
+        private int daySeed;
 
         private ServiceRosterSettings Settings => SettingsOverride ? SettingsOverride : settings;
         /// <summary>오늘 명단. 영업 전·후에는 null.</summary>
         public ServiceRoster Roster { get; private set; }
         /// <summary>입장한 순서의 손님 오브젝트.</summary>
         public IReadOnlyList<GuestAgent> Agents => agents;
+        /// <summary>입장 순서대로의 그날 손님 신원(재방문은 명부 기록, 신규는 그날 뽑은 신원). 마감 정산이 명부 등록에 쓴다.</summary>
+        public IReadOnlyList<GuestRecord> TodaysGuests => todaysGuests;
         /// <summary>입구 줄 간격(m).</summary>
         public float QueueSpacing => Settings.QueueSpacing;
         /// <summary>기준값·템플릿 연결 오류. 문제가 없으면 null.</summary>
@@ -50,10 +64,26 @@ namespace DOB.Manager
         /// <summary>그 방문의 손님 오브젝트. 없으면 null.</summary>
         public GuestAgent Find(string visitId) => agents.Find(a => a.VisitId == visitId);
 
-        /// <summary>식당이 준비되면 그날 명단을 연다. 첫 손님은 첫 입장 대기 뒤 Tick에서 입구에 선다. 예정 수는 기본 인원 + 그 일차까지의 하루 증가 인원 + 입소문 추가 인원(0 이상).</summary>
-        public bool BeginService(int serviceDay, Transform guestEntrance, int wordOfMouthBonus = 0)
+        /// <summary>그 일차 영업의 입력을 받는다. 명단은 BeginService에서 만든다.</summary>
+        /// <param name="comingToday">명부에서 그 일차에 올 수 있는 손님.</param>
+        /// <param name="knownNames">신규 손님 이름에서 뺄 이름(영구 거절되지 않은 명부 손님).</param>
+        /// <param name="seed">그 일차의 난수 시드. 같은 시드면 같은 손님이 같은 순서로 온다.</param>
+        public void PrepareDay(int serviceDay, int wordOfMouthNewGuests, IReadOnlyList<GuestRecord> comingToday,
+            IEnumerable<string> knownNames, int seed)
+        {
+            preparedDay = serviceDay;
+            wordOfMouthBonus = Mathf.Max(0, wordOfMouthNewGuests);
+            returning = comingToday;
+            takenNames = knownNames;
+            daySeed = seed;
+        }
+
+        /// <summary>식당이 준비되면 그날 손님 목록과 명단을 연다. 첫 손님은 첫 입장 대기 뒤 Tick에서 입구에 선다.</summary>
+        public bool BeginService(int serviceDay, Transform guestEntrance)
         {
             string error = SetupError;
+            var pool = Resources.Load<GuestArrivalPool>(GuestArrivalPool.ResourceName);
+            if (error == null && !pool) error = "Resources에서 손님 후보를 찾을 수 없습니다.";
             if (Roster != null || !guestEntrance || error != null)
             {
                 if (error != null) Debug.LogError("[DOB] " + error, this);
@@ -61,7 +91,12 @@ namespace DOB.Manager
             }
             day = serviceDay;
             entrance = guestEntrance;
-            Roster = new ServiceRoster(Settings, random, wordOfMouthBonus, serviceDay);
+            bool prepared = preparedDay == serviceDay;
+            // 준비된 입력이 없으면(씬만 따로 실행) 재방문 없이 새 시드로 연다.
+            random = new System.Random(prepared ? daySeed : Guid.NewGuid().GetHashCode());
+            todaysGuests = DailyRoster.Compose(Settings, pool, day, prepared ? returning : null, prepared ? takenNames : null,
+                prepared ? wordOfMouthBonus : 0, random);
+            Roster = new ServiceRoster(Settings, random, todaysGuests.Count);
             Roster.VisitEnded += OnVisitEnded;
             template.gameObject.SetActive(false);
             Tick(0f);
@@ -76,7 +111,8 @@ namespace DOB.Manager
             Roster.Tick(arrivalAndWaitDelta);
             while (Roster.CanAdmit)
             {
-                var visit = CreateVisit(day);
+                var guest = todaysGuests[Roster.Entered];
+                var visit = CreateVisit(guest);
                 if (visit == null || !Roster.Admit(visit.VisitId, visit.GuestId))
                     return;
                 var body = agents.Count == 0 ? template : Instantiate(template, template.parent);
@@ -106,7 +142,7 @@ namespace DOB.Manager
 
         private void OnVisitEnded(string visitId, ServiceVisitEnd end) => VisitEnded?.Invoke(visitId, end);
 
-        private static GuestDialogueVisit CreateVisit(int day)
+        private GuestDialogueVisit CreateVisit(GuestRecord guest)
         {
             var pool = Resources.Load<GuestArrivalPool>(GuestArrivalPool.ResourceName);
             var rules = Resources.Load<GuestDialogueRules>("SO_GuestDialogueRules");
@@ -116,18 +152,18 @@ namespace DOB.Manager
                 return null;
             }
 
-            var guest = pool.Draw(day, random);
             var input = new GuestVisitInput
             {
-                GuestId = Guid.NewGuid().ToString("N"),
-                VisitId = Guid.NewGuid().ToString("N"),
-                GuestName = guest.GuestName,
+                GuestId = guest.GuestId,
+                VisitId = DailyRoster.NewId(random),
+                GuestName = guest.Name,
                 Race = guest.Race,
                 Job = guest.Job,
                 Day = day,
                 Floor = 1,
-                IsTired = guest.IsTired,
-                PersonalWeakness = guest.PersonalWeakness
+                Affinity = guest.Affinity,
+                IsTired = pool.DrawTired(day, random),
+                PersonalWeakness = guest.Weakness
             };
             return GuestDialogueGenerator.Generate(rules, input, random);
         }
