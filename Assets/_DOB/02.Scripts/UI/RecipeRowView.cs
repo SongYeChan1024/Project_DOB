@@ -21,9 +21,12 @@ namespace DOB.UI
         [SerializeField] private TMP_Text nameText;
         [SerializeField] private TMP_Text ingredientsText;
         [SerializeField] private TMP_Text priceText;
+        /// <summary>요리 그림. 안 열린 레시피는 그림자로 (비워 두면 숨김).</summary>
+        [SerializeField] private Image picture;
 
         private static readonly Color Ink = new Color32(70, 45, 25, 255);
         private static readonly Color Locked = new Color32(190, 170, 140, 255);
+        private static readonly Color Shadow = new Color32(120, 95, 70, 90);
 
         public event Action Clicked;
 
@@ -32,6 +35,12 @@ namespace DOB.UI
         public void Bind(RecipeItemData recipe)
         {
             button.interactable = recipe.unlocked;
+            if (picture)
+            {
+                picture.sprite = recipe.picture;
+                picture.color = recipe.unlocked ? Color.white : Shadow;
+                picture.gameObject.SetActive(recipe.picture);
+            }
             if (recipe.unlocked)
             {
                 nameText.text = recipe.name;

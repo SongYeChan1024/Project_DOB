@@ -1,5 +1,6 @@
 // =====================================================================
-// PrepScreenPresenter — 준비 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패)과 게임 쪽을 잇는다
+// PrepScreenPresenter — 준비 화면(상점 · 수첩 · 입구 문패)과 게임 쪽을 잇는다
+//          프리팹마다 하나씩 붙는다 (PF_Shop · PF_Notebook · PF_DoorSign). UIManager가 그 화면을 가진 쪽에 연다.
 // 역할   : UIManager에 자신을 등록해 두고, UIManager가 "준비 화면 열어 줘"를 전하면 표시 데이터를 만들어 화면을 연다.
 //          화면의 결제 · 개량 · 문 열기 입력을 요청으로 옮긴다.
 // 호출자 : UIManager (Open, Close, IsOpen) ← 식당 물건 상호작용(E) · Tab 입력 쪽에서 UIManager.OpenPrepScreen 호출
@@ -41,30 +42,30 @@ namespace DOB.Manager
         [SerializeField] private Sprite[] itemIcons = Array.Empty<Sprite>();
 
         // ---------------- 더미 상태 (계약 전 테스트용) ----------------
-        private int gold = 59;
-        private readonly Dictionary<string, int> owned = new Dictionary<string, int> { ["garlic"] = 1, ["salt"] = 2 };
+        // shortcut: 프리팹 셋이 같은 금화 · 재고를 보도록 static. EconomyManager 계약이 생기면 지운다
+        private static int gold = 59;
+        private static readonly Dictionary<string, int> owned = new Dictionary<string, int> { ["garlic"] = 1, ["salt"] = 2 };
         // 기본 재료는 무제한이라 빼고, 던전 재료만 (재료 그림 이름 → 개수)
-        private readonly Dictionary<string, int> ownedIngredients = new Dictionary<string, int>
+        private static readonly Dictionary<string, int> ownedIngredients = new Dictionary<string, int>
             { ["SlimeJelly"] = 2, ["ForestMushroom"] = 1, ["WaterMoss"] = 1, ["BatWing"] = 3 };
-        private readonly Dictionary<string, int> upgradeLevels = new Dictionary<string, int>
+        private static readonly Dictionary<string, int> upgradeLevels = new Dictionary<string, int>
             { ["seat"] = 0, ["hearth"] = 0, ["shelf"] = 0 };
 
         /// <summary>준비 화면이 열려 있는지.</summary>
         public bool IsOpen => view && view.IsOpen;
         public PrepScreen Current => view ? view.Current : PrepScreen.None;
 
+        /// <summary>이 프리팹이 그 화면을 가지고 있는지.</summary>
+        public bool Has(PrepScreen screen) => view && view.Has(screen);
+
         private void OnEnable()
         {
             if (view)
             {
-                view.Market.PurchaseRequested += OnPurchase;
-                view.Market.CloseClicked += Close;
-                view.RecipeBook.CloseClicked += Close;
-                view.Notebook.CloseClicked += Close;
-                view.Upgrade.UpgradeRequested += OnUpgrade;
-                view.Upgrade.CloseClicked += Close;
-                view.DoorSign.OpenClicked += OnOpenBusiness;
-                view.DoorSign.CancelClicked += Close;
+                if (view.Market) { view.Market.PurchaseRequested += OnPurchase; view.Market.CloseClicked += Close; }
+                if (view.Notebook) view.Notebook.CloseClicked += Close;
+                if (view.Upgrade) { view.Upgrade.UpgradeRequested += OnUpgrade; view.Upgrade.CloseClicked += Close; }
+                if (view.DoorSign) { view.DoorSign.OpenClicked += OnOpenBusiness; view.DoorSign.CancelClicked += Close; }
             }
             UIManager.RegisterPrepScreen(this);
         }
@@ -73,14 +74,10 @@ namespace DOB.Manager
         {
             if (view)
             {
-                view.Market.PurchaseRequested -= OnPurchase;
-                view.Market.CloseClicked -= Close;
-                view.RecipeBook.CloseClicked -= Close;
-                view.Notebook.CloseClicked -= Close;
-                view.Upgrade.UpgradeRequested -= OnUpgrade;
-                view.Upgrade.CloseClicked -= Close;
-                view.DoorSign.OpenClicked -= OnOpenBusiness;
-                view.DoorSign.CancelClicked -= Close;
+                if (view.Market) { view.Market.PurchaseRequested -= OnPurchase; view.Market.CloseClicked -= Close; }
+                if (view.Notebook) view.Notebook.CloseClicked -= Close;
+                if (view.Upgrade) { view.Upgrade.UpgradeRequested -= OnUpgrade; view.Upgrade.CloseClicked -= Close; }
+                if (view.DoorSign) { view.DoorSign.OpenClicked -= OnOpenBusiness; view.DoorSign.CancelClicked -= Close; }
             }
             UIManager.UnregisterPrepScreen(this);
         }
@@ -97,7 +94,7 @@ namespace DOB.Manager
         /// <summary>화면 하나를 연다. 이미 다른 준비 화면이 열려 있으면 바꿔 끼운다.</summary>
         public bool Open(PrepScreen screen)
         {
-            if (!view || screen == PrepScreen.None)
+            if (!Has(screen))
                 return false;
             // TODO(계약): Economy · Settlement · Relationship Manager에서 받은 값으로 바꾼다.
             view.Open(screen, BuildData());

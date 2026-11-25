@@ -38,9 +38,11 @@
 // 상태   : 등록된 요리 화면 Presenter 하나.
 // [열기]      등록된 화면이 없으면 경고하고 false → 있으면 그 화구의 요리 화면을 연다
 // [열림 여부] 재료 고르는 중에는 손님 대기 시간을 멈춘다(기획 4-1). 손님 쪽이 IsKitchenOpen을 읽는다
+// [실제 주문] 주방(FirstGuestKitchen)이 ConnectKitchenOrders로 IKitchenOrders를 붙이면 요리 화면이 그 주문을 읽는다. 없으면 더미
 // [Esc 순서] IsScreenOpen: 준비 · 요리 화면이 열려 있으면 Esc는 그 화면을 닫는 데 쓰고 ESC 메뉴는 열지 않는다 (BasementPauseInput)
 // =====================================================================
 using System;
+using System.Collections.Generic;
 using System.Collections;
 using DOB.UI;
 using UnityEngine;
@@ -70,18 +72,26 @@ namespace DOB.Manager
         public static bool IsLoadingOpen => instance && (instance.loadingOpen || instance.loadingOpening);
 
         // ---------------- 준비 화면 ----------------
-        private PrepScreenPresenter prepScreen;
+        // 프리팹마다 하나씩 (PF_Shop · PF_Notebook · PF_DoorSign)
+        private readonly List<PrepScreenPresenter> prepScreens = new List<PrepScreenPresenter>();
         // ---------------- 요리 화면 ----------------
         private KitchenPresenter kitchen;
 
         /// <summary>화구 요리 화면이 열려 있는지 (재료 고르는 중).</summary>
         public static bool IsKitchenOpen => instance && instance.kitchen && instance.kitchen.IsOpen;
 
+        /// <summary>요리 화면이 씬에 있는지. 있으면 주방 E가 이 화면을 연다 (없으면 기존 레시피 창).</summary>
+        public static bool HasKitchenScreen => instance && instance.kitchen;
+
+        // 실제 주방 주문 (FirstGuestKitchen). 없으면 요리 화면은 더미로 그린다
+        private IKitchenOrders kitchenOrders;
+        internal static IKitchenOrders KitchenOrders => instance ? instance.kitchenOrders : null;
+
         /// <summary>Esc로 닫히는 화면(준비 · 요리)이 열려 있는지. 열려 있으면 Esc는 그 화면만 닫고 ESC 메뉴를 열지 않는다.</summary>
         public static bool IsScreenOpen => IsPrepScreenOpen || IsKitchenOpen;
 
         /// <summary>준비 화면(시장 · 레시피 책 · 수첩 · 가게 개량 · 입구 문패) 중 하나가 열려 있는지.</summary>
-        public static bool IsPrepScreenOpen => instance && instance.prepScreen && instance.prepScreen.IsOpen;
+        public static bool IsPrepScreenOpen => instance && instance.prepScreens.Exists(p => p && p.IsOpen);
 
         /// <summary>입구 문패에서 [문 열기]를 눌렀다. GameManager(DayCycle, 💡 구성안)가 구독해 준비 → 영업으로 넘긴다.</summary>
         public static event Action StartBusinessRequested;
@@ -114,34 +124,38 @@ namespace DOB.Manager
         /// <summary>준비 화면 Presenter가 켜질 때 등록한다.</summary>
         internal static void RegisterPrepScreen(PrepScreenPresenter screen)
         {
-            if (screen)
-                Instance.prepScreen = screen;
+            if (screen && !Instance.prepScreens.Contains(screen))
+                Instance.prepScreens.Add(screen);
         }
 
         /// <summary>준비 화면 Presenter가 꺼질 때 등록을 푼다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
         internal static void UnregisterPrepScreen(PrepScreenPresenter screen)
         {
-            if (!instance || instance.prepScreen != screen)
-                return;
-            instance.prepScreen = null;
+            if (instance)
+                instance.prepScreens.Remove(screen);
         }
 
         /// <summary>준비 화면 하나를 연다. 등록된 화면이 없으면 경고하고 false.</summary>
         public static bool OpenPrepScreen(PrepScreen screen)
         {
-            if (!instance || !instance.prepScreen)
+            var owner = instance ? instance.prepScreens.Find(p => p && p.Has(screen)) : null;
+            if (!owner)
             {
                 Debug.LogWarning("[DOB] 준비 화면이 등록되지 않아 열 수 없습니다: " + screen);
                 return false;
             }
-            return instance.prepScreen.Open(screen);
+            // 다른 프리팹의 준비 화면이 열려 있으면 닫고 바꿔 끼운다
+            foreach (var other in instance.prepScreens)
+                if (other && other != owner) other.Close();
+            return owner.Open(screen);
         }
 
         /// <summary>열린 준비 화면을 닫는다. 없으면 무시한다.</summary>
         public static void ClosePrepScreen()
         {
-            if (instance && instance.prepScreen)
-                instance.prepScreen.Close();
+            if (!instance) return;
+            foreach (var screen in instance.prepScreens)
+                if (screen) screen.Close();
         }
 
         /// <summary>입구 문패 [문 열기] 응답.</summary>
@@ -169,6 +183,20 @@ namespace DOB.Manager
             if (!instance || instance.kitchen != screen)
                 return;
             instance.kitchen = null;
+        }
+
+        /// <summary>실제 주방 주문을 요리 화면에 잇는다 (주방이 켜질 때).</summary>
+        internal static void ConnectKitchenOrders(IKitchenOrders orders)
+        {
+            if (orders != null)
+                Instance.kitchenOrders = orders;
+        }
+
+        /// <summary>주방이 꺼질 때 연결을 푼다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        internal static void DisconnectKitchenOrders(IKitchenOrders orders)
+        {
+            if (instance && instance.kitchenOrders == orders)
+                instance.kitchenOrders = null;
         }
 
         /// <summary>화구 하나(0부터)의 요리 화면을 연다. 등록된 화면이 없으면 경고하고 false.</summary>

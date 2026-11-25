@@ -1,8 +1,8 @@
 // =====================================================================
-// RecipeBookView — 레시피 책
+// RecipeBookView — 수첩의 레시피 면
 // 역할   : 왼쪽 쪽에 레시피 목록(한 쪽에 7개), 오른쪽 쪽에 고른 레시피의 재료 · 효과 · 맛 · 기본가를 보여 준다.
 //          아래 모서리를 누르면 목록의 앞 · 뒤 쪽으로 넘긴다.
-// 호출자 : PrepScreensView (Show)
+// 호출자 : PrepNotebookView (Show)
 // 호출   : RecipeRowView, EffectChipView
 // 상태   : 지금 목록 쪽 번호, 고른 레시피 번호.
 //
@@ -25,6 +25,7 @@ namespace DOB.UI
     {
         private const int RowsPerPage = 7;
 
+        /// <summary>금화 (수첩 안에서는 비워 둠).</summary>
         [SerializeField] private TMP_Text goldText;
 
         [Header("왼쪽 쪽: 목록"), SerializeField] private RectTransform rowList;
@@ -45,6 +46,7 @@ namespace DOB.UI
         [SerializeField] private EffectChipView chipTemplate;
         [SerializeField] private TMP_Text flavorText;
 
+        /// <summary>닫기 (수첩 안에서는 수첩의 닫기를 쓰므로 비워 둠).</summary>
         [SerializeField] private Button closeButton;
 
         private readonly List<RecipeRowView> rows = new List<RecipeRowView>();
@@ -61,17 +63,17 @@ namespace DOB.UI
             chipTemplate.gameObject.SetActive(false);
             prevPageButton.onClick.AddListener(() => ShowPage(page - 1));
             nextPageButton.onClick.AddListener(() => ShowPage(page + 1));
-            closeButton.onClick.AddListener(() => CloseClicked?.Invoke());
+            if (closeButton) closeButton.onClick.AddListener(() => CloseClicked?.Invoke());
         }
 
         public void Show(PrepViewData viewData)
         {
             data = viewData;
-            goldText.text = data.gold.ToString();
+            if (goldText) goldText.text = data.gold.ToString();
 
             int opened = 0;
             foreach (var r in data.recipes) if (r.unlocked) opened++;
-            countText.text = $"{opened} / {Mathf.Max(data.recipeTotal, data.recipes.Length)}";
+            countText.text = $"{Mathf.Max(data.recipeTotal, data.recipes.Length)}개 중 {opened}개 알아냄";
 
             selected = Array.FindIndex(data.recipes, r => r.unlocked);
             ShowPage(0);
@@ -121,7 +123,7 @@ namespace DOB.UI
                 detailPicture.sprite = recipe.picture;
                 detailPicture.gameObject.SetActive(recipe.picture);
             }
-            detailSub.text = $"{(recipe.basicOnly ? "기본 레시피" : "레시피")} · 기본가 금화 {recipe.basePrice}개";
+            detailSub.text = $"기본 금화 {recipe.basePrice}개";
             ingredientsText.text = recipe.ingredients;
             unlimitedText.gameObject.SetActive(recipe.basicOnly);
             flavorText.text = recipe.flavor;
