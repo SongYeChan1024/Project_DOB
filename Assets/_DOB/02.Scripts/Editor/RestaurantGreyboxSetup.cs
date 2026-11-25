@@ -325,12 +325,10 @@ namespace DOB.Editor
                 Visual(shelf, "Jar_Salt", new Vector3(-0.1f, 1.3f, 0.3f), new Vector3(0.18f, 0.22f, 0.18f), "Glass");
             }
 
-            // 완성 접시 픽업대: 주방 앞, 홀 쪽을 향한다. 접시 기준점 위치는 아트 4순위에서 확정한다.
-            var pickup = PlaceEnv(parent, "PickupCounter", "PickupCounter", new Vector3(3.2f, 0, -1f), 90)
-                ?? CenterPiece(parent, "PickupCounter", new Vector3(3.2f, 0, -1f), 0, new Vector3(0.6f, 0.9f, 1.2f), "Wood");
-            var platePoint = new GameObject("PlatePoint").transform;
-            platePoint.SetParent(pickup, false);
-            platePoint.localPosition = new Vector3(0, 0.9f, 0);
+            // 완성 접시 픽업대: 주방 앞, 홀 쪽을 향한다.
+            // 접시 자리(PlatePoint_01·02, 가운데 호출 종 양옆)와 주방 쪽 바닥 InteractPoint는 프리팹 PF_Env_PickupCounter가 가진다(2026-11-25).
+            if (PlaceEnv(parent, "PickupCounter", "PickupCounter", new Vector3(3.2f, 0, -1f), 90) == null)
+                CenterPiece(parent, "PickupCounter", new Vector3(3.2f, 0, -1f), 0, new Vector3(0.6f, 0.9f, 1.2f), "Wood");
         }
 
         // ── 좌석 (Seat01~06) · 자리 소품 ─────────────────────
