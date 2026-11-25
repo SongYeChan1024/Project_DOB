@@ -12,7 +12,7 @@ using UnityEngine.UI;
 
 namespace DOB.Tests
 {
-    /// <summary>실제 버튼으로 조합 씬의 왕복·전환 잠금·캐릭터와 입력 소유권을 검증한다.</summary>
+    /// <summary>타이틀 전환의 잠금·Loading 경유·로딩 화면 표시와 빌드 씬 목록을 검증한다. 영업 조합(Basement)은 BasementInput 테스트가 맡는다.</summary>
     public sealed class SceneNavigationTests
     {
         private const float TransitionTimeoutSeconds = 30f;
@@ -28,8 +28,7 @@ namespace DOB.Tests
 
             Assert.That(sceneNames.FirstOrDefault(), Is.EqualTo("Title"), "빌드는 타이틀에서 시작해야 합니다.");
             CollectionAssert.AreEquivalent(
-                new[] { "Title", "Loading", "Restaurant", "Gameplay", "Tutorial", "ReturnReport",
-                    "Basement", "BasementUI" },
+                new[] { "Title", "Loading", "Restaurant", "Basement", "BasementUI" },
                 sceneNames);
             Assert.That(sceneNames, Does.Not.Contain("CharacterTest"), "개발용 캐릭터 씬은 플레이어 빌드에서 제외합니다.");
         }
@@ -45,35 +44,10 @@ namespace DOB.Tests
         }
 
         [UnityTest]
-        public IEnumerator ButtonsCompleteRestaurantAndReportRoundTripWithoutResidualScenes()
-        {
-            yield return SceneManager.LoadSceneAsync("ReturnReport");
-            yield return InvokeButtonAndWait("Restaurant", "Restaurant", "Restaurant", "Gameplay");
-            yield return InvokeButtonAndWait("ReturnReport", "ReturnReport", "ReturnReport");
-            yield return InvokeButtonAndWait("Restaurant", "Restaurant", "Restaurant", "Gameplay");
-            yield return InvokeButtonAndWait("Title", "Title", "Title");
-        }
-
-        [UnityTest]
-        public IEnumerator TutorialUsesTheSharedRestaurantAndGameplayThenUnloadsItsOwnScene()
+        public IEnumerator TitleReloadGoesThroughLoadingAndIgnoresRequestsWhileLocked()
         {
             yield return SceneManager.LoadSceneAsync("Title");
-            yield return TransitionAndWait(() => SceneLoadService.RequestLoad("Tutorial"),
-                "Tutorial", "Restaurant", "Restaurant", "Gameplay", "Tutorial");
-
-            var tutorialScene = SceneManager.GetSceneByName("Tutorial");
-            var tutorialObjects = tutorialScene.GetRootGameObjects()
-                .SelectMany(root => root.GetComponentsInChildren<Transform>(true))
-                .ToArray();
-            foreach (var guestName in new[] { "TutorialGuest01", "TutorialGuest02", "TutorialGuest03" })
-                Assert.That(tutorialObjects.Count(item => item.name == guestName), Is.EqualTo(1));
-
-            Assert.That(tutorialScene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<Camera>(true)), Is.Empty);
-            Assert.That(tutorialScene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<EventSystem>(true)), Is.Empty);
-
-            yield return InvokeButtonAndWait("Restaurant", "Restaurant", "Restaurant", "Gameplay");
-            Assert.That(SceneManager.GetSceneByName("Tutorial").isLoaded, Is.False);
-            yield return InvokeButtonAndWait("Title", "Title", "Title");
+            yield return TransitionAndWait(() => SceneLoadService.RequestLoad("Title"), "Title", "Title", "Title");
         }
 
         [UnityTest]
@@ -82,7 +56,7 @@ namespace DOB.Tests
             yield return SceneManager.LoadSceneAsync("Title");
             var previousDestination = SceneLoadService.CurrentDestination;
 
-            foreach (var unsupportedRoute in new[] { "Loading", "Gameplay", "CharacterTest", "UnknownScene" })
+            foreach (var unsupportedRoute in new[] { "Loading", "Restaurant", "Basement", "CharacterTest", "UnknownScene" })
             {
                 LogAssert.Expect(LogType.Error, new Regex(@"^\[DOB\]"));
                 SceneLoadService.RequestLoad(unsupportedRoute);
@@ -112,7 +86,7 @@ namespace DOB.Tests
             SceneManager.sceneLoaded += OnLoaded;
             try
             {
-                Assert.That(SceneLoadService.RequestLoad("ReturnReport"), Is.True);
+                Assert.That(SceneLoadService.RequestLoad("Title"), Is.True);
                 var deadline = Time.realtimeSinceStartup + TransitionTimeoutSeconds;
                 while (SceneLoadService.IsLoading && Time.realtimeSinceStartup < deadline)
                 {
@@ -143,7 +117,7 @@ namespace DOB.Tests
             Assert.That(lastFadeAlpha, Is.EqualTo(1f).Within(0.01f), "Loading을 닫기 전에 검은 페이드가 끝나야 합니다.");
             Assert.That(tipShown, Is.True, "목적지 팁이 표시되어야 합니다.");
             yield return null;
-            AssertLoadedComposition("ReturnReport", "ReturnReport");
+            AssertLoadedComposition("Title", "Title");
         }
 
         [UnityTest]
@@ -183,7 +157,7 @@ namespace DOB.Tests
             var heading = images.Single(image => image.name == "HeadingImage");
             var tip = LoadingComponents<TMPro.TMP_Text>(loading).Single(text => text.name == "TipText");
 
-            var destinations = new[] { "Title", "Restaurant", "Tutorial", "ReturnReport" };
+            var destinations = new[] { "Title", "Restaurant" };
             var illustrations = new Dictionary<string, Sprite>();
             var headings = new Dictionary<string, Sprite>();
             foreach (var destination in destinations)
@@ -213,18 +187,6 @@ namespace DOB.Tests
             return scene.GetRootGameObjects().SelectMany(root => root.GetComponentsInChildren<T>(true)).ToArray();
         }
 
-        private static IEnumerator InvokeButtonAndWait(string destination, string activeScene, params string[] sceneNames)
-        {
-            var buttons = Object.FindObjectsByType<Button>(FindObjectsSortMode.None)
-                .Where(button => button.name == "Load_" + destination)
-                .ToArray();
-            Assert.That(buttons.Length, Is.EqualTo(1), "대상 경로의 전환 버튼은 현재 조합에 하나만 있어야 합니다.");
-            var button = buttons[0];
-            Assert.That(button.onClick.GetPersistentEventCount(), Is.EqualTo(1));
-            Assert.That(button.onClick.GetPersistentTarget(0), Is.Not.Null);
-            yield return TransitionAndWait(button.onClick.Invoke, destination, activeScene, sceneNames);
-        }
-
         private static IEnumerator TransitionAndWait(System.Action request, string destination, string activeScene, params string[] sceneNames)
         {
             var loadingObserved = false;
@@ -232,7 +194,6 @@ namespace DOB.Tests
             var lockedDuringLoading = false;
             var lockedDuringAdditive = false;
             var loaderCountsDuringTransition = new List<int>();
-            var competingDestination = destination == "Title" ? "Restaurant" : "Title";
 
             void TryCompetingRequest(Scene scene, LoadSceneMode mode)
             {
@@ -252,7 +213,7 @@ namespace DOB.Tests
                 }
 
                 // Loading 진입과 첫 추가 씬이 준비된 시점 모두에서 다른 경로 요청을 무시해야 합니다.
-                SceneLoadService.RequestLoad(competingDestination);
+                SceneLoadService.RequestLoad("Title");
                 loaderCountsDuringTransition.Add(Object.FindObjectsByType<SceneLoadService>(FindObjectsSortMode.None).Length);
             }
 
@@ -310,29 +271,8 @@ namespace DOB.Tests
             Assert.That(Object.FindObjectsByType<EventSystem>(FindObjectsSortMode.None).Length, Is.EqualTo(1));
 
             var objects = Object.FindObjectsByType<Transform>(FindObjectsSortMode.None);
-            foreach (var prefabName in new[] { "PF_Player", "PF_Guest" })
-            {
-                var characterInstances = objects.Where(item => item.name == prefabName).ToArray();
-                if (expectedScenes.Contains("Gameplay"))
-                {
-                    Assert.That(characterInstances.Length, Is.EqualTo(1), prefabName + " 중복 또는 누락");
-                    Assert.That(characterInstances[0].gameObject.scene.name, Is.EqualTo("Gameplay"));
-                    Assert.That(characterInstances[0].root.name, Is.EqualTo("RuntimeCharacters"));
-                }
-                else
-                {
-                    Assert.That(characterInstances, Is.Empty, "일반 화면에 캐릭터가 남아 있으면 안 됩니다.");
-                }
-            }
-            Assert.That(objects.Where(item => item.name == "PF_Enemy"), Is.Empty, "확장용 에너미 골격은 런타임 구성에서 제외합니다.");
-
-            if (expectedScenes.Contains("Restaurant"))
-            {
-                var anchors = SceneManager.GetSceneByName("Restaurant").GetRootGameObjects()
-                    .Single(root => root.name == "LayoutAnchors").transform;
-                foreach (var anchorName in new[] { "PlayerSpawn", "GuestEntrance", "GreetingPoint", "Seat01", "Seat02", "Seat03", "Kitchen", "StairsExit" })
-                    Assert.That(anchors.Find(anchorName), Is.Not.Null, "식당 배치 기준점 누락: " + anchorName);
-            }
+            foreach (var prefabName in new[] { "PF_Player", "PF_Guest", "PF_Enemy" })
+                Assert.That(objects.Where(item => item.name == prefabName), Is.Empty, "타이틀 화면에 캐릭터가 남아 있으면 안 됩니다.");
         }
     }
 }
