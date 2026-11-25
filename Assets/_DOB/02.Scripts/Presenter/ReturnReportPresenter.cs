@@ -2,25 +2,29 @@
 // ReturnReportPresenter — 아침 귀환 보고 화면에 그날 손님별 보고를 채운다
 // 역할   : 보고 화면이 열리면(Opened) 어젯밤 던전에 간 손님들의 보고 데이터를 만들어 ShowReport로 넘긴다.
 //          보고 화면 열기 · 닫기와 [준비하러 가기]는 DayFlowPresenter가 맡는다 (팀 교체 지점 규칙).
-// 호출자 : ReturnReportView.Opened
+// 호출자 : ReturnReportView.Opened, GameManager (Bind — 하루를 준비할 때 보고 조회를 연결, 끝날 때 해제)
 // 호출   : ReturnReportView.ShowReport
-// 상태   : 없음. 더미 단계에서는 시안과 같은 손님 3명을 매번 만든다.
+// 상태   : 연결된 보고 조회 함수와 신규 재료 판별 함수. 연결 전(단독 테스트 씬)에는 시안과 같은 더미 손님 3명을 매번 만든다.
 // 비고   : TODO(계약) 표시된 곳이 백엔드 값으로 바뀔 자리 (Docs/개발/FeatureManagerMap.md F9 · F10).
 //          결과 등급 · 축별 부족 · 전리품 · 층 위험 기록 · 그날 일러스트 등급 → SettlementManager (ReturnResolver · FloorProgress)
 //          호감 변화 · 단골까지 남은 값 → RelationshipManager (Affinity)
 //          🔴 그날 총합 점수 계산식과 일러스트 1~5 구간은 미정 (송예찬 · 김언호와 정하기)
-//          연결 예정 (PR #29, 김언호): SettlementManager.Reports(VisitResult 목록) · IsReportConfirmed · ConfirmReport(visitId)
+//          연결됨 (2026-11-24 김언호): SettlementManager.Reports(VisitResult 목록)와 IsNewMaterial을 Bind로 받는다
 //            VisitResult → 이 화면: GuestId·VisitId·GuestName 그대로 / Grade(ExpeditionGrade) → ReturnResult (이름 순서 같음)
-//            Shortfalls(독·열·냉기·어둠·체력·함정 순서) → 0보다 큰 축만 "N칸 모자랐다" 줄 / Loot(재료 이름) → 그림 · 신규 표시
-//            아직 계약에 없는 것: 축별 실제 위험 · 요리 칸(→ 지금은 -1로 칸 숨김), 한마디, 수첩 기록, 호감 변화, 얼굴, 그날 일러스트 등급
+//            Risks · Protections · Shortfalls(독·열·냉기·어둠·체력·함정 순서) → 위험이 있었거나 모자랐던 축의 줄과 칸
+//            Loot(재료 이름) → 그림 · 신규 표시 (이름 → 그림은 IconIds 표)
+//            아직 계약에 없는 것: 종족·직업, 층 이름, 한마디, 수첩 기록, 호감 변화, 얼굴, 그날 일러스트 등급 → 비워 둔다
 //            확정: 화면은 확정하지 않아도 된다 (준비로 넘어갈 때 백엔드가 남은 보고를 모두 한 번씩 확정)
 //
 // 의사코드
 // [켜질 때]   화면의 Opened를 구독한다 / [꺼질 때] 구독을 푼다
-// [열림]      그날 보고를 만든다 → 화면에 넘긴다
+// [연결]      보고 조회 함수와 신규 재료 판별 함수를 받아 둔다
+// [열림]      연결 전이면 더미 보고를, 연결됐으면 전날 방문 결과를 화면 데이터로 옮겨 넘긴다 (판정은 다시 계산하지 않는다)
 // =====================================================================
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using DOB.Define;
 using DOB.UI;
 using UnityEngine;
 
@@ -43,14 +47,86 @@ namespace DOB.Manager
             if (view) view.Opened -= OnOpened;
         }
 
+        // 보고 화면(BasementUI 씬)과 정산 총괄(Basement 씬)은 서로 다른 씬이라 참조를 직렬화할 수 없다.
+        // GameManager가 하루를 준비할 때 조회 함수를 넘겨 준다 (2026-11-24 김언호, 실행 연결).
+        private Func<IReadOnlyList<VisitResult>> readReports;
+        private Func<string, bool> isNewMaterial;
+
+        /// <summary>오늘 아침 보고와 신규 재료 판별을 읽을 곳을 연결한다. 둘 다 null을 넘기면 연결을 푼다.</summary>
+        public void Bind(Func<IReadOnlyList<VisitResult>> reports, Func<string, bool> isNew)
+        {
+            readReports = reports;
+            isNewMaterial = isNew;
+        }
+
         private void OnOpened(int day)
         {
-            // TODO(계약) SettlementManager에서 이번 아침 보고(전날 파견한 손님별 확정 결과)를 받기
+            // 연결되지 않은 단독 테스트 씬에서는 시안과 같은 더미 손님을 보여 준다.
+            if (readReports == null)
+            {
+                view.ShowReport(new ReturnReportViewData
+                {
+                    illustrationTier = 2, // TODO(계약) 그날 총합 점수 등급 1~5
+                    guests = new[] { Haru(), Bori(), Sol() },
+                });
+                return;
+            }
+
+            // 실제 게임: 전날 파견한 손님별 확정 결과를 그대로 옮긴다. 판정은 다시 계산하지 않는다.
             view.ShowReport(new ReturnReportViewData
             {
-                illustrationTier = 2, // TODO(계약) 그날 총합 점수 등급 1~5
-                guests = new[] { Haru(), Bori(), Sol() },
+                illustrationTier = 0, // 🔴 그날 총합 점수 계산식이 정해지기 전에는 일러스트를 비운다
+                guests = (readReports() ?? Array.Empty<VisitResult>()).Select(ToGuest).ToArray(),
             });
+        }
+
+        // ---------------- 실제 보고 (SettlementManager.Reports의 VisitResult → 화면 데이터) ----------------
+
+        // 재료 이름(기획 데이터의 한글 이름) → 그림 파일 이름의 끝부분 (T_UI_Ing○○). 표에 없으면 그림 없이 이름만 보인다.
+        private static readonly Dictionary<string, string> IconIds = new Dictionary<string, string>
+        {
+            { "슬라임 젤리", "SlimeJelly" }, { "숲버섯", "ForestMushroom" }, { "들풀", "Herb" },
+            { "숲 당근", "ForestCarrot" }, { "숲 송로", "ForestTruffle" },
+        };
+
+        private ReturnGuestData ToGuest(VisitResult visit) => new ReturnGuestData
+        {
+            guestId = visit.GuestId, visitId = visit.VisitId, name = visit.GuestName,
+            // 종족·직업과 층 이름은 아직 계약에 없다. 화면은 trip이 비면 이 칸만 보이므로 다녀온 층을 여기에 적는다.
+            raceJob = $"{visit.Floor}층에 다녀왔어요",
+            // ExpeditionGrade와 ReturnResult는 이름 순서가 같다 (ReturnReportData 참고).
+            result = (ReturnResult)(int)visit.Grade,
+            axes = ToAxes(visit),
+            loot = (visit.Loot ?? Array.Empty<string>()).Select(ToLoot).ToArray(),
+            // 손님 한마디 · 수첩 기록 · 호감 변화 · 얼굴은 원고와 기능이 아직 없어 비워 둔다.
+        };
+
+        // 위험이 있었거나 모자랐던 축만 줄로 만든다. 위험·효과 칸이 없는 예전 기록은 모자랐던 축만 칸 없이 보인다.
+        private static AxisResultData[] ToAxes(VisitResult visit)
+        {
+            var rows = new List<AxisResultData>();
+            for (int i = 0; i < RiskAxes.All.Count && i < visit.Shortfalls.Count; i++)
+            {
+                int need = visit.Risks != null ? visit.Risks[i] : -1;
+                if (visit.Shortfalls[i] <= 0 && need <= 0)
+                    continue;
+                rows.Add(new AxisResultData
+                {
+                    risk = RiskAxes.All[i], shortfall = visit.Shortfalls[i], need = need,
+                    have = visit.Protections != null ? visit.Protections[i] : -1,
+                });
+            }
+            return rows.ToArray();
+        }
+
+        private LootData ToLoot(string material)
+        {
+            IconIds.TryGetValue(material, out string id);
+            return new LootData
+            {
+                id = id ?? material, name = material, isNew = isNewMaterial != null && isNewMaterial(material),
+                icon = id == null ? null : itemIcons.FirstOrDefault(sp => sp && sp.name == "T_UI_Ing" + id),
+            };
         }
 
         // ---------------- 더미 (기획 4-3 판정 · 4-7 보고 · 4-8 호감 · 10장 값으로 맞춤) ----------------

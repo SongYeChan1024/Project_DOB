@@ -145,6 +145,32 @@ namespace DOB.Tests
         }
 
         [Test]
+        public void ReportRisksAndProtectionsSurviveReopeningAndOlderReportsLoadWithoutThem()
+        {
+            int[] risks = { 2, 0, 0, 0, 1, 1 }, protections = { 1, 0, 0, 0, 1, 1 };
+            var withCells = new VisitResult("guest-v1", "v1", "하루", 1, "구운 빵", true, new[] { 1, 0, 0, 0, 0, 0 },
+                ExpeditionGrade.Success, new[] { "들풀" }, risks, protections);
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1, null, new[] { withCells, Report("v2", ExpeditionGrade.GreatSuccess) });
+            Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var saved), Is.True);
+            Assert.That(saved.PendingReports[0].Risks, Is.EqualTo(risks));
+            Assert.That(saved.PendingReports[0].Protections, Is.EqualTo(protections));
+            Assert.That(saved.PendingReports[1].Risks, Is.Null, "위험·효과 칸이 없던 보고는 null로 읽힌다");
+            Assert.That(saved.PendingReports[1].Protections, Is.Null);
+
+            // 축 수가 맞지 않거나 음수인 칸이 든 슬롯은 거절한다.
+            string primary = Path.Combine(directory, "autosave.json");
+            string valid = File.ReadAllText(primary);
+            foreach (var (from, to) in new[] { ("\"risks\":[2,0,0,0,1,1]", "\"risks\":[2,0]"), ("\"protections\":[1,0,0,0,1,1]", "\"protections\":[1,0,0,0,1,-1]") })
+            {
+                string broken = valid.Replace(from, to);
+                Assert.That(broken, Is.Not.EqualTo(valid), from);
+                File.WriteAllText(primary, broken);
+                File.WriteAllText(primary + ".bak", broken);
+                Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out _), Is.False, from);
+            }
+        }
+
+        [Test]
         public void SettlementCarriesStockAndTodaysVisitsIntoTheNextDayOnce()
         {
             store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, 2);

@@ -81,6 +81,14 @@ namespace DOB.Systems
                     return false;
                 foreach (int shortfall in report.Shortfalls)
                     if (shortfall < 0) return false;
+                // 위험·효과 칸은 나중에 추가된 선택 항목이다. 없으면 통과하고, 있으면 여섯 축의 0 이상 값이어야 한다.
+                foreach (var cells in new[] { report.Risks, report.Protections })
+                {
+                    if (cells == null) continue;
+                    if (cells.Count != RiskAxes.All.Count) return false;
+                    foreach (int cell in cells)
+                        if (cell < 0) return false;
+                }
                 foreach (string loot in report.Loot)
                     if (string.IsNullOrEmpty(loot)) return false;
             }

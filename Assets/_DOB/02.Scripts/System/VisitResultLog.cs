@@ -47,22 +47,34 @@ namespace DOB.Systems
 
         /// <summary>서빙이 성공한 방문의 결과를 확정한다. 잘못된 입력과 중복 방문은 아무것도 바꾸지 않고 false.</summary>
         public bool TryRecord(string guestId, string visitId, string guestName, int floor, string dish, bool usedSeasoning,
-            IReadOnlyList<int> shortfalls, out VisitResult result)
+            IReadOnlyList<int> shortfalls, out VisitResult result) =>
+            TryRecord(guestId, visitId, guestName, floor, dish, usedSeasoning, shortfalls, null, null, out result);
+
+        /// <summary>축별 실제 위험과 요리가 막은 칸을 함께 남긴다 (보고 화면의 "막아냈다" 줄에 쓴다). 둘은 함께 주거나 함께 생략한다.
+        /// 부족과 맞지 않는 위험·효과(부족 ≠ 위험 − 효과)는 거절한다.</summary>
+        public bool TryRecord(string guestId, string visitId, string guestName, int floor, string dish, bool usedSeasoning,
+            IReadOnlyList<int> shortfalls, IReadOnlyList<int> risks, IReadOnlyList<int> protections, out VisitResult result)
         {
             result = null;
             if (string.IsNullOrEmpty(guestId) || string.IsNullOrEmpty(visitId) || shortfalls == null
                 || shortfalls.Count != RiskAxes.All.Count || visitIds.Contains(visitId))
+                return false;
+            if ((risks == null) != (protections == null)
+                || (risks != null && (risks.Count != shortfalls.Count || protections.Count != shortfalls.Count)))
                 return false;
             var copy = new int[shortfalls.Count];
             for (int i = 0; i < copy.Length; i++)
             {
                 if (shortfalls[i] < 0)
                     return false;
+                if (risks != null && (risks[i] < 0 || protections[i] < 0 || shortfalls[i] != Math.Max(0, risks[i] - protections[i])))
+                    return false;
                 copy[i] = shortfalls[i];
             }
 
             var grade = ExpeditionJudge.Grade(ExpeditionJudge.Total(copy));
-            result = new VisitResult(guestId, visitId, guestName, floor, dish, usedSeasoning, copy, grade, DrawLoot(grade, floor));
+            result = new VisitResult(guestId, visitId, guestName, floor, dish, usedSeasoning, copy, grade, DrawLoot(grade, floor),
+                risks == null ? null : new List<int>(risks).ToArray(), protections == null ? null : new List<int>(protections).ToArray());
             visitIds.Add(visitId);
             results.Add(result);
             return true;

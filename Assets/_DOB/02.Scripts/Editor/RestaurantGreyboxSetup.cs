@@ -294,8 +294,12 @@ namespace DOB.Editor
             {
                 var name = "Stove_" + (i + 1).ToString("00");
                 var position = new Vector3(5.6f, 0, 1.5f + i * 1.1f);
-                if (PlaceEnv(parent, "CookingRange", name, position, 90) != null)
+                var range = PlaceEnv(parent, "CookingRange", name, position, 90);
+                if (range != null)
+                {
+                    PlacePotOnRange(range);
                     continue;
+                }
                 var stove = CenterPiece(parent, name, position, 0, new Vector3(0.8f, 0.9f, 0.9f), "Metal");
                 Visual(stove, "Burner", new Vector3(0, 0.91f, 0), new Vector3(0.5f, 0.02f, 0.5f), "Fire");
             }
@@ -526,7 +530,8 @@ namespace DOB.Editor
             ("GlowLamp", new Vector3(0.68f, 1.3f, 0.72f), false, true),
             // 주방·장식(바닥 중앙 원점, 앞면 -Z, 길이 로컬 X). 등잔·통·접수대는 높이 기준 균일 축소 실측값.
             ("KitchenCounter", new Vector3(2f, 0.9f, 0.8f), false, true),
-            ("CookingRange", new Vector3(0.9f, 0.9f, 0.85f), false, true),
+            // 2026-11-24 뒤판을 다시 짜 맞추며 높이 0.88m. 불·받침쇠·PotPoint가 덧붙어 있어 메뉴가 다시 만들지 않는다.
+            ("CookingRange", new Vector3(0.9f, 0.88f, 0.85f), false, true),
             ("SpiceShelf", new Vector3(1.3f, 1.8f, 0.45f), false, true),
             ("PickupCounter", new Vector3(1.2f, 0.9f, 0.6f), false, true),
             ("WallLantern", new Vector3(0.29f, 0.6f, 0.36f), false, false),
@@ -545,6 +550,23 @@ namespace DOB.Editor
             { "Foundation", (EnvTextureFolder + "T_Env_Foundation_Albedo.jpg", EnvTextureFolder + "T_Env_Foundation_Normal.jpg") },
         };
 
+        /// <summary>
+        /// 화구 프리팹의 FirePoint/PotPoint(받침쇠 위) 자리에 냄비 프리팹을 올린다. 둘 중 하나라도 없으면 아무것도 하지 않는다.
+        /// 냄비는 화구의 자식이라 화구를 옮기면 같이 움직인다.
+        /// </summary>
+        private static void PlacePotOnRange(Transform range)
+        {
+            var potPoint = range.Find("FirePoint/PotPoint");
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(EnvPrefabFolder + "PF_Env_CookingPot.prefab");
+            if (potPoint == null || prefab == null)
+                return;
+            var pot = (GameObject)PrefabUtility.InstantiatePrefab(prefab, range.gameObject.scene);
+            pot.name = "Pot";
+            pot.transform.SetParent(potPoint, false);
+            pot.transform.localPosition = Vector3.zero;
+            pot.transform.localRotation = Quaternion.identity;
+        }
+
         /// <summary>PF_Env_{kind} 프리팹이 있으면 같은 위치·회전으로 놓고 그 Transform을, 없으면 null을 돌려준다.</summary>
         private static Transform PlaceEnv(Transform parent, string kind, string name, Vector3 position, float yaw)
         {
@@ -557,6 +579,23 @@ namespace DOB.Editor
             go.transform.localPosition = position;
             go.transform.localRotation = Quaternion.Euler(0, yaw, 0);
             return go.transform;
+        }
+
+        /// <summary>
+        /// 이 메뉴가 만드는 기본 구성(루트의 Transform·BoxCollider와 모델 자식 하나)보다 더 들어 있으면 true.
+        /// 프리팹이 아직 없으면 false.
+        /// </summary>
+        private static bool HasAddedContent(string prefabPath)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (existing == null)
+                return false;
+            if (existing.transform.childCount > 1)
+                return true;
+            foreach (var component in existing.GetComponents<Component>())
+                if (!(component is Transform) && !(component is BoxCollider))
+                    return true;
+            return false;
         }
 
         [MenuItem("DOB/Art/Build Environment Prefabs")]
@@ -583,6 +622,14 @@ namespace DOB.Editor
                 importer.animationType = ModelImporterAnimationType.None;
                 importer.materialImportMode = ModelImporterMaterialImportMode.None;
                 importer.SaveAndReimport();
+
+                // 연출·기준점 등을 덧붙인 프리팹(예: 화구의 불·받침쇠·PotPoint)은 다시 만들면 덧붙인 것이 사라지므로 건너뛴다.
+                var prefabPath = EnvPrefabFolder + "PF_Env_" + piece.kind + ".prefab";
+                if (HasAddedContent(prefabPath))
+                {
+                    Debug.Log("DOB_ENV_KEEP: 덧붙인 구성이 있어 다시 만들지 않음 " + prefabPath);
+                    continue;
+                }
 
                 var material = EnvMaterial(piece.kind, shader);
                 var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);

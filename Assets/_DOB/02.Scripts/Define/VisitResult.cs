@@ -32,16 +32,25 @@ namespace DOB.Define
         // Unity의 Mono JSON 직렬화기에서 enum 표현이 달라지지 않도록 숫자로 저장한다.
         [DataMember(Name = "grade")] private int grade;
         [DataMember(Name = "loot")] private string[] loot;
+        // 이 두 항목이 없던 저장도 읽을 수 있게 필수로 두지 않는다. 없으면 null이다.
+        [DataMember(Name = "risks")] private int[] risks;
+        [DataMember(Name = "protections")] private int[] protections;
 
         /// <summary>RiskAxes.All 순서의 축별 부족 칸 수.</summary>
         public IReadOnlyList<int> Shortfalls => shortfalls;
+        /// <summary>RiskAxes.All 순서의 그날 실제 위험 칸 수. 기록되지 않은 방문이면 null.</summary>
+        public IReadOnlyList<int> Risks => risks;
+        /// <summary>RiskAxes.All 순서의 요리·양념이 막은 칸 수. 기록되지 않은 방문이면 null.</summary>
+        public IReadOnlyList<int> Protections => protections;
         public ExpeditionGrade Grade => (ExpeditionGrade)grade;
         /// <summary>전리품으로 받을 던전 재료 이름. 같은 재료가 여러 번 들어갈 수 있다.</summary>
         public IReadOnlyList<string> Loot => loot;
 
         public VisitResult(string guestId, string visitId, string guestName, int floor, string dish, bool usedSeasoning,
-            int[] shortfalls, ExpeditionGrade grade, string[] loot)
+            int[] shortfalls, ExpeditionGrade grade, string[] loot, int[] risks = null, int[] protections = null)
         {
+            this.risks = risks;
+            this.protections = protections;
             GuestId = guestId;
             VisitId = visitId;
             GuestName = guestName;
