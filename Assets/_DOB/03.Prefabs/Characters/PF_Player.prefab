@@ -397,6 +397,14 @@ PrefabInstance:
       value: SM_Player_Kael
       objectReference: {fileID: 0}
     - target: {fileID: 5866666021909216657, guid: 31af3c2f558d6f94ea901c246d690088, type: 3}
+      propertyPath: m_Controller
+      value: 
+      objectReference: {fileID: 9100000, guid: 28e9f98ac707f3a488df3fa10dd157b7, type: 2}
+    - target: {fileID: 5866666021909216657, guid: 31af3c2f558d6f94ea901c246d690088, type: 3}
+      propertyPath: m_CullingMode
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5866666021909216657, guid: 31af3c2f558d6f94ea901c246d690088, type: 3}
       propertyPath: m_ApplyRootMotion
       value: 0
       objectReference: {fileID: 0}
