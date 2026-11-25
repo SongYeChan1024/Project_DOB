@@ -103,7 +103,7 @@ namespace DOB.Tests
             Assert.That(oldBalance.Gold, Is.Zero);
             File.WriteAllText(primary, valid + "unexpected");
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out _), Is.True);
-            string future = valid.Replace("\"schemaVersion\":3", "\"schemaVersion\":999");
+            string future = valid.Replace("\"schemaVersion\":4", "\"schemaVersion\":999");
             Assert.That(future, Is.Not.EqualTo(valid));
             File.WriteAllText(primary, future);
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var recovered), Is.True);
@@ -220,7 +220,7 @@ namespace DOB.Tests
             string valid = File.ReadAllText(primary);
 
             foreach (var (from, to) in new[] { ("\"count\":2", "\"count\":-2"), ("\"visitId\":\"v1\"", "\"visitId\":\"\""),
-                         ("\"grade\":1", "\"grade\":9"), ("\"schemaVersion\":3", "\"schemaVersion\":4") })
+                         ("\"grade\":1", "\"grade\":9"), ("\"schemaVersion\":4", "\"schemaVersion\":5") })
             {
                 string broken = valid.Replace(from, to);
                 Assert.That(broken, Is.Not.EqualTo(valid), from);
@@ -250,7 +250,7 @@ namespace DOB.Tests
         {
             store.SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1, null, null, Affinities(), 1);
             Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var saved), Is.True);
-            Assert.That(saved.SchemaVersion, Is.EqualTo(3));
+            Assert.That(saved.SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
             Assert.That(saved.WordOfMouthBonus, Is.EqualTo(1));
             Assert.That(saved.VisitAffinities.Select(a => (a.GuestId, a.VisitId, a.End, a.Wait, a.Taste, a.Expedition, a.Total)),
                 Is.EqualTo(Affinities().Select(a => (a.GuestId, a.VisitId, a.End, a.Wait, a.Taste, a.Expedition, a.Total))));
@@ -301,6 +301,65 @@ namespace DOB.Tests
             Assert.That(again.SavedAtUtc, Is.EqualTo(first.SavedAtUtc));
             Assert.That(again.VisitAffinities.Count, Is.EqualTo(3));
             Assert.That(again.WordOfMouthBonus, Is.EqualTo(1));
+        }
+
+        // ── 스키마 4: 손님 명부와 일차 시드 ──
+
+        private static GuestRecord[] Ledger() => new[]
+        {
+            new GuestRecord("g1", "하루", "수인", "사제", "독", 7, false, 3),
+            new GuestRecord("g2", "보리", "인간", "전사", null, 0, true, 3),
+            new GuestRecord("g3", "솔", "엘프", "궁수", null, 36, false, 5)
+        };
+
+        [Test]
+        public void TheGuestLedgerAndDaySeedSurviveReopening()
+        {
+            var saved = store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 59, 1, null, null, null, 0, Ledger(), 12345);
+            Assert.That(saved.SchemaVersion, Is.EqualTo(4));
+            Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var loaded), Is.True);
+            Assert.That(loaded.DaySeed, Is.EqualTo(12345));
+            CollectionAssert.AreEqual(
+                new[] { ("g1", "하루", "수인", "사제", "독", 7, false, 3), ("g2", "보리", "인간", "전사", (string)null, 0, true, 3),
+                    ("g3", "솔", "엘프", "궁수", (string)null, 36, false, 5) },
+                loaded.Guests.Select(g => (g.GuestId, g.Name, g.Race, g.Job, g.Weakness, g.Affinity, g.Rejected, g.ReturnDay)));
+
+            var settled = store.SettleDay(3, 70, 0, null, null, null, 2, Ledger().Take(1), -7);
+            Assert.That((settled.Day, settled.Guests.Count, settled.DaySeed), Is.EqualTo((4, 1, (int?)-7)), "정산도 명부와 음수 시드를 그대로 쓴다");
+        }
+
+        [Test]
+        public void ASchemaThreeSlotLoadsWithAnEmptyLedgerAndNoSeed()
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(Path.Combine(directory, "autosave.json"),
+                "{\"day\":2,\"garlicStock\":1,\"gold\":59,\"savedAtUtc\":\"2026-11-24T00:00:00.0000000Z\"," +
+                "\"schemaVersion\":3,\"slot\":\"autosave\",\"stage\":\"Preparation\",\"materials\":[],\"pendingReports\":[]," +
+                "\"visitAffinities\":[],\"wordOfMouthBonus\":1}");
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var old), Is.True);
+            Assert.That(old.Guests, Is.Empty);
+            Assert.That(old.DaySeed, Is.Null);
+            Assert.That(old.WordOfMouthBonus, Is.EqualTo(1), "다른 항목은 그대로 읽는다");
+        }
+
+        [Test]
+        public void ABrokenLedgerIsRejected()
+        {
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 59, 1, null, null, null, 0, Ledger(), 1);
+            string primary = Path.Combine(directory, "manual.json");
+            string valid = File.ReadAllText(primary);
+            foreach (var (from, to) in new[] { ("\"guestId\":\"g2\"", "\"guestId\":\"g1\""), ("\"guestId\":\"g2\"", "\"guestId\":\"\""),
+                         ("\"name\":\"보리\"", "\"name\":\"\""), ("\"affinity\":7", "\"affinity\":-1"), ("\"returnDay\":5", "\"returnDay\":0") })
+            {
+                string broken = valid.Replace(from, to);
+                Assert.That(broken, Is.Not.EqualTo(valid), from);
+                File.WriteAllText(primary, broken);
+                File.WriteAllText(primary + ".bak", broken);
+                Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out _), Is.False, from);
+            }
+
+            var duplicate = new[] { Ledger()[0], Ledger()[0] };
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 59, 1, null, null, null, 0, duplicate));
         }
     }
 }
