@@ -10,6 +10,10 @@
 //          재료 · 양념 재고 → EconomyManager (Inventory) / 손님 위험 → GuestManager · RelationshipManager
 //          레시피 · 재료 표는 PrepScreenPresenter의 더미 표를 같이 쓴다 (계약 후 08.Data로).
 //          🔴 미정: 레시피마다 조리 도구(왼쪽 · 오른쪽 도구)가 다른지. 지금은 모든 요리를 냄비 하나로 만든다.
+//          실제 게임 연결 (홍준우 2026-11-25): 주방 쪽(FirstGuestKitchen)이 UIManager.ConnectKitchenOrders로 IKitchenOrders를 붙이면
+//            주문 · 조리 상태 · 마늘 재고 · 효과 · 가격을 그쪽에서 읽고, 조리 시작 · 접시 들기를 그쪽에 요청한다 (판정은 다시 하지 않음).
+//            지금 실제 레시피는 구운 빵 하나라 재료 상자에는 밀가루, 양념 상자에는 마늘만 보인다.
+//            연결이 없으면(단독 테스트 씬) 아래 더미로 그린다.
 //
 // 의사코드
 // [켜질 때]   화면 이벤트를 구독하고 UIManager에 등록한다
@@ -21,6 +25,8 @@
 // [조리]      재료가 레시피와 딱 맞고 주문이 골라져 있으면 뚜껑을 닫고 6초를 센다 (화면을 닫아도 계속 흐름)
 // [완성]      시간이 다 되면 완성 → [접시 들기]로 주문 손님 접시를 든다 → 화구를 비운다
 // [Esc]       열려 있으면 닫는다
+// [실제 연결] 매 프레임 주문 상태를 읽어 화구 상태(비어 있음 · 조리 중 · 완성)를 맞추고, 바뀌면 다시 그린다
+// [실제 요청] 조리 시작 · 접시 들기에 orderId를 넣어 보낸다 → 거절되면 사유에 맞는 안내를 결과 카드에 보이고, 재료를 바꾸면 지운다
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -76,6 +82,12 @@ namespace DOB.Manager
         private readonly Dictionary<string, int> spiceStock = new Dictionary<string, int>
             { ["garlic"] = 1, ["salt"] = 2 };
         private int current = -1;
+
+        // 실제 주문 (없으면 더미). 마지막으로 그린 주문 상태와 비교해 바뀌면 다시 그린다
+        private static IKitchenOrders Real => UIManager.KitchenOrders;
+        private Systems.FirstGuestOrderState? lastRealState;
+        // 마지막 요청이 거절된 사유의 안내. 결과 카드의 필요 재료 줄 대신 보인다
+        private string rejectLine;
 
         /// <summary>요리 화면이 열려 있는지.</summary>
         public bool IsOpen => view && view.IsOpen;
@@ -153,8 +165,9 @@ namespace DOB.Manager
 
         private void Update()
         {
+            if (Real != null) SyncReal();
             // 조리는 화면을 닫거나 대화 중이어도 계속 흐른다 (기획). 일시 정지(timeScale 0)에는 멈춘다.
-            for (int i = 0; i < burners.Length; i++)
+            for (int i = 0; i < burners.Length && Real == null; i++)
             {
                 var b = burners[i];
                 if (b.state != BurnerState.Cooking) continue;
@@ -184,7 +197,7 @@ namespace DOB.Manager
         {
             var b = Editable;
             var order = orders.FirstOrDefault(o => o.id == id);
-            if (b == null || order == null || order.status != OrderStatus.Waiting) return;
+            if (Real != null || b == null || order == null || order.status != OrderStatus.Waiting) return; // 실제 게임은 주문이 하나
             // 아직 조리 전인 다른 화구가 골라 둔 주문이면 그쪽 선택을 풀고 가져온다
             foreach (var other in burners)
                 if (other != b && other.orderId == id) other.orderId = null;
@@ -214,6 +227,14 @@ namespace DOB.Manager
         private void OnSpice(string id)
         {
             var b = Editable;
+            if (b != null && Real != null)
+            {
+                // 실제 게임: 마늘 재고가 있을 때만 (양념 칸 하나)
+                if (id != Garlic || b.spice == Garlic || Real.GarlicStock <= 0) return;
+                b.spice = Garlic;
+                Refresh();
+                return;
+            }
             if (b == null || !Take(spiceStock, id, false)) return;
             if (b.spice != null) Give(spiceStock, b.spice, false); // 양념 칸은 하나라 바꿔 넣는다
             b.spice = id;
@@ -224,7 +245,7 @@ namespace DOB.Manager
         {
             var b = Editable;
             if (b == null || b.spice == null) return;
-            Give(spiceStock, b.spice, false);
+            if (Real == null) Give(spiceStock, b.spice, false); // 실제 게임은 조리를 확정할 때 재고가 줄어 돌려줄 것이 없다
             b.spice = null;
             Refresh();
         }
@@ -233,6 +254,29 @@ namespace DOB.Manager
         {
             if (current < 0) return;
             var b = burners[current];
+            if (Real != null)
+            {
+                // 실제 게임: 조리 시작 · 접시 들기를 주방 쪽에 요청한다. 판정은 주방 쪽, 화면은 결과에 맞는 안내만 고른다
+                string id = Real.OrderId;
+                if (b.state == BurnerState.Done)
+                {
+                    var picked = Real.TryPickUp(id);
+                    if (picked == PickUpResult.PickedUp)
+                    {
+                        burners[current] = new Burner();
+                        Close();
+                    }
+                    else rejectLine = PickUpLine(picked);
+                }
+                else if (b.state == BurnerState.Empty)
+                {
+                    var started = Real.TryStartCooking(id, b.pot.Count(p => p == Flour), b.spice == Garlic ? 1 : 0);
+                    if (started != CookStartResult.Started) rejectLine = CookLine(started);
+                }
+                SyncReal();
+                if (rejectLine != null && IsOpen) view.Show(BuildData());
+                return;
+            }
             if (b.state == BurnerState.Done)
             {
                 // TODO(계약) KitchenManager.PlateRegistry: 주문 손님 접시를 든다 (그 손님 자리에만 놓을 수 있음)
@@ -254,7 +298,11 @@ namespace DOB.Manager
             Refresh();
         }
 
-        private void Refresh() => view.Show(BuildData());
+        private void Refresh()
+        {
+            rejectLine = null; // 재료를 바꾸면 지난 거절 안내는 지운다
+            view.Show(BuildData());
+        }
 
         // =================================================================
         // 표시 데이터
@@ -262,6 +310,7 @@ namespace DOB.Manager
 
         private KitchenViewData BuildData()
         {
+            if (Real != null) return BuildReal(Real);
             var b = burners[current];
             var order = OrderFor(b);
             return new KitchenViewData
@@ -382,6 +431,131 @@ namespace DOB.Manager
             var result = new Dictionary<string, int>();
             foreach (var name in names) result[name] = (result.TryGetValue(name, out int n) ? n : 0) + 1;
             return result;
+        }
+
+        // =================================================================
+        // 실제 게임 (IKitchenOrders) — 지금은 구운 빵 한 가지
+        // =================================================================
+
+        private const string Flour = "Flour";
+        private const string Garlic = "garlic";
+        private static readonly string[] Axes = { "독", "열", "냉기", "어둠", "체력", "함정" };
+
+        // 주문 상태 → 화구 상태. 접시를 들었거나 주문이 없으면 화구를 비운다
+        private void SyncReal()
+        {
+            if (current < 0) current = 0;
+            var real = Real;
+            var b = burners[current];
+            var st = real.State;
+            var next = st == Systems.FirstGuestOrderState.Cooking ? BurnerState.Cooking
+                     : st == Systems.FirstGuestOrderState.Ready ? BurnerState.Done
+                     : BurnerState.Empty;
+            if (next == BurnerState.Empty && st != Systems.FirstGuestOrderState.Waiting && b.state != BurnerState.Empty)
+                burners[current] = b = new Burner(); // 들고 갔거나 다 먹음 → 냄비 비우기
+            b.state = next;
+            b.remaining = real.RemainingSeconds;
+            if (!IsOpen) { lastRealState = st; return; }
+            if (st != lastRealState) view.Show(BuildData());
+            else if (next == BurnerState.Cooking) view.SetTimer(real.RemainingSeconds, real.CookSeconds, next);
+            lastRealState = st;
+        }
+
+        private KitchenViewData BuildReal(IKitchenOrders real)
+        {
+            var b = burners[current];
+            bool hasOrder = real.GuestName != null;
+            int reserved = b.state == BurnerState.Empty && b.spice == Garlic ? 1 : 0;
+            var garlicRow = PrepScreenPresenter.SpiceTable.First(t => t.id == Garlic);
+            var garlic = SpiceItem(garlicRow);
+            garlic.count = Mathf.Max(0, real.GarlicStock - reserved);
+            return new KitchenViewData
+            {
+                burnerName = "화구 " + (current + 1),
+                state = b.state,
+                cookSeconds = real.CookSeconds,
+                remainingSeconds = real.RemainingSeconds,
+                orders = hasOrder
+                    ? new[] { new OrderTicketData { id = real.OrderId, guestName = real.GuestName, seatLabel = "주문", status = Status(real.State) } }
+                    : Array.Empty<OrderTicketData>(),
+                selectedOrderId = hasOrder ? real.OrderId : null,
+                ingredients = new[] { Item(Flour, 0, true) },
+                spices = new[] { garlic },
+                potIngredients = b.pot.Select(id => id == null ? null : Item(id, 0, BasicIngredients.ContainsKey(id))).ToArray(),
+                potSpice = b.spice == null ? null : SpiceItem(garlicRow),
+                preview = PreviewReal(real, b),
+                risks = Axes.Where(axis => (real.KnownRisk(axis) ?? 0) > 0)
+                    .Select(axis => new GuestRiskData { risk = axis, amount = real.KnownRisk(axis).Value }).ToArray(),
+            };
+        }
+
+        // 결과 카드: 구운 빵 재료 진행 · 효과 · 가격 (값은 주방 쪽 레시피에서 읽는다)
+        private RecipePreviewData PreviewReal(IKitchenOrders real, Burner b)
+        {
+            if (real.GuestName == null)
+                return new RecipePreviewData { title = "???", needLine = "아직 주문이 없어요" };
+            int flour = b.pot.Count(id => id == Flour);
+            bool garlic = b.spice == Garlic;
+            string need = $"밀가루 {flour} / {real.FlourRequired}"
+                        + (real.GarlicRequired > 0 ? $" · 마늘 {(garlic ? 1 : 0)} / {real.GarlicRequired}" : " · 마늘이 없어 양념 없이 굽기");
+            if (flour > real.FlourRequired) need += " · 밀가루가 너무 많아요";
+            if (rejectLine != null) need = rejectLine;
+            var effects = RiskEffects.Select(e => new EffectAmount { name = e.effect, value = real.Protection(e.axis, garlic) })
+                .Where(e => e.value > 0).ToArray();
+            return new RecipePreviewData
+            {
+                found = true,
+                title = $"구운 빵 · {real.GuestName}",
+                picture = Icon("DishBread"),
+                needLine = need,
+                effects = effects,
+                taste = 2, // 첫 영업은 맛 점수 2 고정 (FirstGuestOrder.TryServe)
+                flavor = garlic ? "고소 · 담백 · 향긋" : "고소 · 담백",
+                priceText = $"금화 {real.Price(garlic)}개 예상",
+                canCook = b.state == BurnerState.Empty && flour == real.FlourRequired && (garlic ? 1 : 0) == real.GarlicRequired,
+            };
+        }
+
+        // 위험 축 → 그 축을 막는 요리 효과 이름
+        private static readonly (string axis, string effect)[] RiskEffects =
+            { ("독", "해독"), ("열", "내열"), ("냉기", "방한"), ("어둠", "야광"), ("체력", "활력"), ("함정", "감각") };
+
+        // 거절 사유 → 안내 문구 (💡 문구 가안)
+        private static string CookLine(CookStartResult r)
+        {
+            switch (r)
+            {
+                case CookStartResult.NoOrder: return "아직 주문이 없어요";
+                case CookStartResult.NotSeated: return "손님이 자리에 앉은 뒤에 만들 수 있어요";
+                case CookStartResult.NotNearKitchen: return "주방 가까이에서 만들어 주세요";
+                case CookStartResult.Paused: return "잠시 멈춘 동안에는 만들 수 없어요";
+                case CookStartResult.BurnerBusy: return "이 화구는 이미 쓰는 중이에요";
+                case CookStartResult.WrongIngredients: return "재료가 레시피와 맞지 않아요";
+                default: return null;
+            }
+        }
+
+        private static string PickUpLine(PickUpResult r)
+        {
+            switch (r)
+            {
+                case PickUpResult.NotCooked: return "아직 다 익지 않았어요";
+                case PickUpResult.NotNearKitchen: return "주방 가까이에서 접시를 들어 주세요";
+                case PickUpResult.AlreadyHolding: return "이미 접시를 들고 있어요";
+                default: return null;
+            }
+        }
+
+        private static OrderStatus Status(Systems.FirstGuestOrderState? state)
+        {
+            switch (state)
+            {
+                case Systems.FirstGuestOrderState.Cooking: return OrderStatus.Cooking;
+                case Systems.FirstGuestOrderState.Ready: return OrderStatus.Done;
+                case Systems.FirstGuestOrderState.Carrying: return OrderStatus.Carrying;
+                case Systems.FirstGuestOrderState.Served: return OrderStatus.Served;
+                default: return OrderStatus.Waiting;
+            }
         }
 
         // =================================================================

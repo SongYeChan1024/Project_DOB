@@ -4,18 +4,19 @@
 //          오른쪽 가죽 책갈피를 누르면 그 면으로 바로 넘어간다.
 //          칸은 모두 테두리만 그려서 수첩 종이가 그대로 보이게 한다.
 // 호출자 : PrepScreensView (Show)
-// 호출   : NotebookRecord (읽기만)
+// 호출   : NotebookRecord (읽기만), RecipeBookView (레시피 책갈피)
 // 상태   : 지금 고른 책갈피 · 그 안의 쪽 번호, 복사해 만든 칸 목록.
-// 비고   : 탭 구성은 기획서 · FeatureManagerMap F11 "던전 · 단골 · 사전"을 따른다.
+// 비고   : 탭 구성은 기획서 · FeatureManagerMap F11 "던전 · 단골 · 사전"을 따르고, 그 아래에 레시피를 더했다.
 //
 // 의사코드
-// [책갈피 3개] 던전 · 단골 · 사전. 고른 책갈피는 더 길게 빠져나오고 글자가 밝아진다
+// [책갈피 4개] 던전 · 단골 · 사전 · 레시피. 고른 책갈피는 더 길게 빠져나오고 글자가 밝아진다
 // [던전]   층별 위험 두 쪽 전체. 층마다 카드 (번호 · 이름 · 위험 칸 · 재료 칸 · 찾은 단서)
 //          못 간 층은 흐리게, 모르는 위험 · 못 본 재료는 ?
 // [단골]   단골 기록 (나중에: [단골] 태그 · 단계 ●●○ · 남은 호감 · 열린 사연 다시 읽기)
 // [사전]   두 면. 쪽 모서리로 넘긴다
 //          1면 단서: 왼쪽 대사 단서 / 오른쪽 초상화 단서
 //          2면 종족 · 직업: 왼쪽 종족(○에 약함) / 오른쪽 직업(○에 강함). 못 찾은 것은 ??? · ?
+// [레시피] 왼쪽 레시피 목록 / 오른쪽 고른 레시피 (RecipeBookView가 그린다)
 // [원본 칸]  빌더가 만든 원본(꺼 둔 것)을 복사한다. 자식 이름으로 부품을 찾는다.
 // =====================================================================
 using System;
@@ -34,9 +35,12 @@ namespace DOB.UI
         private static readonly string[] RiskNames = { "독", "열", "냉기", "어둠", "체력", "함정" };
 
         // 책갈피마다 펼칠 면 번호 (사전은 두 면: 단서 → 종족 · 직업)
-        private static readonly int[][] TabSpreads = { new[] { 0 }, new[] { 1 }, new[] { 2, 3 } };
+        private static readonly int[][] TabSpreads = { new[] { 0 }, new[] { 1 }, new[] { 2, 3 }, new[] { 4 } };
 
-        [Header("책갈피 (위에서부터 던전 · 단골 · 사전)")]
+        /// <summary>레시피 책갈피 번호 (UIManager.OpenPrepScreen(RecipeBook)이 이 책갈피로 연다).</summary>
+        public const int RecipeBookmark = 3;
+
+        [Header("책갈피 (위에서부터 던전 · 단골 · 사전 · 레시피)")]
         [SerializeField] private Button[] bookmarks;
         [SerializeField] private float bookmarkWidth = 300f;
         /// <summary>고른 책갈피는 이만큼 더 길게 빠져나와 글자가 옆으로 밀려 나온다.</summary>
@@ -44,7 +48,9 @@ namespace DOB.UI
         [SerializeField] private Color bookmarkLabelColor = new Color32(215, 195, 160, 255);
         [SerializeField] private Color selectedBookmarkLabelColor = new Color32(255, 236, 190, 255);
 
-        [Header("면 4개 (던전 · 단골 · 사전-단서 · 사전-종족직업)"), SerializeField] private GameObject[] spreads;
+        [Header("면 5개 (던전 · 단골 · 사전-단서 · 사전-종족직업 · 레시피)"), SerializeField] private GameObject[] spreads;
+        [Tooltip("레시피 면에 붙은 목록 · 자세히")]
+        [SerializeField] private RecipeBookView recipes;
         [Tooltip("면이 여러 개인 책갈피(사전)에서만 보이는 쪽 넘김 모서리")]
         [SerializeField] private Button prevPageButton;
         [SerializeField] private Button nextPageButton;
@@ -120,6 +126,7 @@ namespace DOB.UI
             DrawCodex(raceList, data.races, record.Races, "에 약함");
             DrawCodex(jobList, data.jobs, record.Jobs, "에 강함");
             DrawFloors(data.floors, record);
+            if (recipes) recipes.Show(data);
 
             ShowPage();
         }
