@@ -49,9 +49,6 @@ namespace DOB.UI
         [Header("보고 한 장")]
         [SerializeField] private GameObject paperContent;
         [SerializeField] private GameObject emptyText;
-        [SerializeField] private Image face;
-        [Tooltip("얼굴 그림이 없을 때 보이는 빈 칸 표시")]
-        [SerializeField] private GameObject faceEmpty;
         [SerializeField] private TMP_Text nameText;
         [SerializeField] private TMP_Text whoText;
         [SerializeField] private Image stampRing;
@@ -204,9 +201,6 @@ namespace DOB.UI
             foreach (var go in spawned) Destroy(go);
             spawned.Clear();
 
-            face.sprite = g.face;
-            face.enabled = g.face;
-            faceEmpty.SetActive(!g.face);
             nameText.text = g.name;
             whoText.text = string.IsNullOrEmpty(g.trip) ? g.raceJob : $"{g.raceJob}  ·  {g.trip}";
             var color = ResultColor(g.result);
