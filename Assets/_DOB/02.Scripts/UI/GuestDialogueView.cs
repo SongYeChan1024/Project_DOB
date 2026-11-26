@@ -21,6 +21,7 @@
 //               기록하면 수첩을 첫 면(위험 + 단서 사전)으로 펼쳐 보여 준다
 //               (시안 11 ①) 누른 자리에서 태그 카드가 떠올라 곡선으로 단서 사전 자리까지 날아가 '착' 붙고,
 //               같은 위험 줄이 한 번 톡 커진다. 날아가는 동안 진짜 태그는 투명하게 기다린다
+//               (시안 15 A안) 같은 원인을 가리키는 다른 표현은 첫 표현 아래에 「같은 원인」으로 묶고, 위험 줄은 톡 커지지 않는다
 // [수첩]        탭을 누르면 옆으로 미끄러져 열리고 닫힌다. 쪽 넘기기는 NotebookPager가 맡는다
 // [긴 대사]     넘치면 쪽으로 나누고 [다음]으로 넘긴다
 // [버튼]        따라오세요 · 닫기 · 돌려보내기(확인창) → 이벤트로 알리기만 한다
@@ -337,6 +338,7 @@ namespace DOB.UI
                 Discover(new FoundClue
                 {
                     key = FirstNonEmpty(keyword.key, LineKey(phrase)),
+                    cause = keyword.cause,
                     tag = phrase,
                     risk = keyword.risk,
                     delta = keyword.delta,
@@ -359,6 +361,7 @@ namespace DOB.UI
             Discover(new FoundClue
             {
                 key = MarkerKey(index),
+                cause = clue.cause,
                 tag = string.IsNullOrEmpty(clue.tagName) ? clue.description : clue.tagName,
                 risk = clue.risk,
                 delta = clue.delta,
@@ -374,12 +377,14 @@ namespace DOB.UI
             string race = FirstNonEmpty(current.race, SplitRaceJob(current.raceJob, 0));
             string job = FirstNonEmpty(current.job, SplitRaceJob(current.raceJob, 1));
 
+            // 같은 원인을 이미 찾았으면 위험 칸은 그대로다 → 날아간 뒤 위험 줄을 톡 키우지 않는다
+            bool sameCause = !string.IsNullOrEmpty(clue.cause) && record.CluesOf(current.guestId).Any(c => c.cause == clue.cause);
             current.discover?.Invoke(clue.key);
             if (!record.Add(current.guestId, clue, race, job, current.destinationLabel))
                 return; // 이미 찾은 단서
 
             RefreshDialogueText(keepPage: true);
-            flyKey = clue.key; flyRisk = clue.risk;
+            flyKey = clue.key; flyRisk = sameCause ? null : clue.risk;
             RefreshNotebook();
             flyKey = flyRisk = null;
             ShowNotebookFirstSpread();
@@ -465,7 +470,9 @@ namespace DOB.UI
                     continue;
                 }
                 string riskName = risks[i].Key;
-                int count = current.notebookRisk != null ? current.notebookRisk(riskName).GetValueOrDefault() : risks[i].Count();
+                // 백엔드 값이 없으면 원인별로 한 번씩 센다 (같은 원인의 다른 표현은 한 칸)
+                int count = current.notebookRisk != null ? current.notebookRisk(riskName).GetValueOrDefault()
+                    : risks[i].Select(c => string.IsNullOrEmpty(c.cause) ? c.key : c.cause).Distinct().Count();
                 var kind = FindRiskKind(riskName);
                 string label = current.notebookRisk == null ? riskName : $"{riskName} {count}";
                 riskSlots[i].Show(label, kind?.icon, kind?.color ?? Color.gray, count);
@@ -476,16 +483,20 @@ namespace DOB.UI
         // 단서 사전 쪽: '대사 단서' / '초상화 단서' 줄에 태그를 쌓는다.
         private void DrawDictionary(IReadOnlyList<FoundClue> clues)
         {
-            int lineCount = 0, portraitCount = 0;
-            foreach (var clue in clues)
+            var line = clues.Where(c => c.source == ClueSource.Line).ToList();
+            var portrait = clues.Where(c => c.source != ClueSource.Line).ToList();
+            foreach (var (clue, same) in GroupByCause(line, clues))
             {
-                bool fromLine = clue.source == ClueSource.Line;
-                var tag = SpawnTag(fromLine ? lineTagList : portraitTagList, clue);
+                var tag = SpawnTag(lineTagList, clue, same);
                 if (clue.key == flyKey) flyTag = tag;
-                if (fromLine) lineCount++; else portraitCount++;
             }
-            lineTagEmpty.SetActive(lineCount == 0);
-            portraitTagEmpty.SetActive(portraitCount == 0);
+            foreach (var (clue, same) in GroupByCause(portrait, clues))
+            {
+                var tag = SpawnTag(portraitTagList, clue, same);
+                if (clue.key == flyKey) flyTag = tag;
+            }
+            lineTagEmpty.SetActive(line.Count == 0);
+            portraitTagEmpty.SetActive(portrait.Count == 0);
             lineTagEmpty.transform.SetAsLastSibling();
             portraitTagEmpty.transform.SetAsLastSibling();
         }
@@ -499,22 +510,50 @@ namespace DOB.UI
                 row.gameObject.SetActive(true);
                 row.SetName(entry.Name);
                 spawned.Add(row.gameObject);
-                foreach (var clue in entry.Clues)
-                    SpawnTag(row.TagList, clue);
+                foreach (var (clue, same) in GroupByCause(entry.Clues, entry.Clues))
+                    SpawnTag(row.TagList, clue, same);
             }
             unknown.SetActive(true);
             unknown.transform.SetAsLastSibling();
         }
 
-        private ClueTagView SpawnTag(RectTransform parent, FoundClue clue)
+        // sameCause면 앞서 찾은 같은 원인 단서 아래에 매다는 작은 태그로 그린다 (위험 수치 없음)
+        private ClueTagView SpawnTag(RectTransform parent, FoundClue clue, bool sameCause = false)
         {
             var tagView = Instantiate(tagTemplate, parent);
             tagView.gameObject.SetActive(true);
             var kind = FindRiskKind(clue.risk);
             Color color = kind.HasValue ? Color.Lerp(kind.Value.color, Color.black, 0.3f) : new Color(0.45f, 0.35f, 0.25f);
-            tagView.Set(clue.tag, clue.RiskLabel, color, kind?.icon);
+            if (sameCause) tagView.SetSameCause(clue.tag, color);
+            else tagView.Set(clue.tag, clue.RiskLabel, color, kind?.icon);
             spawned.Add(tagView.gameObject);
             return tagView;
+        }
+
+        // 의사코드 (시안 15 A안): 원인마다 처음 찾은 단서를 정하고, section을 찾은 순서대로 돌며
+        //   · 처음 찾은 단서 → 그대로 내보내고, 같은 section의 같은 원인 단서를 바로 뒤에 「같은 원인」으로 붙인다
+        //   · 같은 원인인데 처음 것이 다른 section(대사 ↔ 초상화)에 있으면 제자리에서 「같은 원인」으로 내보낸다
+        //   · 원인ID가 없으면 묶지 않는다
+        private static List<(FoundClue clue, bool same)> GroupByCause(IReadOnlyList<FoundClue> section, IEnumerable<FoundClue> all)
+        {
+            var first = new Dictionary<string, string>();
+            foreach (var c in all)
+                if (!string.IsNullOrEmpty(c.cause) && !first.ContainsKey(c.cause)) first[c.cause] = c.key;
+            bool Same(FoundClue c) => !string.IsNullOrEmpty(c.cause) && first[c.cause] != c.key;
+
+            var result = new List<(FoundClue, bool)>();
+            var done = new HashSet<FoundClue>();
+            foreach (var c in section)
+            {
+                if (done.Contains(c)) continue;
+                if (Same(c) && section.Any(p => p.key == first[c.cause])) continue; // 처음 것이 이 section에서 끌어온다
+                done.Add(c);
+                result.Add((c, Same(c)));
+                if (Same(c) || string.IsNullOrEmpty(c.cause)) continue;
+                foreach (var d in section)
+                    if (!done.Contains(d) && d.cause == c.cause) { done.Add(d); result.Add((d, true)); }
+            }
+            return result;
         }
 
         // =================================================================

@@ -3,6 +3,7 @@
 // 역할   : 단서 이름과 위험 이름을 태그 모양으로 보여 준다. 테두리는 위험 색.
 //          단서 이름이 길면 앞부분 + '…'로 줄이고, 마우스를 올리면 전체 이름을 보여 준다.
 //          맨 앞에 위험 아이콘을 둔다 (모르면 (?) 동그라미).
+//          같은 원인을 가리키는 다른 표현은 위험 수치 없이 「└ [표현] 같은 원인」으로 작게 매단다 (SetSameCause).
 // 호출자 : GuestDialogueView (단서 사전 · 도감에 태그를 만들 때)
 // 호출   : HoverInfo (줄였을 때만 전체 이름 상자)
 // 상태   : 없음
@@ -47,6 +48,20 @@ namespace DOB.UI
                 icon.gameObject.SetActive(riskIcon);
             }
             if (unknownIcon) unknownIcon.SetActive(icon && !riskIcon);
+        }
+
+        // 의사코드 (시안 15 A안): 앞서 찾은 같은 원인 단서 아래에 매다는 작은 태그.
+        //   위험 칸이 다시 오르지 않으므로 위험 수치 · 아이콘 · 테두리를 빼고, 들여 쓴 「└ [표현] 같은 원인」만 보인다.
+        /// <summary>같은 원인을 가리키는 다른 표현으로 그린다 (위험 수치 없음). color는 표현 글자색.</summary>
+        public void SetSameCause(string tag, Color color)
+        {
+            string shown = Shorten(tag, maxTagChars);
+            string hex = ColorUtility.ToHtmlStringRGB(color);
+            label.text = $"<space=14><color=#8A7A66>└</color> <color=#{hex}>[{shown}]</color> <size=80%><color=#8A7A66>같은 원인</color></size>";
+            outline.enabled = false;
+            if (icon) icon.gameObject.SetActive(false);
+            if (unknownIcon) unknownIcon.SetActive(false);
+            if (hover) hover.Set(shown != tag ? tag : null, shown != tag ? "같은 원인" : null);
         }
 
         // 글자를 너무 줄이면 수첩에서 안 읽혀서, 크기 대신 길이를 줄인다
