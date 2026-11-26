@@ -109,9 +109,37 @@ namespace DOB.UI
         public void ShowMenu(bool hasSave, string checkpointLabel = null)
         {
             if (continueLabel)
-                continueLabel.text = string.IsNullOrEmpty(checkpointLabel) ? "이어하기" : $"이어하기\n<size=20>{checkpointLabel}</size>";
+            {
+                continueLabel.text = "이어하기";
+                var detail = ContinueDetail();
+                detail.text = checkpointLabel ?? "";
+                detail.gameObject.SetActive(!string.IsNullOrEmpty(checkpointLabel));
+            }
             continueButton.gameObject.SetActive(hasSave);
             SetBusy(false);
+        }
+
+        // 저장 일차 줄은 버튼 아래 바깥에 둔다. 버튼 안에 두면 마우스를 올릴 때 나오는 밑줄이 글자를 가린다.
+        // 이름은 Detail (테스트가 이 이름으로 읽음). Title 씬을 고치지 않게 이어하기 글자를 복제해 처음 한 번 만든다.
+        private TMP_Text continueDetail;
+        private TMP_Text ContinueDetail()
+        {
+            if (continueDetail) return continueDetail;
+            continueDetail = Instantiate(continueLabel, continueButton.transform);
+            continueDetail.name = "Detail";
+            continueDetail.raycastTarget = false;
+            continueDetail.fontSize = 20;
+            continueDetail.enableAutoSizing = false;
+            continueDetail.textWrappingMode = TextWrappingModes.NoWrap;
+            continueDetail.overflowMode = TextOverflowModes.Overflow;
+            continueDetail.alignment = TextAlignmentOptions.Top;
+            var rect = continueDetail.rectTransform;
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.anchoredPosition = Vector2.zero;
+            rect.sizeDelta = new Vector2(0f, 26f);
+            return continueDetail;
         }
 
         /// <summary>전환 요청 중이면 모든 버튼을 잠그고 로딩 표시를 켠다.</summary>

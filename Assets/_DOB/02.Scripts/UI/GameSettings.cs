@@ -1,7 +1,8 @@
 // =====================================================================
 // GameSettings — 환경설정 값(화면 · 소리)을 저장하고 적용한다
 // 역할   : 해상도(16:9, 1280×720 ~ 1920×1080) · 화면 모드 · 수직 동기화 · 음량(전체 · 배경음 · 효과음)을
-//          PlayerPrefs에 저장하고, 고르는 즉시 적용한다. 게임 시작 때 저장된 값을 한 번 적용한다.
+//          PlayerPrefs에 저장하고 적용한다. 화면 3가지는 [화면 적용]으로 한 번에, 음량은 바꾸는 즉시.
+//          게임 시작 때 저장된 값을 한 번 적용한다.
 // 호출자 : SettingsView (값 바꾸기 · 기본값), 게임 시작 (ApplySaved 자동)
 // 호출   : Screen.SetResolution, QualitySettings, AudioListener
 // 상태   : PlayerPrefs (키 이름은 아래 상수). 게임 규칙 값은 갖지 않는다.
@@ -11,8 +12,7 @@
 //
 // 의사코드
 // [시작]      저장된 값을 읽어 화면 · 수직 동기화 · 전체 음량을 적용한다
-// [해상도]    모니터보다 크지 않은 16:9 목록에서 앞 · 뒤로 고른다 → 바로 적용 · 저장
-// [화면 모드] 전체화면 · 창 모드 · 테두리 없음 → 바로 적용 · 저장
+// [화면 적용] 설정 창이 고른 해상도(모니터보다 크지 않은 16:9 목록 번호) · 화면 모드 · 수직 동기화 → 함께 저장 · 적용
 // [음량]      0~1로 저장, 전체 음량은 AudioListener에 바로
 // [기본값]    가장 큰 해상도 · 전체화면 · 수직 동기화 켬 · 음량 100%
 // =====================================================================
@@ -86,31 +86,19 @@ namespace DOB.UI
         }
 
         // =================================================================
-        // 바꾸기 (고르는 즉시 적용)
+        // 바꾸기
         // =================================================================
 
-        /// <summary>해상도를 앞(-1) · 뒤(+1)로 바꾼다. 목록 끝이면 그대로.</summary>
-        public static void StepResolution(int direction)
+        /// <summary>화면 설정(해상도 목록 번호 · 화면 모드 · 수직 동기화)을 한 번에 저장하고 적용한다. 설정 창의 [화면 적용].</summary>
+        public static void ApplyDisplay(int resolutionIndex, Mode mode, bool vsync)
         {
             var list = Resolutions;
-            int next = Mathf.Clamp(ResolutionIndex + direction, 0, list.Count - 1);
-            PlayerPrefs.SetString(ResolutionKey, Key(list[next]));
-            Save();
-            ApplyScreen();
-        }
-
-        public static void SetMode(Mode mode)
-        {
+            PlayerPrefs.SetString(ResolutionKey, Key(list[Mathf.Clamp(resolutionIndex, 0, list.Count - 1)]));
             PlayerPrefs.SetInt(ModeKey, (int)mode);
+            PlayerPrefs.SetInt(VSyncKey, vsync ? 1 : 0);
+            QualitySettings.vSyncCount = vsync ? 1 : 0;
             Save();
             ApplyScreen();
-        }
-
-        public static void SetVSync(bool on)
-        {
-            PlayerPrefs.SetInt(VSyncKey, on ? 1 : 0);
-            QualitySettings.vSyncCount = on ? 1 : 0;
-            Save();
         }
 
         public static void SetVolume(Volume kind, float value)
