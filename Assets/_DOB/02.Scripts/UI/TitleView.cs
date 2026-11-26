@@ -5,6 +5,7 @@
 // 호출자 : TitlePresenter (메뉴 구성, 잠금, 확인창, 실패 안내 요청)
 // 호출   : 없음 (이벤트로만 알림)
 // 상태   : 화면에 보이는 것만 가진다. 게임 상태는 갖지 않는다.
+// 연출   : 전환을 시작하면 화면을 어둡게 덮은 뒤 Presenter에게 넘긴다 (시안 14 ⑦, FadeOutThen)
 // =====================================================================
 using System;
 using TMPro;
@@ -39,6 +40,12 @@ namespace DOB.UI
 
         /// <summary>설정 창 (ESC 메뉴와 같은 PF_Settings). 비워 두면 처음 열 때 스킨에서 만든다.</summary>
         [Header("설정 창"), SerializeField] private SettingsView settings;
+
+        /// <summary>전환 전에 화면이 어두워지는 시간 (초).</summary>
+        [Header("전환 어둡게"), SerializeField] private float fadeOutSeconds = 0.4f;
+
+        private Image fadeCover;
+        private Coroutine fadeOut;
 
         /// <summary>새로 시작을 눌렀다.</summary>
         public event Action NewGameClicked;
@@ -152,6 +159,55 @@ namespace DOB.UI
             loadingIndicator.SetActive(busy);
             if (busy)
                 loadFailedMessage.SetActive(false);
+            // 전환이 실패해 잠금이 풀리면 어둡게 덮은 것도 걷는다
+            if (!busy) ClearFade();
+        }
+
+        // 의사코드: 덮개를 (없으면 한 번 만들어) 켜고, 실제 시간으로 투명도 0 → 1, 다 덮이면 then을 부른다.
+        //           꺼져 있어 코루틴을 못 돌리면 바로 부른다.
+        /// <summary>화면을 어둡게 덮은 뒤 then을 부른다. 잠금(SetBusy(false))이 풀리면 덮개도 걷힌다.</summary>
+        public void FadeOutThen(Action then)
+        {
+            if (!isActiveAndEnabled) { then?.Invoke(); return; }
+            if (fadeOut != null) StopCoroutine(fadeOut);
+            fadeOut = StartCoroutine(FadeOut(then));
+        }
+
+        private System.Collections.IEnumerator FadeOut(Action then)
+        {
+            var cover = FadeCover();
+            cover.gameObject.SetActive(true);
+            for (float t = 0f; t < fadeOutSeconds; t += Time.unscaledDeltaTime)
+            {
+                cover.color = new Color(0f, 0f, 0f, t / fadeOutSeconds);
+                yield return null;
+            }
+            cover.color = Color.black;
+            fadeOut = null;
+            then?.Invoke();
+        }
+
+        private void ClearFade()
+        {
+            if (fadeOut != null) { StopCoroutine(fadeOut); fadeOut = null; }
+            if (fadeCover) fadeCover.gameObject.SetActive(false);
+        }
+
+        // 설정 창 위 · 화면 전체를 덮는 검은 판. Title 씬을 고치지 않게 처음 한 번 만든다
+        private Image FadeCover()
+        {
+            if (fadeCover) return fadeCover;
+            var host = new GameObject("FadeCover", typeof(RectTransform), typeof(Canvas), typeof(Image));
+            host.transform.SetParent(transform, false);
+            var canvas = host.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 950; // 설정 창(900)보다 위
+            fadeCover = host.GetComponent<Image>();
+            fadeCover.raycastTarget = true; // 어두워지는 동안 메뉴가 또 눌리지 않게
+            fadeCover.color = Color.clear;
+            host.SetActive(false);
+            return fadeCover;
         }
 
         /// <summary>새로 시작 확인창을 열거나 닫는다.</summary>

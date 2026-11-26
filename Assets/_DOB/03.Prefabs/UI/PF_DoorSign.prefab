@@ -808,6 +808,7 @@ GameObject:
   - component: {fileID: 739188342408874522}
   - component: {fileID: 4580840204138694355}
   - component: {fileID: 3324899752771551665}
+  - component: {fileID: 1092925102193408906}
   m_Layer: 0
   m_Name: CancelButton
   m_TagString: Untagged
@@ -895,10 +896,10 @@ MonoBehaviour:
   m_Transition: 1
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 1.1, g: 1.05, b: 0.95, a: 1}
-    m_PressedColor: {r: 0.8, g: 0.75, b: 0.7, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_DisabledColor: {r: 0.45, g: 0.42, b: 0.4, a: 1}
+    m_HighlightedColor: {r: 1.12, g: 1.12, b: 1.12, a: 1}
+    m_PressedColor: {r: 0.82, g: 0.82, b: 0.82, a: 1}
+    m_SelectedColor: {r: 1, g: 1, b: 1, a: 1}
+    m_DisabledColor: {r: 0.55, g: 0.55, b: 0.55, a: 0.6}
     m_ColorMultiplier: 1
     m_FadeDuration: 0.1
   m_SpriteState:
@@ -917,6 +918,21 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &1092925102193408906
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2449148825672069888}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1888c6ca8912b764db98d03c2633bded, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
+  hoverScale: 1.06
+  pressScale: 0.95
+  speed: 24
 --- !u!1 &2913230604037803859
 GameObject:
   m_ObjectHideFlags: 0
@@ -1964,6 +1980,7 @@ GameObject:
   - component: {fileID: 2743687258554550404}
   - component: {fileID: 6325521363280677021}
   - component: {fileID: 5700612155679893762}
+  - component: {fileID: 2145687003000972098}
   m_Layer: 0
   m_Name: OpenButton
   m_TagString: Untagged
@@ -2051,10 +2068,10 @@ MonoBehaviour:
   m_Transition: 1
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 1.1, g: 1.05, b: 0.95, a: 1}
-    m_PressedColor: {r: 0.8, g: 0.75, b: 0.7, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_DisabledColor: {r: 0.45, g: 0.42, b: 0.4, a: 1}
+    m_HighlightedColor: {r: 1.12, g: 1.12, b: 1.12, a: 1}
+    m_PressedColor: {r: 0.82, g: 0.82, b: 0.82, a: 1}
+    m_SelectedColor: {r: 1, g: 1, b: 1, a: 1}
+    m_DisabledColor: {r: 0.55, g: 0.55, b: 0.55, a: 0.6}
     m_ColorMultiplier: 1
     m_FadeDuration: 0.1
   m_SpriteState:
@@ -2073,6 +2090,21 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &2145687003000972098
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5387479699080875052}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1888c6ca8912b764db98d03c2633bded, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
+  hoverScale: 1.06
+  pressScale: 0.95
+  speed: 24
 --- !u!1 &5512828654470536234
 GameObject:
   m_ObjectHideFlags: 0
@@ -2954,6 +2986,7 @@ GameObject:
   - component: {fileID: 3882257080588087873}
   - component: {fileID: 7411336687852411995}
   - component: {fileID: 8066979172664327636}
+  - component: {fileID: 5731412500408997393}
   m_Layer: 0
   m_Name: DoorSign
   m_TagString: Untagged
@@ -3046,6 +3079,20 @@ MonoBehaviour:
   ingredientScroll: {fileID: 2445580424369307718}
   openButton: {fileID: 5700612155679893762}
   cancelButton: {fileID: 3324899752771551665}
+--- !u!114 &5731412500408997393
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8411685266985050363}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d67927921fae3f49a537cb1ece278d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.ScreenRise
+  drop: 40
+  startScale: 0.94
 --- !u!1 &8965146297464786878
 GameObject:
   m_ObjectHideFlags: 0

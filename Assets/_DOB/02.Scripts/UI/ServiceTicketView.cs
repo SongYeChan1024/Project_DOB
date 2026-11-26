@@ -3,13 +3,15 @@
 // 역할   : 얼굴 · 이름 · 요리 그림(주문 전에는 "?") · 상태 한 단어를 그린다. 완성이면 종이가 초록빛으로 빛난다.
 //          대기 시간 · 조리 남은 초는 그리지 않는다 (손님 말풍선 · 화구 표시가 맡는다).
 //          움직임: 새로 걸리면 위에서 떨어져 흔들리다 멈춤 / 든 접시의 주인이면 금빛으로 들어 올림 /
-//                  앞 주문서가 빠져 자리가 바뀌면 미끄러져 옮김 / 서빙되면 기울며 떨어져 사라짐.
+//                  앞 주문서가 빠져 자리가 바뀌면 미끄러져 옮김 / 서빙되면 기울며 떨어져 사라짐 /
+//                  「완성!」이 되는 순간 위로 톡 튀며 커졌다 돌아옴 (시안 14 ④).
 // 호출자 : ServiceHudView (Hang, Show, TakeDown)
-// 상태   : 주문 식별자, 기본 기울기, 움직임 시간들(걸림 · 떼어 냄 · 들어 올림 정도 · 미끄러짐 남은 거리)
+// 상태   : 주문 식별자, 기본 기울기, 지난 상태, 움직임 시간들(걸림 · 떼어 냄 · 완성 튐 · 들어 올림 정도 · 미끄러짐 남은 거리)
 //
 // 의사코드
 // [걸기]      식별자 · 기본 기울기를 받고 걸림 시간을 0부터 → 위에서 떨어지며 감쇠 진동으로 기본 기울기에 멈춘다
 // [그리기]    받은 값만 그린다. held면 들어 올림 정도를 1로, 아니면 0으로 부드럽게 옮긴다
+//             걸린 뒤 상태가 「완성!」으로 바뀐 순간에만 튐 시간을 0부터 (걸릴 때부터 완성이면 튀지 않음)
 // [미끄러짐]  가로 정렬이 자리를 옮기면 옮긴 거리만큼 반대로 밀어 두고 0으로 줄인다 (빈자리로 당겨지는 느낌)
 // [떼어 내기] 정렬에서 빼고 그 자리에서 기울며 떨어지며 흐려진다 → 끝나면 알린다
 // 비고   : 자리는 부모의 HorizontalLayoutGroup이 정하므로, 움직임은 안쪽 Swing에만 준다.
@@ -75,6 +77,13 @@ namespace DOB.UI
         /// <summary>미끄러짐 남은 거리가 줄어드는 빠르기 (초당 비율).</summary>
         [SerializeField] private float slideSpeed = 10f;
 
+        [Header("「완성!」 튐")]
+        [SerializeField] private float readyPopSeconds = 0.4f;
+        [SerializeField] private float readyPopHeight = 16f;
+        /// <summary>튈 때 가장 커지는 크기 (배율).</summary>
+        [SerializeField] private float readyPopScale = 1.1f;
+        [SerializeField] private float readyPopDegrees = 5f;
+
         public string OrderId { get; private set; }
         public bool IsLeaving => leaveT >= 0f;
 
@@ -82,7 +91,8 @@ namespace DOB.UI
         private CanvasGroup group;
         private LayoutElement layout;
         private float baseTilt;
-        private float hangT = -1f, leaveT = -1f;
+        private float hangT = -1f, leaveT = -1f, popT = -1f;
+        private int lastState = -1; // -1: 걸린 뒤 아직 안 그림
         private float lift, liftTarget;
         private float slide, lastX;
         private bool hasLastX;
@@ -102,7 +112,7 @@ namespace DOB.UI
         {
             OrderId = orderId;
             baseTilt = tilt;
-            hangT = 0f; leaveT = -1f;
+            hangT = 0f; leaveT = -1f; popT = -1f; lastState = -1;
             lift = liftTarget = 0f; slide = 0f; hasLastX = false;
             if (layout) layout.ignoreLayout = false;
             if (group) group.alpha = 1f;
@@ -125,6 +135,8 @@ namespace DOB.UI
             stateText.color = wordColors[s];
             stateChip.color = chipColors[s];
             readyGlow.SetActive(state == OrderTicketState.Ready);
+            if (s == (int)OrderTicketState.Ready && lastState >= 0 && lastState != s) popT = 0f;
+            lastState = s;
             liftTarget = held ? 1f : 0f;
         }
 
@@ -142,6 +154,7 @@ namespace DOB.UI
         {
             float dt = Mathf.Min(Time.unscaledDeltaTime, 0.05f); // 멈칫한 프레임에 짧은 연출이 통째로 건너뛰지 않게
             if (hangT >= 0f) { hangT += dt; if (hangT >= hangSeconds) hangT = -1f; }
+            if (popT >= 0f) { popT += dt; if (popT >= readyPopSeconds) popT = -1f; }
             lift = Mathf.MoveTowards(lift, liftTarget, liftSpeed * dt);
 
             // 정렬이 자리를 옮겼으면 그만큼 반대로 밀어 두었다가 0으로 줄인다
@@ -184,12 +197,16 @@ namespace DOB.UI
                 y -= fallDistance * t * t;
                 angle += fallDegrees * t;
             }
+            // 완성 튐: 위로 올랐다 내려오는 한 번의 혹 (sin 반주기)
+            float pop = popT >= 0f ? Mathf.Sin(Mathf.PI * popT / readyPopSeconds) : 0f;
+            y += readyPopHeight * pop;
+            angle += readyPopDegrees * pop * Mathf.Sin(popT * 30f);
             float ease = lift * lift * (3f - 2f * lift);
             y += liftHeight * ease;
             angle = Mathf.Lerp(angle, 0f, ease); // 들어 올리면 똑바로 선다
             swing.anchoredPosition = swingHome + new Vector2(slide, y);
             swing.localRotation = Quaternion.Euler(0f, 0f, angle);
-            swing.localScale = Vector3.one * Mathf.Lerp(1f, liftScale, ease);
+            swing.localScale = Vector3.one * Mathf.Lerp(1f, liftScale, ease) * Mathf.Lerp(1f, readyPopScale, pop);
             if (heldGlow) heldGlow.canvasRenderer.SetAlpha(ease);
         }
     }
