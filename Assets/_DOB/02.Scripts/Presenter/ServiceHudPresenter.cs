@@ -9,8 +9,9 @@
 // 의사코드
 // [매 프레임 끝] 연결이 없거나 다른 화면(준비 · 요리 · 방명록)이 열려 있으면 HUD를 숨긴다
 //               → 보이기 → 일차 · 금화 · 오늘 온 손님 수
-//               → 주문 수만큼 주문서: 얼굴(T_UI_Portrait_{id}) · 이름 · 요리(T_UI_Dish{id}, 없으면 "?") · 상태
-//               → 남는 주문서는 숨긴다 → 손에 든 접시(없으면 칸 숨김)
+//               → 주문서 맞추기 시작 → 먼저 온 주문부터: 식별자 · 얼굴(T_UI_Portrait_{id}) · 이름 ·
+//                 요리(T_UI_Dish{id}, 없으면 "?") · 상태 · 든 접시의 주인인지(식별자가 HeldOrderId와 같은지)
+//               → 맞추기 끝(안 불린 주문서는 View가 떼어 낸다) → 손에 든 접시(없으면 칸 숨김)
 // =====================================================================
 using System;
 using System.Linq;
@@ -42,10 +43,15 @@ namespace DOB.Manager
             view.SetGold(status.Gold);
             view.SetGuests(status.GuestsArrived);
 
-            int count = Mathf.Max(0, status.OrderCount);
-            for (int i = 0; i < count; i++)
-                view.Ticket(i).Show(Portrait(status.PortraitIdAt(i)), status.GuestNameAt(i), Dish(status.DishIdAt(i)), status.StateAt(i));
-            view.HideTicketsFrom(count);
+            string heldOrder = status.HeldOrderId;
+            view.BeginTickets();
+            for (int i = 0, count = Mathf.Max(0, status.OrderCount); i < count; i++)
+            {
+                string id = status.OrderIdAt(i);
+                view.ShowTicket(id, Portrait(status.PortraitIdAt(i)), status.GuestNameAt(i), Dish(status.DishIdAt(i)), status.StateAt(i),
+                    !string.IsNullOrEmpty(heldOrder) && id == heldOrder);
+            }
+            view.EndTickets();
 
             view.SetHeld(Dish(status.HeldDishId));
         }

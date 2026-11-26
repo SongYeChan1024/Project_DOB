@@ -5,13 +5,14 @@
 //          값은 계산하지 않고 받은 그대로 그린다. 손님 사이 넘기기만 화면이 직접 한다.
 // 호출자 : DayFlowPresenter (Show(MorningReportData), Hide, Confirmed 구독) — BasementHud 「하루 진행 화면」 칸
 //          ReturnReportPresenter (Opened 구독 → ShowReport로 손님 보고 채움)
-// 호출   : HoverInfo (가져온 재료에 마우스를 올리면 이름)
+// 호출   : HoverInfo (가져온 재료에 마우스를 올리면 이름), StampPressView (손님 보고를 그릴 때마다 도장 「쾅」)
 // 상태   : 받은 보고, 지금 보는 손님 번호, 이미 본 손님 표시, 복사해 만든 칸 목록
 //
 // 의사코드
 // [열기]      일차 제목을 쓰고 화면을 켠 뒤 Opened(일차)를 알린다 → Presenter가 ShowReport로 보고를 채운다
 // [보고 받기] 첫 손님을 고르고 꼬리표 · 일러스트 · 보고 한 장을 그린다
 // [넘기기]    꼬리표 · ◀ 이전 · 다음 ▶ 으로 손님을 바꾼다. 본 손님은 꼬리표의 빨간 점이 사라진다
+//             보고 한 장을 그릴 때마다 결과 도장을 그 색으로 「쾅」 찍는다 (간신히 · 부상은 더 크게 흔들림)
 // [준비하러 가기] 안 본 보고가 남아도 바로 확인을 알린다 (보상은 백엔드가 이미 한 번씩 반영)
 // [닫기]      DayFlowPresenter가 Hide를 부른다
 // 비고   : [준비하러 가기] 단추 이름은 ConfirmMorningReport (BasementFirstDayTests가 이 이름으로 누른다).
@@ -53,6 +54,8 @@ namespace DOB.UI
         [SerializeField] private TMP_Text whoText;
         [SerializeField] private Image stampRing;
         [SerializeField] private TMP_Text stampText;
+        /// <summary>손님을 넘길 때마다 도장을 「쾅」 찍는 연출. 비워 두면 연출 없이 바로 보인다.</summary>
+        [SerializeField] private StampPressView stampPress;
         [SerializeField] private TMP_Text lineText;
 
         [Header("위험 막기")]
@@ -207,6 +210,7 @@ namespace DOB.UI
             stampRing.color = color;
             stampText.color = color;
             stampText.text = ResultWord(g.result);
+            if (stampPress) stampPress.Press(color, g.result == ReturnResult.Failure || g.result == ReturnResult.GreatFailure);
             lineText.text = string.IsNullOrEmpty(g.line) ? string.Empty : $"“{g.line}”";
 
             // 위험 막기
