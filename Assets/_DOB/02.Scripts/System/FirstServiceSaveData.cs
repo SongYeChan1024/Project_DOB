@@ -1,7 +1,9 @@
 // 일차 시작 스냅샷: 일차·금화·마늘에 더해 던전 재료 재고와 그날 아침의 미처리 귀환 보고를 저장한다.
 // 읽을 때 슬롯·스키마·단계·UTC 시각과 재료 수·보고 내용이 올바른지 검증한다.
 // 스키마 3에서 전날 방문 호감 기록과 이 일차의 입소문 추가 인원을 더했다.
-// 스키마 1(재료·보고 없음)·2(호감·입소문 없음)도 읽는다. 없는 항목은 빈 목록·0으로 본다. 새로 쓰는 스냅샷은 항상 스키마 3이다.
+// 스키마 4에서 손님 명부(신원·누적 호감·영구 거절·복귀 일차)와 이 일차의 난수 시드를 더했다 (💡 홍준우와 저장 계약 합의 전).
+// 스키마 1(재료·보고 없음)·2(호감·입소문 없음)·3(명부·시드 없음)도 읽는다. 없는 항목은 빈 목록·0·시드 없음으로 본다.
+// 새로 쓰는 스냅샷은 항상 스키마 4이다.
 // 보고 도중에는 저장하지 않으므로 슬롯의 보고는 항상 미처리다 (2026-11-24 송예찬 확인: 정산 뒤 다음 일차 시작에서 자동 저장을 갱신).
 using System;
 using System.Collections.Generic;
@@ -16,7 +18,7 @@ namespace DOB.Systems
     [DataContract]
     public sealed class FirstServiceSaveData
     {
-        public const int CurrentSchemaVersion = 3;
+        public const int CurrentSchemaVersion = 4;
         private const int OldestReadableSchemaVersion = 1;
         public const string PreparationStage = "Preparation";
 
@@ -33,6 +35,9 @@ namespace DOB.Systems
         // 스키마 1·2에는 없는 항목이라 필수로 두지 않는다.
         [DataMember(Name = "visitAffinities")] private VisitAffinity[] visitAffinities;
         [DataMember(Name = "wordOfMouthBonus")] private int wordOfMouthBonus;
+        // 스키마 1~3에는 없는 항목이라 필수로 두지 않는다.
+        [DataMember(Name = "guests")] private GuestRecord[] guests;
+        [DataMember(Name = "daySeed")] private int? daySeed;
 
         /// <summary>일차 시작 때의 던전 재료 재고.</summary>
         public IReadOnlyList<MaterialCount> Materials => materials ?? Array.Empty<MaterialCount>();
@@ -42,13 +47,18 @@ namespace DOB.Systems
         public IReadOnlyList<VisitAffinity> VisitAffinities => visitAffinities ?? Array.Empty<VisitAffinity>();
         /// <summary>이 일차 영업의 입소문 추가 인원(명). 0 이상, 없으면 0.</summary>
         public int WordOfMouthBonus => wordOfMouthBonus;
+        /// <summary>손님 명부(등록 순서). 없으면 빈 목록.</summary>
+        public IReadOnlyList<GuestRecord> Guests => guests ?? Array.Empty<GuestRecord>();
+        /// <summary>이 일차의 난수 시드. 없으면 null이고 영업을 열 때 새로 정한다.</summary>
+        public int? DaySeed => daySeed;
 
         public DateTime SavedAtUtc => DateTime.ParseExact(savedAtUtc, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
         public FirstServiceSaveSlot Slot => slot == "autosave" ? FirstServiceSaveSlot.Auto : FirstServiceSaveSlot.Manual;
 
         internal FirstServiceSaveData(FirstServiceSaveSlot destination, int day, int gold, int garlicStock, DateTime timestamp,
             IEnumerable<MaterialCount> materials = null, IEnumerable<VisitResult> pendingReports = null,
-            IEnumerable<VisitAffinity> visitAffinities = null, int wordOfMouthBonus = 0)
+            IEnumerable<VisitAffinity> visitAffinities = null, int wordOfMouthBonus = 0,
+            IEnumerable<GuestRecord> guests = null, int? daySeed = null)
         {
             if (day < 1) throw new ArgumentOutOfRangeException(nameof(day));
             if (gold < 0) throw new ArgumentOutOfRangeException(nameof(gold));
@@ -64,8 +74,10 @@ namespace DOB.Systems
             this.pendingReports = pendingReports == null ? null : new List<VisitResult>(pendingReports).ToArray();
             this.visitAffinities = visitAffinities == null ? null : new List<VisitAffinity>(visitAffinities).ToArray();
             this.wordOfMouthBonus = wordOfMouthBonus;
+            this.guests = guests == null ? null : new List<GuestRecord>(guests).ToArray();
+            this.daySeed = daySeed;
             if (!ContentIsValid())
-                throw new ArgumentException("재료 수량, 귀환 보고, 방문 호감 또는 입소문 인원이 올바르지 않습니다.");
+                throw new ArgumentException("재료 수량, 귀환 보고, 방문 호감, 입소문 인원 또는 손님 명부가 올바르지 않습니다.");
         }
 
         internal bool IsValidFor(FirstServiceSaveSlot expectedSlot)
@@ -82,6 +94,11 @@ namespace DOB.Systems
         {
             if (wordOfMouthBonus < 0)
                 return false;
+            var guestIds = new HashSet<string>();
+            foreach (var guest in Guests)
+                if (guest == null || string.IsNullOrEmpty(guest.GuestId) || !guestIds.Add(guest.GuestId) ||
+                    string.IsNullOrEmpty(guest.Name) || guest.Affinity < 0 || guest.ReturnDay < 1)
+                    return false;
             var affinityVisits = new HashSet<string>();
             foreach (var affinity in VisitAffinities)
                 if (affinity == null || string.IsNullOrEmpty(affinity.VisitId) || !affinityVisits.Add(affinity.VisitId) ||

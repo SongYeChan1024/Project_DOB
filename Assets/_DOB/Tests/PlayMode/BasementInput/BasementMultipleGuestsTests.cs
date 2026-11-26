@@ -24,7 +24,7 @@ namespace DOB.Tests
             Clear();
             var settings = ScriptableObject.CreateInstance<ServiceRosterSettings>();
             JsonUtility.FromJsonOverwrite(
-                $"{{\"baseGuests\":{guests},\"arrivalMinSeconds\":{arrivalSeconds},\"arrivalMaxSeconds\":{arrivalSeconds}," +
+                $"{{\"firstArrivalSeconds\":0,\"baseGuests\":{guests},\"arrivalMinSeconds\":{arrivalSeconds},\"arrivalMaxSeconds\":{arrivalSeconds}," +
                 $"\"queueCapacity\":{queue},\"waitStartScore\":2,\"scoreStepSeconds\":{scoreStep},\"leaveAfterSeconds\":{leaveAfter}}}", settings);
             GuestManager.SettingsOverride = settings;
         }
@@ -184,11 +184,13 @@ namespace DOB.Tests
             // 대기 점수가 2점에 머물도록 점수 간격을 길게 두고, 입맛 0점에서도 문턱에 닿도록 방문 최대를 4로 낮춘다.
             // 탐험 등급은 손님 위험이 무작위라 고정할 수 없으므로, 테스트 기준에서는 실패·대실패도 +1로 두어 어떤 등급이든 방문당 3점 이상이 되게 한다.
             TestGuestRoster.Use(guests: 3, scoreStep: 600f);
-            var rules = TestGuestRoster.UseAffinityRules("{\"visitMaxPoints\":4,\"failurePoints\":1,\"greatFailurePoints\":1}");
+            // 대실패한 손님이 부상으로 쉬면 다음 날 인원이 달라지므로 이 테스트에서는 휴식 일수를 0으로 둔다.
+            var rules = TestGuestRoster.UseAffinityRules("{\"visitMaxPoints\":4,\"failurePoints\":1,\"greatFailurePoints\":1,\"injuryRestDays\":0}");
             yield return StartFromTitle();
             var s = FindScene();
             yield return Until(() => s.Guests.Agents.Count == 3 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "세 손님 입장");
             var agents = s.Guests.Agents.ToArray();
+            var firstDay = agents.Select(a => a.GuestId + ":" + a.Visit.GuestName).ToArray();
             int[] seats = { 0, 2, 0 };
             for (int i = 0; i < agents.Length; i++)
             {
@@ -212,6 +214,12 @@ namespace DOB.Tests
             var yesterday = relationship.YesterdayAffinities.Select(a => (a.VisitId, a.Total)).ToArray();
             CollectionAssert.AreEqual(agents.Select(a => a.VisitId), yesterday.Select(a => a.VisitId), "방문마다 기록 하나, 정산 순서");
             yield return OpenServiceAndExpectPlanned(3 + expected);
+            // 잘 대접한 전날 손님 셋이 같은 손님 ID·이름으로 다시 오고, 나머지는 입소문 신규다.
+            Assert.That(relationship.Guests.Count, Is.EqualTo(3));
+            Assert.That(relationship.Guests.All(g => !g.Rejected && g.Affinity >= 3 && g.ReturnDay == 2), Is.True);
+            var secondDay = RosterKey();
+            CollectionAssert.IsSubsetOf(firstDay, secondDay.Select(k => k.Substring(0, k.LastIndexOf('/'))).ToArray(), "재방문 손님의 ID·이름 유지");
+            Assert.That(secondDay.Length, Is.EqualTo(3 + expected));
 
             // 2일차 시작 자동 저장을 이어하기로 다시 불러와도 같은 기록과 예정 인원을 얻는다.
             yield return LoadTitle();
@@ -221,15 +229,21 @@ namespace DOB.Tests
             Assert.That(relationship.WordOfMouthBonus, Is.EqualTo(expected));
             CollectionAssert.AreEqual(yesterday, relationship.YesterdayAffinities.Select(a => (a.VisitId, a.Total)).ToArray());
             yield return OpenServiceAndExpectPlanned(3 + expected);
+            CollectionAssert.AreEqual(secondDay, RosterKey(), "같은 스냅샷이면 신규 손님의 신원과 전체 입장 순서가 같다");
         }
 
+        // 그날 명단을 입장 순서대로 「손님ID:이름/종족·직업」으로 적는다.
+        private static string[] RosterKey() => Object.FindAnyObjectByType<GuestManager>().TodaysGuests
+            .Select(g => g.GuestId + ":" + g.Name + "/" + g.Race + "·" + g.Job).ToArray();
+
         [UnityTest]
-        public IEnumerator SendingEveryoneHomeLeavesTheNextDayAtTheBaseCount()
+        public IEnumerator SendingEveryoneHomeRejectsThemAndTheNextDayKeepsTheMinimum()
         {
             TestGuestRoster.Use(guests: 2);
             yield return StartFromTitle();
             var s = FindScene();
             yield return Until(() => s.Guests.Agents.Count == 2 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "두 손님 입장");
+            var sentHome = s.Guests.Agents.Select(a => a.GuestId).ToArray();
             foreach (var guest in s.Guests.Agents.ToArray())
             {
                 yield return Greet(s, guest);
@@ -243,7 +257,11 @@ namespace DOB.Tests
             Assert.That(relationship.YesterdayAffinities.Count, Is.EqualTo(2), "돌려보낸 방문도 기록은 남는다");
             Assert.That(relationship.YesterdayTally, Is.EqualTo((0, 0)), "💡 시험값: 돌려보낸 방문은 입소문에 넣지 않는다");
             Assert.That(relationship.WordOfMouthBonus, Is.Zero);
-            yield return OpenServiceAndExpectPlanned(2);
+            // 처음 온 손님을 돌려보내면 누적 −4로 영구 거절된다. 다시 오는 손님도 입소문 신규도 없으므로 💡 최소 인원(1명)만 온다.
+            Assert.That(relationship.Guests.Select(g => (g.GuestId, g.Rejected)), Is.EquivalentTo(sentHome.Select(id => (id, true))));
+            Assert.That(relationship.GuestsComingToday, Is.Empty);
+            yield return OpenServiceAndExpectPlanned(1);
+            CollectionAssert.DoesNotContain(sentHome, Object.FindAnyObjectByType<GuestManager>().TodaysGuests.Single().GuestId, "돌려보낸 손님은 다시 오지 않는다");
         }
 
         // 아침 보고를 넘기고 영업을 시작해 명단이 열리면 예정 방문 수를 확인한다.

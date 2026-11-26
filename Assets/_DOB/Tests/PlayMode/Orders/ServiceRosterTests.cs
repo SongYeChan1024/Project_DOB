@@ -26,7 +26,7 @@ namespace DOB.Tests
         {
             var settings = ScriptableObject.CreateInstance<ServiceRosterSettings>();
             JsonUtility.FromJsonOverwrite(
-                $"{{\"baseGuests\":{guests},\"arrivalMinSeconds\":{min},\"arrivalMaxSeconds\":{max},\"queueCapacity\":{queue}," +
+                $"{{\"firstArrivalSeconds\":0,\"baseGuests\":{guests},\"arrivalMinSeconds\":{min},\"arrivalMaxSeconds\":{max},\"queueCapacity\":{queue}," +
                 "\"waitStartScore\":2,\"scoreStepSeconds\":10,\"leaveAfterSeconds\":30}", settings);
             created.Add(settings);
             return settings;
@@ -37,6 +37,20 @@ namespace DOB.Tests
             var roster = new ServiceRoster(Settings(guests, min, max, queue), new System.Random(seed));
             roster.Tick(0f);
             return roster;
+        }
+
+        [Test]
+        public void FirstGuestWaitsForTheFirstArrivalDelay()
+        {
+            var settings = Settings();
+            JsonUtility.FromJsonOverwrite("{\"firstArrivalSeconds\":3}", settings);
+            var roster = new ServiceRoster(settings, new System.Random(1));
+            roster.Tick(0f);
+            Assert.That(roster.CanAdmit, Is.False, "영업을 열자마자는 들어오지 않는다");
+            roster.Tick(2.9f);
+            Assert.That(roster.CanAdmit, Is.False);
+            roster.Tick(0.2f);
+            Assert.That(roster.CanAdmit, Is.True, "첫 입장 대기가 지나면 들어온다");
         }
 
         // 맞이 → 동행 → 착석까지 단계를 옮긴다.
@@ -98,10 +112,13 @@ namespace DOB.Tests
         }
 
         [Test]
-        public void WordOfMouthExtraGuestsAddToThePlannedCount()
+        public void PlannedCountIsGivenByTheCallerAndZeroEndsTheDayAtOnce()
         {
-            Assert.That(new ServiceRoster(Settings(), new System.Random(1), 1).Planned, Is.EqualTo(4));
+            Assert.That(new ServiceRoster(Settings(), new System.Random(1), 4).Planned, Is.EqualTo(4));
             Assert.Throws<ArgumentOutOfRangeException>(() => new ServiceRoster(Settings(), new System.Random(1), -1));
+            var empty = new ServiceRoster(Settings(), new System.Random(1), 0);
+            empty.Tick(0f);
+            Assert.That((empty.Planned, empty.CanAdmit, empty.AllEnded), Is.EqualTo((0, false, true)), "손님이 없는 날은 열자마자 마감할 수 있다");
         }
 
         [Test]

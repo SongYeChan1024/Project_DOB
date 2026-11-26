@@ -16,6 +16,7 @@ MonoBehaviour:
   window: {fileID: 21300000, guid: ef4c2f7e047e23a498b0cfea6594b958, type: 3}
   plate: {fileID: 21300000, guid: 5105df13c39c9c6438abace1eed09ccb, type: 3}
   settingsPrefab: {fileID: 3604735242523553012, guid: f2fb81349d264a54199ea4aed45da1a2, type: 3}
+  menuPrefab: {fileID: 2293281122182726117, guid: e2460deae2a05f04a9209820b46e5b43, type: 3}
   titleColor: {r: 0.9411765, g: 0.76862746, b: 0.43137255, a: 1}
   textColor: {r: 0.9607843, g: 0.9098039, b: 0.8039216, a: 1}
   subColor: {r: 0.88235295, g: 0.8039216, b: 0.6666667, a: 1}

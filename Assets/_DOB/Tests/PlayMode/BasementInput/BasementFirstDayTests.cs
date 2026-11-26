@@ -117,7 +117,8 @@ namespace DOB.Tests
             Place(player, layout.GreetingPoint.position + Vector3.right * .9f);
             yield return Until(() => hud.Guidance.text.Contains("손님을 맞이"), "입장 완료 및 E 응대 가능 안내");
             var camera = Camera.main.transform;
-            var overhead = new Pose(camera.position, camera.rotation);
+            // 전경은 플레이어를 따라가는 추적 카메라다. 줌아웃 뒤 메인 카메라가 그 카메라와 같은 자리로 돌아오는지 본다.
+            var overhead = GameObject.Find("FollowCamera").transform;
             yield return Press(Key.E);
             yield return Until(() => hud.Dialogue.BlocksWorldInput, "E로 실제 응대 화면 생성");
             var fade = SceneManager.GetSceneByName(BasementComposition.UiScene).GetRootGameObjects()
@@ -314,8 +315,9 @@ namespace DOB.Tests
             yield return Click("Manual");
             loadedScenes.Clear();
             yield return Click("ConfirmLoad");
-            yield return Until(() => ReadyDay(1) &&
-                UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId != firstVisit, "수동 저장에서 새 방문 복원");
+            // 일차 시작 스냅샷에 그날의 시드가 들어 있어, 불러오면 같은 손님이 같은 방문 ID로 다시 온다.
+            yield return Until(() => loadedScenes.Contains("Loading") && ReadyDay(1) &&
+                UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId == firstVisit, "수동 저장에서 같은 방문 복원");
             Assert.That(loadedScenes, Does.Contain("Loading"));
             var kitchen = UnityEngine.Object.FindAnyObjectByType<FirstGuestKitchen>();
             Assert.That(kitchen.Gold, Is.EqualTo(50));
@@ -347,8 +349,8 @@ namespace DOB.Tests
             SeedAutosave(2, 59, 1);
             yield return LoadTitle();
             yield return Until(() => FindActiveButton("ContinueButton"), "저장이 있으면 이어하기 표시");
-            var label = FindActiveButton("ContinueButton").transform.Find("Message").GetComponent<TMPro.TMP_Text>();
-            Assert.That(label.text, Does.Contain("2일차 시작"), "타이틀의 이어하기 버튼에 저장된 일차를 표시한다");
+            var label = FindActiveButton("ContinueButton").transform.Find("Detail").GetComponent<TMPro.TMP_Text>();
+            Assert.That(label.text, Does.Contain("2일차"), "타이틀의 이어하기 버튼에 저장된 일차를 표시한다");
             loadedScenes.Clear();
             yield return Click("ContinueButton");
             yield return Until(() => ReadyDay(2), "이어하기로 2일차 진입");

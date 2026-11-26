@@ -3,6 +3,7 @@
 // 게임 시간(Time.timeScale)을 멈추는 곳은 이 메뉴 하나뿐이다. 대화 · 수첩 · 주방 · 준비 화면에서는 시간이 계속 흐른다.
 // (홍준우 2026-11-24) 화면을 다른 화면과 같은 나무 창 · 이름표 단추(PauseMenuView)로 바꾸고,
 //   설정은 해상도 · 화면 모드 · 수직 동기화 · 음량 3종 창(SettingsView · GameSettings)으로 바꿨다. 흐름 · 단추 이름은 그대로.
+// (홍준우 2026-11-25) 메뉴 겉모습을 코드 생성에서 PF_PauseMenu 프리팹(PauseMenuSkin.menuPrefab)으로 옮겼다.
 using System;
 using System.IO;
 using DOB.Systems;
@@ -41,14 +42,25 @@ namespace DOB.Manager
 
         private void Awake()
         {
-            view = new PauseMenuView(transform, skin ? skin : Resources.Load<PauseMenuSkin>("UI/PauseMenuSkin"));
+            // 겉모습은 PF_PauseMenu 프리팹 (Resources/UI/PauseMenuSkin이 가리킴). 없으면 ESC 메뉴를 열지 않는다
+            var menuSkin = skin ? skin : Resources.Load<PauseMenuSkin>("UI/PauseMenuSkin");
+            if (!menuSkin || !menuSkin.menuPrefab)
+            {
+                Debug.LogWarning("[DOB] Resources/UI/PauseMenuSkin 또는 PF_PauseMenu가 없어 ESC 메뉴를 열 수 없습니다.");
+                return;
+            }
+            // HUD 캔버스(1280×720 기준) 안에 넣으면 1920×1080 기준 메뉴가 1.5배로 커진다 → 다른 화면처럼 자기 캔버스로 띄우고 같은 씬에 둔다
+            view = Instantiate(menuSkin.menuPrefab);
+            UnityEngine.SceneManagement.SceneManager.MoveGameObjectToScene(view.gameObject, gameObject.scene);
+            view.name = "BasementPauseCanvas";
+            view.Hide();
             // 설정 [뒤로] → 첫 화면 (Esc는 HandleEscape가 같은 곳으로 보낸다)
             if (view.Settings) view.Settings.Closed += () => { if (openMenu == this) Main(); };
         }
 
         public void HandleEscape()
         {
-            if (!isActiveAndEnabled || saves == null)
+            if (!isActiveAndEnabled || saves == null || !view)
                 return;
             if (!IsPaused)
             {
@@ -71,13 +83,19 @@ namespace DOB.Manager
             if (openMenu != this) return;
             openMenu = null;
             Time.timeScale = previousScale;
-            view.Hide();
+            if (view) view.Hide();
             if (EventSystem.current)
                 EventSystem.current.SetSelectedGameObject(previousFocus && previousFocus.activeInHierarchy ? previousFocus : null);
             previousFocus = null;
         }
 
         private void OnDisable() => Close();
+
+        // 메뉴는 자식이 아니라 따로 띄웠으므로 함께 지운다
+        private void OnDestroy()
+        {
+            if (view) Destroy(view.gameObject);
+        }
 
         private void Main(string note = null)
         {

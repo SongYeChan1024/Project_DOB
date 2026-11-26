@@ -1,12 +1,14 @@
 // =====================================================================
 // DayCycle — 하루 단계의 유일한 소유자 (순수 C#)
-// 호출자 : GameManager (Begin, TrySettle), DayFlowPresenter (TryComplete)
+// 호출자 : GameManager (Begin, TrySettle, TryEndDemo), DayFlowPresenter (TryComplete)
 // 상태   : 현재 일차, 현재 단계, 이번 일차 정산 여부
 // 의사코드:
 //   Begin(일차)   — 1일차는 튜토리얼이라 영업부터, 2일차부터는 아침보고부터 시작한다. 정산 여부를 초기화한다.
 //   TryComplete(단계) — 요청한 단계가 지금 단계일 때만 아침보고→준비, 준비→영업으로 넘긴다. 중복·다른 단계는 거절.
 //   TrySettle(모든 방문 종료) — 영업 단계에서 오늘 손님의 모든 방문(방명록 완성·돌려보냄·떠남)이 끝나면
 //                마감으로 넘기고 정산을 한 번만 확정한다.
+//   TryEndDemo(서빙 인원, 기준 인원) — 마감 단계에서 그날 서빙한 서로 다른 손님이 기준 이상이면 데모 엔딩으로 넘긴다.
+//                기준 미달·다른 단계·두 번째 요청은 거절하고 단계를 그대로 둔다. 미달이면 호출자가 다음 일차로 진입한다.
 //   단계가 바뀔 때마다 PhaseChanged로 알린다.
 // 💡 영업 시간 제한은 없다 (CurrentDecisions 「영업 시간 없음」, 팀 합의 전). 마감은 방문 종료로만 일어난다.
 // 정산 뒤 다음 일차는 저장된 시작 스냅샷으로 베이스를 다시 열어 Begin(일차+1)으로 시작한다.
@@ -77,6 +79,22 @@ namespace DOB.Systems
                 IsSettled = true;
                 reason = null;
                 Enter(DayPhase.Closing);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>마감 확인 때 그날 서빙한 서로 다른 손님 수(명)가 기준(명, 1 이상) 이상이면 데모 엔딩으로 넘긴다.</summary>
+        public bool TryEndDemo(int servedGuests, int requiredGuests, out string reason)
+        {
+            if (Phase != DayPhase.Closing)
+                reason = "마감 단계에서만 데모 엔딩으로 넘어갑니다.";
+            else if (requiredGuests < 1 || servedGuests < requiredGuests)
+                reason = "서빙한 손님 수가 데모 엔딩 기준에 못 미칩니다.";
+            else
+            {
+                reason = null;
+                Enter(DayPhase.DemoEnding);
                 return true;
             }
             return false;

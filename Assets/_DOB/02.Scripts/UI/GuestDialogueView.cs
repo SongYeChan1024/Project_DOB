@@ -516,6 +516,7 @@ namespace DOB.UI
             if (open == isNotebookOpen && animate)
                 return; // 이미 그 상태
             isNotebookOpen = open;
+            pager.HintsEnabled = open; // 펼쳐져 보일 때만 「넘기기」 안내를 가끔 띄운다
             expandLabel.text = open ? "접기" : "펼치기";
             if (notebookSlide != null)
                 StopCoroutine(notebookSlide);

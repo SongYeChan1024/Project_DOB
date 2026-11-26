@@ -3,8 +3,9 @@
 // 호출  : 없음. 방문이 끝나면 VisitEnded로 주방(주문 취소)·손님 이동(퇴장)에 알린다.
 // 상태  : 예정 수, 입장한 수, 다음 입장까지 남은 시간, 미뤄 둔 입장 여부, 방문 목록, 파견한 손님 ID 집합.
 // 의사코드:
-//   생성 — 기준값을 검사하고(잘못되면 예외) 예정 수를 기본 인원 + 입소문 추가 인원으로 정한다(추가 인원이 음수면 예외).
-//          첫 방문은 바로 입장할 수 있다(간격 0).
+//   생성 — 기준값을 검사하고(잘못되면 예외) 호출자가 정한 예정 수를 받는다(음수면 예외). 생략하면 기준값의 1일차 인원이다.
+//          누가 몇 명 오는지는 DailyRoster가 정하고 여기서는 계산하지 않는다. 예정 수가 0이면 열자마자 모든 방문이 끝난 상태다.
+//          첫 방문은 입장 시계가 기준값의 첫 입장 대기만큼 흐른 뒤 입장할 수 있다.
 //   Tick(Δ) — 입구 대기·착석 상태 방문의 대기 시간을 Δ만큼 늘리고, 한도에 이른 방문을 대기 이탈로 끝낸다.
 //             아직 입장할 방문이 남았고 미뤄 둔 입장이 없으면 간격을 Δ만큼 줄이고, 0 이하가 되면 입장을 하나 미뤄 둔다.
 //   CanAdmit/Admit — 미뤄 둔 입장이 있고 입구 줄에 자리가 있을 때만 새 방문 ID를 등록한다. 등록하면 다음 간격을
@@ -50,16 +51,17 @@ namespace DOB.Systems
         private bool arrivalDue;
 
         /// <summary>기준값과 주입받은 난수로 새 영업 명단을 연다. 기준값이 잘못되면 ArgumentException.</summary>
-        /// <param name="extraGuests">전날 입소문으로 더 오는 인원(명). 0 이상.</param>
-        public ServiceRoster(ServiceRosterSettings settings, Random random, int extraGuests = 0)
+        /// <param name="planned">그날 예정 방문 수(명). 0 이상. 생략하면 기준값의 1일차 인원.</param>
+        public ServiceRoster(ServiceRosterSettings settings, Random random, int? planned = null)
         {
             if (!settings) throw new ArgumentNullException(nameof(settings));
             string error = settings.Validate();
             if (error != null) throw new ArgumentException(error, nameof(settings));
-            if (extraGuests < 0) throw new ArgumentOutOfRangeException(nameof(extraGuests));
+            if (planned < 0) throw new ArgumentOutOfRangeException(nameof(planned));
             this.settings = settings;
             this.random = random ?? throw new ArgumentNullException(nameof(random));
-            Planned = settings.BaseGuests + extraGuests;
+            Planned = planned ?? settings.BaseGuests;
+            NextArrivalSeconds = settings.FirstArrivalSeconds;
         }
 
         /// <summary>방문 ID, 종료 방식 순서로 방문이 끝난 순간 한 번 알린다.</summary>

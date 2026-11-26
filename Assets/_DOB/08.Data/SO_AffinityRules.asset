@@ -21,3 +21,5 @@ MonoBehaviour:
   visitMaxPoints: 6
   thresholdPercents: 3c0000004b0000005500000064000000
   countSentHome: 0
+  affinityCap: 36
+  injuryRestDays: 2

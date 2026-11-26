@@ -37,7 +37,7 @@ namespace DOB.Tests
         {
             var settings = ScriptableObject.CreateInstance<ServiceRosterSettings>();
             JsonUtility.FromJsonOverwrite(
-                $"{{\"baseGuests\":{guests},\"arrivalMinSeconds\":1,\"arrivalMaxSeconds\":1,\"queueCapacity\":{guests}," +
+                $"{{\"firstArrivalSeconds\":0,\"baseGuests\":{guests},\"arrivalMinSeconds\":1,\"arrivalMaxSeconds\":1,\"queueCapacity\":{guests}," +
                 "\"waitStartScore\":2,\"scoreStepSeconds\":10,\"leaveAfterSeconds\":300}", settings);
             created.Add(settings);
             var roster = new ServiceRoster(settings, new System.Random(1));
@@ -167,7 +167,8 @@ namespace DOB.Tests
         {
             Assert.That(Rules().Validate(), Is.Null, "💡 시험값");
             foreach (string json in new[] { "{\"visitMaxPoints\":0}", "{\"thresholdPercents\":[0,75]}",
-                         "{\"thresholdPercents\":[60,101]}", "{\"thresholdPercents\":[75,60]}" })
+                         "{\"thresholdPercents\":[60,101]}", "{\"thresholdPercents\":[75,60]}",
+                         "{\"affinityCap\":0}", "{\"injuryRestDays\":-1}" })
                 Assert.That(Rules(json).Validate(), Is.Not.Null, json);
         }
     }

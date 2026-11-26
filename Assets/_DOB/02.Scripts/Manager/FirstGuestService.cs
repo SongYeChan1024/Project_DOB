@@ -4,7 +4,7 @@
 //         PlayerMovementController(이동 잠금), Cinemachine(클로즈업).
 // 상태  : 식당 배치, 응대 중인 손님, 따라오는 손님(한 번에 하나), 카메라 줌 타이머, 마지막 퇴장 안내.
 // 의사코드:
-//   식당이 준비되면 GuestManager로 그날 명단을(GameManager가 넘긴 입소문 추가 인원 포함) 열어 첫 손님을 입구에 세운다.
+//   식당이 준비되면 GuestManager로 그날 명단을(GameManager가 GuestManager.PrepareDay로 넘긴 재방문 손님·입소문 신규 인원으로) 연다. 첫 손님은 로딩이 끝나 입장 시계가 흐른 뒤 첫 입장 대기가 지나면 입구에 선다.
 //   이후 입장은 GameManager의 Tick이 만든다.
 //   매 프레임 손님마다 목표를 정해 걷게 한다: 입구 대기는 줄 위치(GreetingPoint에서 입구 쪽으로 줄 간격씩 뒤),
 //   따라오기는 플레이어 뒤, 좌석 안내는 의자, 끝난 방문은 문(돌려보냄·대기 이탈) 또는 계단(파견).
@@ -13,6 +13,8 @@
 //   응대가 안내·돌려보냄 없이 닫히면 그 손님을 입구 대기로 되돌리고 전경으로 줌아웃한다. 줌·응대·전환 동안 이동과 E를 잠근다.
 //   동행은 다른 손님이 따라오는 중이면 거절한다. 착석하면 명단에 알리고 GuestSeated를 한 번 보낸다.
 //   명단이 방문을 끝내면(서빙 후 파견·돌려보냄·대기 이탈) 좌석을 풀고 계단 또는 문으로 보낸다.
+//   전경 카메라는 씬에 둔 추적 카메라(overview)를 쓴다. 연결이 없으면 메인 카메라 자리에 고정 전경 카메라를 만든다.
+//   클로즈업 카메라는 응대 때만 켜고, 끄면 Brain이 전경 카메라로 되돌린다.
 //   씬 종료 시 좌석·카메라·화면·손님 오브젝트를 정리한다.
 // 단일 손님 조회(VisitId·CurrentVisit·IsSeated 등)는 아직 끝나지 않은 가장 먼저 입장한 손님 기준이다.
 using System;
@@ -33,6 +35,8 @@ namespace DOB.Manager
         /// <summary>그날 명단과 손님 오브젝트를 소유하는 손님 총괄.</summary>
         [SerializeField] private GuestManager guests;
         [SerializeField] private Camera worldCamera;
+        /// <summary>평소 화면을 잡는 전경 카메라(Basement의 FollowCamera). 비워 두면 메인 카메라 자리에 고정 전경 카메라를 만든다.</summary>
+        [SerializeField] private CinemachineCamera overview;
         [SerializeField] private Text guidance;
         [SerializeField] private FirstGuestDialogue dialogue;
 
@@ -59,8 +63,6 @@ namespace DOB.Manager
         private string notice;
         private bool observing;
         private int serviceDay;
-        // 그 일차의 입소문 추가 인원. 명단을 열 때 GuestManager에 넘긴다.
-        private int extraGuests;
 
         private bool CanSendHome => serviceDay > 1 || dialogue.FirstGuestCanSendHome;
         private ServiceRoster Roster => guests.Roster;
@@ -103,12 +105,11 @@ namespace DOB.Manager
         public Func<bool> KitchenIsOpen { get; set; }
 
         /// <summary>BasementUI가 준비되면 GameManager가 서비스 활성화 전에 HUD와 응대 Presenter, 일차, 그 일차의 입소문 추가 인원을 전달한다.</summary>
-        public void ConnectHud(Text label, FirstGuestDialogue presenter, int day, int wordOfMouthBonus = 0)
+        public void ConnectHud(Text label, FirstGuestDialogue presenter, int day)
         {
             guidance = label;
             dialogue = presenter;
             serviceDay = day;
-            extraGuests = wordOfMouthBonus;
         }
 
         /// <summary>그 방문이 의자에 앉아 있으면 좌석 기준점, 아니면 null.</summary>
@@ -197,7 +198,7 @@ namespace DOB.Manager
                     Debug.LogError("[DOB] RestaurantLayout의 배치 기준점·바닥 연결을 확인하세요.", candidate);
                     return false;
                 }
-                if (!guests.BeginService(serviceDay, candidate.GuestEntrance, extraGuests))
+                if (!guests.BeginService(serviceDay, candidate.GuestEntrance))
                     return false;
 
                 guests.VisitEnded += OnVisitEnded;
@@ -466,8 +467,7 @@ namespace DOB.Manager
             return offset.x * offset.x + offset.z * offset.z <= range * range;
         }
 
-        // ponytail: 리그를 런타임에 만들어 씬·프리팹을 건드리지 않는다. 씬에서 샷을 직접 잡아야 하면
-        // 두 CinemachineCamera를 씬에 두고 직렬화 참조로 받도록 바꾼다.
+        // shortcut: 클로즈업 카메라는 런타임에 만든다. 씬에서 클로즈업 샷도 직접 잡아야 하면 전경처럼 직렬화 참조로 받도록 바꾼다.
         private void BuildCameraRig()
         {
             if (closeUp)
@@ -476,10 +476,13 @@ namespace DOB.Manager
                 brain = worldCamera.gameObject.AddComponent<CinemachineBrain>();
             brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.EaseInOut, zoom.ZoomSeconds);
 
-            // 전경은 지금의 메인 카메라 그대로다. 평소 화면이 달라지지 않는다.
             var lens = LensSettings.FromCamera(worldCamera);
-            var overview = NewCamera("OverviewCamera", lens);
-            overview.transform.SetPositionAndRotation(worldCamera.transform.position, worldCamera.transform.rotation);
+            // 씬에 전경 카메라가 없으면 지금의 메인 카메라 그대로 고정 전경을 만든다. 평소 화면이 달라지지 않는다.
+            if (!overview)
+            {
+                overview = NewCamera("OverviewCamera", lens);
+                overview.transform.SetPositionAndRotation(worldCamera.transform.position, worldCamera.transform.rotation);
+            }
 
             // 직교↔원근은 부드럽게 블렌드되지 않으므로 투영 방식은 전경과 같게 두고 크기·위치만 좁힌다.
             lens.OrthographicSize = zoom.OrthographicSize;
