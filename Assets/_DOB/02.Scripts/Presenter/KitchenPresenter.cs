@@ -546,7 +546,7 @@ namespace DOB.Manager
             var effects = RiskEffects.Select((e, i) => new EffectAmount { name = e.effect, value = i < p.Protections.Count ? p.Protections[i] : 0 })
                 .Where(e => e.value > 0).ToArray();
             // 맛 표현은 화면 표시용 레시피 표에서 (판정에는 쓰지 않음)
-            var shown = PrepScreenPresenter.Recipes.FirstOrDefault(r => r.id == p.RecipeId);
+            var shown = PrepScreenPresenter.BookRecipes().FirstOrDefault(r => r.id == p.RecipeId);
             var spice = PrepScreenPresenter.SpiceTable.FirstOrDefault(t => t.id == b.spice);
             string flavor = shown?.flavor ?? string.Empty;
             if (spice.id != null) flavor = string.IsNullOrEmpty(flavor) ? spice.flavor : $"{flavor} · {spice.flavor}";
