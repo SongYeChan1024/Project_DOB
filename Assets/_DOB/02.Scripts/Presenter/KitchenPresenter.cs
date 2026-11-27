@@ -229,8 +229,8 @@ namespace DOB.Manager
             var b = Editable;
             if (b != null && Real != null)
             {
-                // 실제 게임: 마늘 재고가 있을 때만 (양념 칸 하나)
-                if (id != Garlic || b.spice == Garlic || Real.GarlicStock <= 0) return;
+                // 실제 게임: 레시피만큼 마늘이 있을 때만 (양념 칸 하나). 모자라면 주방 쪽이 필요 개수를 0으로 알려 준다
+                if (id != Garlic || b.spice == Garlic || Real.GarlicRequired <= 0) return;
                 b.spice = Garlic;
                 Refresh();
                 return;
@@ -270,7 +270,7 @@ namespace DOB.Manager
                 }
                 else if (b.state == BurnerState.Empty)
                 {
-                    var started = Real.TryStartCooking(id, b.pot.Count(p => p == Flour), b.spice == Garlic ? 1 : 0);
+                    var started = Real.TryStartCooking(id, b.pot.Count(p => p == Flour), b.spice == Garlic ? Real.GarlicRequired : 0);
                     if (started == CookStartResult.Started)
                     {
                         // 조리가 시작되면 기다릴 일만 남으므로 바로 창을 닫는다 (남은 시간은 화구 배지가 보여 준다)
@@ -472,7 +472,8 @@ namespace DOB.Manager
         {
             var b = burners[current];
             bool hasOrder = real.GuestName != null;
-            int reserved = b.state == BurnerState.Empty && b.spice == Garlic ? 1 : 0;
+            // 양념 칸의 마늘 한 그림 = 레시피가 요구하는 마늘 전부 (주방 쪽은 0개 또는 필요 개수만 받는다)
+            int reserved = b.state == BurnerState.Empty && b.spice == Garlic ? real.GarlicRequired : 0;
             var garlicRow = PrepScreenPresenter.SpiceTable.First(t => t.id == Garlic);
             var garlic = SpiceItem(garlicRow);
             garlic.count = Mathf.Max(0, real.GarlicStock - reserved);
@@ -504,7 +505,7 @@ namespace DOB.Manager
             int flour = b.pot.Count(id => id == Flour);
             bool garlic = b.spice == Garlic;
             string need = $"밀가루 {flour} / {real.FlourRequired}"
-                        + (real.GarlicRequired > 0 ? $" · 마늘 {(garlic ? 1 : 0)} / {real.GarlicRequired}" : " · 마늘이 없어 양념 없이 굽기");
+                        + (real.GarlicRequired > 0 ? $" · 마늘 {(garlic ? real.GarlicRequired : 0)} / {real.GarlicRequired}" : " · 마늘이 없어 양념 없이 굽기");
             if (flour > real.FlourRequired) need += " · 밀가루가 너무 많아요";
             if (rejectLine != null) need = rejectLine;
             var effects = RiskEffects.Select(e => new EffectAmount { name = e.effect, value = real.Protection(e.axis, garlic) })
@@ -519,7 +520,7 @@ namespace DOB.Manager
                 taste = 2, // 첫 영업은 맛 점수 2 고정 (FirstGuestOrder.TryServe)
                 flavor = garlic ? "고소 · 담백 · 향긋" : "고소 · 담백",
                 priceText = $"금화 {real.Price(garlic)}개 예상",
-                canCook = b.state == BurnerState.Empty && flour == real.FlourRequired && (garlic ? 1 : 0) == real.GarlicRequired,
+                canCook = b.state == BurnerState.Empty && flour == real.FlourRequired && garlic == (real.GarlicRequired > 0),
             };
         }
 
