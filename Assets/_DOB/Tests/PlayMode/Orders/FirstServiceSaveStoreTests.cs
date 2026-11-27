@@ -13,6 +13,8 @@ namespace DOB.Tests
         private string directory;
         private FirstServiceSaveStore store;
 
+        private static MaterialCount[] Garlic(int count) => new[] { new MaterialCount("garlic", count) };
+
         [SetUp]
         public void SetUp()
         {
@@ -31,8 +33,8 @@ namespace DOB.Tests
         {
             Assert.That(store.TryLoadLatest(out _), Is.False);
             Assert.That(Directory.Exists(directory), Is.False);
-            var auto = store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, 2);
-            var manual = store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1);
+            var auto = store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, Garlic(2));
+            var manual = store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1));
             var reopened = new FirstServiceSaveStore(directory);
             Assert.That(reopened.TryLoadLatest(out var latest), Is.True);
             Assert.That(latest.Slot, Is.EqualTo(FirstServiceSaveSlot.Manual));
@@ -51,33 +53,33 @@ namespace DOB.Tests
         [Test]
         public void RepeatedOrConcurrentSettlementKeepsTheFirstPaidResult()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, 2);
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, Garlic(2));
             var sameDirectory = new FirstServiceSaveStore(directory);
             FirstServiceSaveData left = null, right = null;
-            Parallel.Invoke(() => left = store.SettleDay(1, 59, 1), () => right = sameDirectory.SettleDay(1, 59, 1));
+            Parallel.Invoke(() => left = store.SettleDay(1, 59, Garlic(1)), () => right = sameDirectory.SettleDay(1, 59, Garlic(1)));
             Assert.That(left.Day, Is.EqualTo(2));
             Assert.That(left.SavedAtUtc, Is.EqualTo(right.SavedAtUtc));
 
-            var duplicate = sameDirectory.SettleDay(1, 68, 0);
+            var duplicate = sameDirectory.SettleDay(1, 68, Garlic(0));
             Assert.That(duplicate.Gold, Is.EqualTo(59));
             Assert.That(duplicate.GarlicStock, Is.EqualTo(1));
             Assert.That(duplicate.SavedAtUtc, Is.EqualTo(left.SavedAtUtc));
-            var next = store.SettleDay(2, 69, 0);
+            var next = store.SettleDay(2, 69, Garlic(0));
             Assert.That(next.Day, Is.EqualTo(3));
             Assert.That(next.Gold, Is.EqualTo(69));
-            Assert.That(sameDirectory.SettleDay(1, 68, 0).Day, Is.EqualTo(3));
+            Assert.That(sameDirectory.SettleDay(1, 68, Garlic(0)).Day, Is.EqualTo(3));
         }
 
         [Test]
         public void ACorruptOrWrongSlotPrimaryRecoversTheLastValidBackup()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, 2);
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, Garlic(2));
             string primary = Path.Combine(directory, "autosave.json");
             File.WriteAllText(primary, "{");
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var initialBackup), Is.True);
             Assert.That(initialBackup.Day, Is.EqualTo(1));
-            store.SettleDay(1, 59, 1);
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1);
+            store.SettleDay(1, 59, Garlic(1));
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1));
 
             // 유효한 JSON이라도 슬롯이 다르면 원본으로 쓸 수 없다.
             File.Copy(Path.Combine(directory, "manual.json"), primary, true);
@@ -94,8 +96,8 @@ namespace DOB.Tests
         [Test]
         public void UnsupportedSchemaAndInvalidBalancesDoNotReplaceAValidRecord()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 0, 0);
-            Assert.Throws<ArgumentOutOfRangeException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, -1, 0));
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 0, Garlic(0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, -1, Garlic(0)));
             string primary = Path.Combine(directory, "manual.json");
             string valid = File.ReadAllText(primary);
             File.WriteAllText(primary, valid.Replace("\"gold\":0", "\"gold\":99999999999999999999"));
@@ -118,12 +120,12 @@ namespace DOB.Tests
         [Test]
         public void MaterialsAndPendingReportsSurviveReopening()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, 2);
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, Garlic(2));
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var empty), Is.True);
             Assert.That(empty.Materials, Is.Empty);
             Assert.That(empty.PendingReports, Is.Empty);
 
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1, new[] { new MaterialCount("숲버섯", 2) },
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1), new[] { new MaterialCount("숲버섯", 2) },
                 new[] { Report("v1", ExpeditionGrade.Success, "들풀", "숲 당근") });
             Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Manual, out var saved), Is.True);
             Assert.That(saved.SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
@@ -150,7 +152,7 @@ namespace DOB.Tests
             int[] risks = { 2, 0, 0, 0, 1, 1 }, protections = { 1, 0, 0, 0, 1, 1 };
             var withCells = new VisitResult("guest-v1", "v1", "하루", 1, "구운 빵", true, new[] { 1, 0, 0, 0, 0, 0 },
                 ExpeditionGrade.Success, new[] { "들풀" }, risks, protections);
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1, null, new[] { withCells, Report("v2", ExpeditionGrade.GreatSuccess) });
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, Garlic(1), null, new[] { withCells, Report("v2", ExpeditionGrade.GreatSuccess) });
             Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var saved), Is.True);
             Assert.That(saved.PendingReports[0].Risks, Is.EqualTo(risks));
             Assert.That(saved.PendingReports[0].Protections, Is.EqualTo(protections));
@@ -173,18 +175,18 @@ namespace DOB.Tests
         [Test]
         public void SettlementCarriesStockAndTodaysVisitsIntoTheNextDayOnce()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, 2);
-            var first = store.SettleDay(1, 59, 1, null, new[] { Report("v1", ExpeditionGrade.GreatSuccess, "들풀", "들풀", "숲버섯") });
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, Garlic(2));
+            var first = store.SettleDay(1, 59, Garlic(1), null, new[] { Report("v1", ExpeditionGrade.GreatSuccess, "들풀", "들풀", "숲버섯") });
             Assert.That(first.Day, Is.EqualTo(2));
             Assert.That(first.PendingReports.Single().VisitId, Is.EqualTo("v1"));
 
-            var duplicate = store.SettleDay(1, 68, 0, new[] { new MaterialCount("들풀", 9) }, new[] { Report("v2", ExpeditionGrade.Success, "들풀") });
+            var duplicate = store.SettleDay(1, 68, Garlic(0), new[] { new MaterialCount("들풀", 9) }, new[] { Report("v2", ExpeditionGrade.Success, "들풀") });
             Assert.That(duplicate.SavedAtUtc, Is.EqualTo(first.SavedAtUtc));
             Assert.That(duplicate.Materials, Is.Empty);
             Assert.That(duplicate.PendingReports.Single().VisitId, Is.EqualTo("v1"));
 
             // 2일차 아침에 받은 전리품은 2일차 정산 때 3일차 시작 재고로 넘어간다.
-            var next = store.SettleDay(2, 68, 1, new[] { new MaterialCount("들풀", 2), new MaterialCount("숲버섯", 1) });
+            var next = store.SettleDay(2, 68, Garlic(1), new[] { new MaterialCount("들풀", 2), new MaterialCount("숲버섯", 1) });
             Assert.That(next.Day, Is.EqualTo(3));
             Assert.That(next.Materials.Single(m => m.Id == "들풀").Count, Is.EqualTo(2));
             Assert.That(next.PendingReports, Is.Empty);
@@ -202,10 +204,12 @@ namespace DOB.Tests
             Assert.That(old.Day, Is.EqualTo(2));
             Assert.That(old.Gold, Is.EqualTo(59));
             Assert.That(old.GarlicStock, Is.EqualTo(1));
+            Assert.That(old.Spices.Select(x => (x.Id, x.Count)), Is.EqualTo(new[] { ("garlic", 1) }), "이전 스키마는 마늘만 있다");
+            Assert.That(old.Floors, Is.Null, "이전 스키마는 층 진행이 없다(1층만 열림)");
             Assert.That(old.Materials, Is.Empty);
             Assert.That(old.PendingReports, Is.Empty);
 
-            Assert.That(store.SettleDay(2, 68, 0).SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
+            Assert.That(store.SettleDay(2, 68, Garlic(0)).SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var rewritten), Is.True);
             Assert.That(rewritten.SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
             Assert.That(rewritten.Day, Is.EqualTo(3));
@@ -214,7 +218,7 @@ namespace DOB.Tests
         [Test]
         public void NegativeStockAndReportsWithoutAVisitDoNotReplaceAValidRecord()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1, new[] { new MaterialCount("숲버섯", 2) },
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1), new[] { new MaterialCount("숲버섯", 2) },
                 new[] { Report("v1", ExpeditionGrade.Success, "들풀") });
             string primary = Path.Combine(directory, "manual.json");
             string valid = File.ReadAllText(primary);
@@ -232,7 +236,7 @@ namespace DOB.Tests
                 File.WriteAllText(primary + ".bak", valid);
             }
 
-            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1,
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1),
                 new[] { new MaterialCount("숲버섯", -1) }));
         }
 
@@ -248,7 +252,7 @@ namespace DOB.Tests
         [Test]
         public void VisitAffinitiesAndWordOfMouthSurviveReopeningInOrder()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1, null, null, Affinities(), 1);
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, Garlic(1), null, null, Affinities(), 1);
             Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var saved), Is.True);
             Assert.That(saved.SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
             Assert.That(saved.WordOfMouthBonus, Is.EqualTo(1));
@@ -274,7 +278,7 @@ namespace DOB.Tests
         [Test]
         public void BrokenAffinitiesOrANegativeBonusAreRejected()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1, null, null, Affinities(), 1);
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1), null, null, Affinities(), 1);
             string primary = Path.Combine(directory, "manual.json");
             string valid = File.ReadAllText(primary);
             foreach (var (from, to) in new[] { ("\"visitId\":\"v2\"", "\"visitId\":\"v1\""), ("\"visitId\":\"v2\"", "\"visitId\":\"\""),
@@ -287,17 +291,17 @@ namespace DOB.Tests
                 Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out _), Is.False, from);
             }
 
-            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1, null, null, null, -1));
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1), null, null, null, -1));
             var duplicate = new[] { Affinities()[0], Affinities()[0] };
-            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, 1, null, null, duplicate));
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 2, 59, Garlic(1), null, null, duplicate));
         }
 
         [Test]
         public void ASecondSettlementOfTheSameDayKeepsTheFirstAffinities()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, 2);
-            var first = store.SettleDay(1, 59, 1, null, null, Affinities(), 1);
-            var again = store.SettleDay(1, 59, 1, null, null, Affinities().Take(1), 4);
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 1, 50, Garlic(2));
+            var first = store.SettleDay(1, 59, Garlic(1), null, null, Affinities(), 1);
+            var again = store.SettleDay(1, 59, Garlic(1), null, null, Affinities().Take(1), 4);
             Assert.That(again.SavedAtUtc, Is.EqualTo(first.SavedAtUtc));
             Assert.That(again.VisitAffinities.Count, Is.EqualTo(3));
             Assert.That(again.WordOfMouthBonus, Is.EqualTo(1));
@@ -315,7 +319,7 @@ namespace DOB.Tests
         [Test]
         public void TheGuestLedgerAndDaySeedSurviveReopening()
         {
-            var saved = store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 59, 1, null, null, null, 0, Ledger(), 12345);
+            var saved = store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 59, Garlic(1), null, null, null, 0, Ledger(), 12345);
             Assert.That(saved.SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
             Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var loaded), Is.True);
             Assert.That(loaded.DaySeed, Is.EqualTo(12345));
@@ -324,7 +328,7 @@ namespace DOB.Tests
                     ("g3", "솔", "엘프", "궁수", (string)null, 36, false, 5) },
                 loaded.Guests.Select(g => (g.GuestId, g.Name, g.Race, g.Job, g.Weakness, g.Affinity, g.Rejected, g.ReturnDay)));
 
-            var settled = store.SettleDay(3, 70, 0, null, null, null, 2, Ledger().Take(1), -7);
+            var settled = store.SettleDay(3, 70, Garlic(0), null, null, null, 2, Ledger().Take(1), -7);
             Assert.That((settled.Day, settled.Guests.Count, settled.DaySeed), Is.EqualTo((4, 1, (int?)-7)), "정산도 명부와 음수 시드를 그대로 쓴다");
         }
 
@@ -345,7 +349,7 @@ namespace DOB.Tests
         [Test]
         public void ABrokenLedgerIsRejected()
         {
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 59, 1, null, null, null, 0, Ledger(), 1);
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 59, Garlic(1), null, null, null, 0, Ledger(), 1);
             string primary = Path.Combine(directory, "manual.json");
             string valid = File.ReadAllText(primary);
             foreach (var (from, to) in new[] { ("\"guestId\":\"g2\"", "\"guestId\":\"g1\""), ("\"guestId\":\"g2\"", "\"guestId\":\"\""),
@@ -359,15 +363,15 @@ namespace DOB.Tests
             }
 
             var duplicate = new[] { Ledger()[0], Ledger()[0] };
-            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 59, 1, null, null, null, 0, duplicate));
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 59, Garlic(1), null, null, null, 0, duplicate));
         }
 
         [Test]
         public void TheDemoCompleteSlotIsReadOnlyOnPurpose()
         {
             Assert.That(store.TryLoad(FirstServiceSaveSlot.DemoComplete, out _), Is.False, "엔딩을 본 적이 없으면 슬롯 없음");
-            store.SavePreparation(FirstServiceSaveSlot.Auto, 4, 50, 2);
-            store.SavePreparation(FirstServiceSaveSlot.DemoComplete, 5, 70, 1);
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 4, 50, Garlic(2));
+            store.SavePreparation(FirstServiceSaveSlot.DemoComplete, 5, 70, Garlic(1));
             Assert.That(store.TryLoadLatest(out var latest), Is.True);
             Assert.That(latest.Slot, Is.EqualTo(FirstServiceSaveSlot.Auto), "이어하기는 데모 완료 슬롯을 고르지 않는다");
             Assert.That(store.TryLoad(FirstServiceSaveSlot.DemoComplete, out var demo), Is.True);
@@ -375,15 +379,39 @@ namespace DOB.Tests
         }
 
         [Test]
+        public void SpicesAndFloorProgressRoundTripAndBadSpicesAreRejected()
+        {
+            var spices = new[] { new MaterialCount("garlic", 1), new MaterialCount("salt", 4) };
+            var floors = new FloorProgressState(2, 1, new[] { new FloorReveal(1, new[] { "독", "체력" }) });
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 40, spices, floors: floors);
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var loaded), Is.True);
+            Assert.That(loaded.Spices.Select(x => (x.Id, x.Count)), Is.EqualTo(new[] { ("garlic", 1), ("salt", 4) }));
+            Assert.That((loaded.Floors.OpenFloors, loaded.Floors.DeepestWins), Is.EqualTo((2, 1)));
+            Assert.That(loaded.Floors.Revealed.Single().Axes, Is.EqualTo(new[] { "독", "체력" }));
+            Assert.That(File.ReadAllText(Path.Combine(directory, "autosave.json")), Does.Not.Contain("garlicStock"), "스키마 6은 마늘 개수를 따로 쓰지 않는다");
+
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, new[] { new MaterialCount("salt", -1) }), "음수 재고");
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, new[] { new MaterialCount("truffle", 1) }), "모르는 양념");
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, spices, floors: new FloorProgressState(0, 0, null)), "열린 층 0");
+
+            // 손상된 파일의 모르는 양념은 읽지 않고 백업으로 돌아간다.
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 40, spices, floors: floors);
+            string path = Path.Combine(directory, "autosave.json");
+            File.WriteAllText(path, File.ReadAllText(path).Replace("\"salt\"", "\"truffle\""));
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var fallback), Is.True);
+            Assert.That(fallback.Spices.Any(x => x.Id == "truffle"), Is.False);
+        }
+
+        [Test]
         public void AServiceProgressSurvivesTheFileAndAMismatchedOneFallsBackToTheBackup()
         {
             var roster = new RosterProgress(3f, false, new[] { new VisitProgress("v1", "g1", ServiceVisitStage.Seated, ServiceVisitEnd.None, 2f, null, null, 1) });
-            var progress = new DayProgress(DayPhase.Service, null, 60, 1, roster, new[] { new OrderProgress("v1", FirstGuestOrderState.Cooking, 4f, 1) });
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, 2, progress: progress);
+            var progress = new DayProgress(DayPhase.Service, null, 60, Garlic(1), roster, new[] { new OrderProgress("v1", FirstGuestOrderState.Cooking, 4f, 1) });
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, Garlic(2), progress: progress);
             // 두 번째 쓰기에서 첫 파일이 백업이 된다.
-            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, 2, progress: progress);
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, Garlic(2), progress: progress);
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var loaded), Is.True);
-            Assert.That(loaded.SchemaVersion, Is.EqualTo(5));
+            Assert.That(loaded.SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
             Assert.That(loaded.Progress.Phase, Is.EqualTo(DayPhase.Service));
             Assert.That(loaded.Progress.Orders.Single().RemainingSeconds, Is.EqualTo(4f));
             Assert.That(loaded.Progress.Roster.Visits.Single().Seat, Is.EqualTo(1));
@@ -395,8 +423,8 @@ namespace DOB.Tests
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var fallback), Is.True, "명단에 없는 주문이면 백업을 읽는다");
             Assert.That(fallback.Progress.Orders.Single().VisitId, Is.EqualTo("v1"));
 
-            var orphan = new DayProgress(DayPhase.Service, null, 60, 1, roster, new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, 0) });
-            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, 2, progress: orphan));
+            var orphan = new DayProgress(DayPhase.Service, null, 60, Garlic(1), roster, new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, 0) });
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, Garlic(2), progress: orphan));
         }
     }
 }

@@ -389,7 +389,7 @@ namespace DOB.Tests
             // FeatureManagerMap 「저장 · F13」 보고 A·B 사례 2·3.
             var a = new VisitResult("guest-a", "visit-a", "하루", 1, "구운 빵", true, new[] { 0, 0, 0, 0, 0, 0 }, ExpeditionGrade.Success, new[] { "들풀", "들풀" });
             var b = new VisitResult("guest-b", "visit-b", "바람", 1, "구운 빵", true, new[] { 0, 0, 0, 0, 0, 0 }, ExpeditionGrade.Success, new[] { "숲버섯" });
-            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1, null, new[] { a, b });
+            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, Garlic(1), null, new[] { a, b });
             yield return LoadTitle();
             yield return Click("ContinueButton");
             yield return Until(() => ReadyDay(2), "2일차 아침");
@@ -408,6 +408,10 @@ namespace DOB.Tests
             Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 0)), "A만 받은 재고");
             yield return Click("ConfirmMorningReport");
             Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 1)), "B는 한 번만 더해진다");
+            // 층 진행도 보고마다 한 번씩: 1층 성공 A·B 두 번으로 2층이 열리고, A가 1층의 미확인 축(독·체력)을 공개했다.
+            Assert.That(settlement.OpenFloors, Is.EqualTo(2), "다시 불러와도 A를 두 번 세지 않는다");
+            Assert.That(settlement.FloorOutcomeOf("visit-a").Revealed, Is.EqualTo(new[] { "독", "체력" }));
+            Assert.That((settlement.FloorOutcomeOf("visit-b").Revealed.Count, settlement.FloorOutcomeOf("visit-b").OpenedFloor), Is.EqualTo((0, (int?)2)));
 
             // 준비 단계에서 저장하고 불러오면 준비 단계에서 이어지고 다시 받지 않는다.
             BasementComposition.Current.Game.SaveManual();
@@ -417,6 +421,45 @@ namespace DOB.Tests
             economy = Object.FindAnyObjectByType<EconomyManager>();
             Assert.That(BasementComposition.Current.Game.Phase, Is.EqualTo(DayPhase.Preparation));
             Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 1)));
+        }
+
+        [UnityTest]
+        public IEnumerator SpicesBoughtInPreparationAndFloorProgressCarryToTheNextDay()
+        {
+            // shop-economy·floor-progress 명세: 준비 단계에서 산 양념과 아침 보고의 층 진행이 정산을 거쳐 다음 일차 자동 슬롯에 남는다.
+            TestGuestRoster.Use(guests: 1);
+            var report = new VisitResult("guest-a", "visit-a", "하루", 1, "구운 빵", true, new[] { 0, 0, 0, 0, 1, 0 }, ExpeditionGrade.Success, new string[0]);
+            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, Garlic(1), null, new[] { report });
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(2), "2일차 아침");
+            var economy = Object.FindAnyObjectByType<EconomyManager>();
+            var salt = new System.Collections.Generic.Dictionary<string, int> { ["salt"] = 2 };
+            Assert.That(economy.Buy(salt).Result, Is.EqualTo(PurchaseResult.MarketClosed), "아침 보고 중에는 시장이 닫혀 있다");
+            yield return Click("ConfirmMorningReport");
+            var bought = economy.Buy(salt);
+            Assert.That((bought.Result, bought.Gold, economy.SpiceCount("salt")), Is.EqualTo((PurchaseResult.Purchased, 55, 2)));
+            Assert.That(FindScene().Kitchen.Gold, Is.EqualTo(55), "주방은 경제의 금화를 그대로 본다");
+
+            yield return Click("StartService");
+            Assert.That(economy.Buy(salt).Result, Is.EqualTo(PurchaseResult.MarketClosed), "영업 중 구매");
+            var s = FindScene();
+            yield return Until(() => s.Guests.Agents.Count == 1 && s.Guests.Agents[0].Move == GuestAgent.Movement.Queued, "손님 입장");
+            yield return GreetAndSeat(s, s.Guests.Agents[0], 0);
+            yield return CookAndServe(s, s.Guests.Agents[0]);
+            int goldAfterService = economy.Gold;
+            Assert.That(goldAfterService, Is.GreaterThan(55));
+            yield return Until(() => s.Hud.Settle.IsInteractable(), "마감");
+            yield return Click("SettleDay");
+            yield return Until(() => ReadyDay(3), "3일차");
+
+            Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var next), Is.True);
+            Assert.That((next.Day, next.Gold), Is.EqualTo((3, goldAfterService)));
+            Assert.That(next.Spices.Single(x => x.Id == "salt").Count, Is.EqualTo(2), "산 소금(영업에서 쓰지 않음)");
+            Assert.That((next.Floors.OpenFloors, next.Floors.DeepestWins), Is.EqualTo((1, 1)));
+            Assert.That(next.Floors.Revealed.Single().Axes, Is.EqualTo(new[] { "독", "체력" }), "부족했던 체력부터, 남은 칸은 독");
+            Assert.That(Object.FindAnyObjectByType<EconomyManager>().SpiceCount("salt"), Is.EqualTo(2), "다음 날 경제가 저장된 양념으로 열린다");
+            Assert.That(Object.FindAnyObjectByType<SettlementManager>().IsRiskRevealed(1, "체력"), Is.True);
         }
 
         [UnityTest]
@@ -506,7 +549,10 @@ namespace DOB.Tests
             Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired, orders.GarlicRequired), Is.EqualTo(CookStartResult.Started));
 
             int gold = status.Gold;
-            int price = orders.Price(true);
+            // 요리 화면의 예상 대금은 화면이 다루는 주문(둘째 손님) 기준이라, 서빙하는 첫 손님의 대금은 같은 식으로 따로 구한다.
+            var market = MarketRules.Load();
+            int price = PriceJudge.Payment(market, 8, s.Guests.FlavorScoreFor(market, s.Guests.Roster.Find(first.VisitId).GuestId, "구운 빵", new[] { "마늘" }), 1);
+            Assert.That(orders.Price(true), Is.EqualTo(PriceJudge.Payment(market, 8, s.Guests.FlavorScoreFor(market, s.Guests.Roster.Find(second.VisitId).GuestId, "구운 빵", new[] { "마늘" }), 1)));
             var seat = s.Service.SeatOf(first.VisitId);
             Place(s.Player, seat.position);
             Assert.That((prompt.Target, prompt.Action), Is.EqualTo((seat, "서빙")));

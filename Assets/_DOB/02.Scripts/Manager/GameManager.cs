@@ -2,16 +2,17 @@
 // GameManager — Gameplay 하루 진행의 진입점
 // 역할   : 씬 조립이 끝난 뒤 하루를 연다. 하루 단계(DayCycle)·방명록(RelationshipManager)·하루 진행 화면(DayFlowPresenter)을
 //          연결하고, 단계에 맞춰 응대·주방을 켜고, 마감 정산과 수동 저장을 처리한다.
-//          금화·마늘 값은 주방(FirstGuestKitchen), 던전 재료는 EconomyManager, 방문 결과와 귀환 보고는 SettlementManager,
+//          금화·양념·던전 재료는 EconomyManager, 방문 결과·귀환 보고·층 진행은 SettlementManager, 마감 정산 저장은 SaveManager,
 //          하루 단계는 DayCycle이 소유하며 여기서 따로 보관하지 않는다.
 // 호출자 : BasementComposition (Prepare → 로딩 화면 닫힘 → StartService)
 // 호출   : DayCycle, DayFlowPresenter, RelationshipManager, SettlementManager, EconomyManager, FirstGuestService,
-//          FirstGuestKitchen, GuestManager(명단), ServicePauseReasons, FirstServiceSaveStore, BasementPauseMenu,
+//          FirstGuestKitchen, GuestManager(명단), ServicePauseReasons, SaveManager, FirstServiceSaveStore, BasementPauseMenu,
 //          BasementComposition.EnterDay
-// 상태   : 현재 일차의 DayCycle, 일차 시작 스냅샷, 새 진행 여부, 이번 일차의 정산 결과, 영업 정지 사유
+// 상태   : 현재 일차의 DayCycle, 일차 시작 스냅샷, 새 진행 여부, 영업 정지 사유 (정산 결과는 SaveManager가 보관)
 // 의사코드:
 //   Prepare  — 연결이 하나라도 없으면 아무것도 바꾸지 않고 실패. 주방·마감 버튼을 UI에 연결하고 시작 스냅샷으로 주방을 연다.
-//              스냅샷의 던전 재료로 재고를, 미처리 귀환 보고로 오늘 아침 보고를 연다(새 게임은 둘 다 비어 있다).
+//              스냅샷의 금화·양념·던전 재료로 경제를(새 게임은 시장 기준의 시작 값), 미처리 귀환 보고·층 진행으로 오늘 아침 보고를 연다.
+//              시장은 준비 단계에서만 열리게 연결한다.
 //              귀환 보고 화면의 Presenter가 있으면 보고 조회와 신규 재료 판별을 넘겨 준다.
 //              호감·입소문 기준이 잘못돼도 실패한다. 스냅샷의 전날 방문 호감·입소문 추가 인원·손님 명부를 관계 총괄에 넘긴다.
 //              관계 총괄이 판정한 「오늘 올 수 있는 손님」과 입소문 신규 인원, 그 일차의 난수 시드를 손님 총괄에 넘긴다.
@@ -84,7 +85,8 @@ namespace DOB.Manager
         private BasementPauseMenu pauseMenu;
         private Button settleButton;
         private bool newTimeline;
-        private FirstServiceSaveData settledCheckpoint;
+        // 마감 정산 저장과 그 결과를 소유한다. 씬에 없으면 하루를 열 때 붙인다.
+        private SaveManager saveManager;
         // 수동 저장이 일차 시작 상태를 그대로 다시 쓰도록 보관한다. 새 게임이면 null.
         private FirstServiceSaveData dayStart;
         private DayCycle cycle;
@@ -133,10 +135,18 @@ namespace DOB.Manager
                 Debug.LogError("[DOB] 호감·입소문 기준을 확인하세요. " + affinityError, relationship);
                 return false;
             }
-            // 재고를 먼저 열어야 귀환 보고가 전리품을 넣을 곳이 생긴다. 보상 기준이 빠졌으면 여기서 실패한다.
-            economy.BeginDay(start?.Materials);
-            if (!settlement.BeginDay(start?.PendingReports, economy.Materials))
+            if (economy.SetupError is string marketError)
+            {
+                Debug.LogError("[DOB] 시장 기준을 확인하세요. " + marketError, economy);
                 return false;
+            }
+            // 재고를 먼저 열어야 귀환 보고가 전리품을 넣을 곳이 생긴다. 보상·층 기준이 빠졌으면 여기서 실패한다.
+            economy.BeginDay(start?.Gold, start?.Spices, start?.Materials);
+            if (!settlement.BeginDay(start?.PendingReports, economy.Materials, start?.Floors))
+                return false;
+            saveManager = GetComponent<SaveManager>();
+            if (!saveManager) saveManager = gameObject.AddComponent<SaveManager>();
+            saveManager.Begin(store);
 
             saves = store;
             pauseMenu = menu;
@@ -152,7 +162,7 @@ namespace DOB.Manager
             settleButton = hud.Settle;
             settleButton.interactable = false;
             settleButton.onClick.AddListener(Settle);
-            kitchen.StartDay(start?.Gold ?? kitchen.DayStartGold, start?.GarlicStock ?? kitchen.DayStartGarlic);
+            kitchen.StartDay(economy);
             kitchen.Served += RecordMeal;
 
             relationship.BeginDay(Settings.GuestbookWriteSeconds, start?.VisitAffinities, start?.WordOfMouthBonus ?? 0, start?.Guests, startDay);
@@ -163,6 +173,8 @@ namespace DOB.Manager
             if (returnReport) returnReport.Bind(() => settlement.Reports, settlement.IsNewMaterial);
             cycle = new DayCycle();
             cycle.PhaseChanged += OnPhaseChanged;
+            // 시장은 준비 단계에서만 연다.
+            economy.MarketOpen = () => cycle != null && cycle.Phase == DayPhase.Preparation;
             dayFlow = new DayFlowPresenter(cycle, relationship.Guestbook, hud.MorningReport, hud.Preparation, hud.Guestbook,
                 () => (kitchen.Gold, kitchen.GarlicStock));
             try
@@ -198,19 +210,19 @@ namespace DOB.Manager
             {
                 if (!SaveSettlement())
                     throw new IOException("영업 정산을 저장하지 못했습니다.");
-                var next = settledCheckpoint;
-                saves.SavePreparation(FirstServiceSaveSlot.Manual, next.Day, next.Gold, next.GarlicStock, next.Materials, next.PendingReports,
-                    next.VisitAffinities, next.WordOfMouthBonus, next.Guests, next.DaySeed);
+                var next = saveManager.Settled;
+                saves.SavePreparation(FirstServiceSaveSlot.Manual, next.Day, next.Gold, next.Spices, next.Materials, next.PendingReports,
+                    next.VisitAffinities, next.WordOfMouthBonus, next.Guests, next.DaySeed, null, next.Floors);
                 return;
             }
             SaveDayStart(FirstServiceSaveSlot.Manual, CaptureProgress());
         }
 
-        // 재료·미처리 보고·전날 호감·입소문 인원은 일차 시작 스냅샷의 값을 쓴다. 아침에 이미 받은 전리품은 진행의 확정 보고로 남겨,
+        // 금화·양념·재료·미처리 보고·전날 호감·입소문 인원·층 진행은 일차 시작 스냅샷의 값을 쓴다. 아침에 이미 받은 전리품은 진행의 확정 보고로 남겨,
         // 불러올 때 시작 재고에 한 번씩 다시 더한다. 지금 재고를 그대로 쓰면 미처리 보고와 겹쳐 두 번 받게 된다 (FeatureManagerMap A·B).
-        private void SaveDayStart(FirstServiceSaveSlot slot, DayProgress progress = null) => saves.SavePreparation(slot, startDay, kitchen.DayStartGold,
-            kitchen.DayStartGarlic, dayStart?.Materials, dayStart?.PendingReports, dayStart?.VisitAffinities, dayStart?.WordOfMouthBonus ?? 0,
-            dayStart?.Guests, daySeed, progress);
+        private void SaveDayStart(FirstServiceSaveSlot slot, DayProgress progress = null) => saves.SavePreparation(slot, startDay, economy.DayStartGold,
+            economy.DayStartSpices, dayStart?.Materials, dayStart?.PendingReports, dayStart?.VisitAffinities, dayStart?.WordOfMouthBonus ?? 0,
+            dayStart?.Guests, daySeed, progress, dayStart?.Floors);
 
         private DayProgress CaptureProgress()
         {
@@ -220,7 +232,7 @@ namespace DOB.Manager
                 return null;
             var confirmed = settlement.ConfirmedReports;
             if (cycle.Phase != DayPhase.Service)
-                return new DayProgress(cycle.Phase, confirmed, kitchen.Gold, kitchen.GarlicStock);
+                return new DayProgress(cycle.Phase, confirmed, economy.Gold, economy.Spices.All());
             var roster = guests.Roster;
             // 식당이 아직 준비되지 않았으면 영업에서 바뀐 것이 없으므로 일차 시작으로 충분하다.
             if (roster == null)
@@ -228,25 +240,28 @@ namespace DOB.Manager
             var visits = roster.Visits.Select(v => new VisitProgress(v.VisitId, v.GuestId, v.Stage, v.End, v.WaitSeconds, v.WaitScore,
                 v.TasteScore, guests.Find(v.VisitId) is GuestAgent agent ? agent.SeatIndex : -1));
             var orders = kitchen.Orders.Select(o => new OrderProgress(o.VisitId, o.State, o.RemainingSeconds, o.UsedGarlic));
-            return new DayProgress(DayPhase.Service, confirmed, kitchen.Gold, kitchen.GarlicStock,
+            return new DayProgress(DayPhase.Service, confirmed, economy.Gold, economy.Spices.All(),
                 new RosterProgress(roster.NextArrivalSeconds, roster.ArrivalDue, visits), orders, relationship.Guestbook.Snapshot(),
                 settlement.TodayResults);
         }
 
-        // 저장된 확정 보고를 다시 확정하고 저장된 단계까지 넘긴다. 영업 진행은 식당이 준비된 뒤 ResumeService가 되살린다.
+        // 저장된 확정 보고를 다시 확정하고(전리품·층 진행이 한 번씩 반영된다) 누른 시점의 금화·양념으로 바꾼 뒤 저장된 단계까지 넘긴다.
+        // 영업 진행은 식당이 준비된 뒤 ResumeService가 되살린다.
         private void ResumePhase(DayProgress progress)
         {
             foreach (string visitId in progress.ConfirmedReports)
                 settlement.ConfirmReport(visitId);
+            // 영업 단계로 넘어가면 주방이 켜지며 양념 재고를 잡으므로, 그 전에 바꾼다.
+            if (!economy.Restore(progress.Gold, progress.Spices))
+                Debug.LogError("[DOB] 수동 저장의 금화·양념을 되살리지 못했습니다.", this);
             while (cycle.Phase != progress.Phase && cycle.TryComplete(cycle.Phase, out _)) { }
-            // shortcut: 준비 단계의 구매(F8)가 아직 없어 아침·준비 중 금화·마늘은 일차 시작 값과 같다. 구매가 생기면 여기서 되살린다.
             if (cycle.Phase != DayPhase.Service)
                 pendingProgress = null;
         }
 
         private void ResumeService(DayProgress progress)
         {
-            bool restored = guests.RestoreProgress(progress.Roster) && kitchen.RestoreProgress(progress.Gold, progress.Garlic, progress.Orders);
+            bool restored = guests.RestoreProgress(progress.Roster) && kitchen.RestoreProgress(progress.Orders);
             settlement.RestoreResults(progress.Results);
             foreach (var entry in progress.Guestbook)
                 restored &= relationship.Guestbook.Restore(entry.GuestId, entry.VisitId, entry.GuestName, entry.Line, entry.RemainingSeconds);
@@ -277,7 +292,7 @@ namespace DOB.Manager
                 ShowDemoEnding();
             }
             else
-                BasementComposition.EnterDay(settledCheckpoint);
+                BasementComposition.EnterDay(saveManager.Settled);
         }
 
         // shortcut: 코드로 만든 임시 창이다. 실제 엔딩 화면이 생기면 DayPhase.DemoEnding을 받는 View로 바꾼다 (홍준우 인계).
@@ -303,7 +318,7 @@ namespace DOB.Manager
         // 다음 씬을 열지 못하거나 저장이 실패해 다시 불려도, 이미 확정한 정산을 그대로 쓴다.
         private bool SaveSettlement()
         {
-            if (settledCheckpoint != null)
+            if (saveManager.Settled != null)
                 return true;
             try
             {
@@ -316,10 +331,8 @@ namespace DOB.Manager
                 // 전리품 자격은 그날 호감을 더한 누적 호감·거절로 정하므로 명부를 갱신한 뒤에 정한다.
                 var reports = settlement.SettledResults(relationship.FindGuest);
                 nextDaySeed = nextDaySeed ?? Guid.NewGuid().GetHashCode();
-                settledCheckpoint = newTimeline
-                    ? saves.SavePreparation(FirstServiceSaveSlot.Auto, checked(Day + 1), kitchen.Gold, kitchen.GarlicStock, materials, reports,
-                        affinities, bonus, ledger, nextDaySeed)
-                    : saves.SettleDay(Day, kitchen.Gold, kitchen.GarlicStock, materials, reports, affinities, bonus, ledger, nextDaySeed);
+                saveManager.Settle(newTimeline, Day, economy.Gold, economy.Spices.All(), materials, reports, affinities, bonus, ledger,
+                    nextDaySeed, settlement.FloorSnapshot);
                 return true;
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)

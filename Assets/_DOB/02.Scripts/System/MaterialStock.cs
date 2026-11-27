@@ -1,12 +1,14 @@
 // =====================================================================
-// MaterialStock — 던전 재료 재고의 유일한 소유자 (순수 C#)
-// 호출자 : EconomyManager (일차 시작 때 생성), ReturnReportLog (보고 확정 때 TryAdd), GameManager (정산 저장 때 All)
+// MaterialStock — 이름·id별 재고 (순수 C#). 던전 재료와 양념이 서로 다른 인스턴스를 쓴다
+// 호출자 : EconomyManager (일차 시작 때 던전 재료·양념 재고를 각각 생성), ReturnReportLog (보고 확정 때 재료 TryAdd),
+//          Market (구매한 양념 TryAdd), OrderBook (조리 시작 때 양념 TryConsume), GameManager (저장 때 All)
 // 상태   : 재료 이름별 보유 수 (0 이상)
 // 의사코드:
 //   생성   — 저장된 시작 재고를 받아 채운다. 이름이 비었거나 수량이 음수인 항목은 예외.
 //   Count  — 가진 적 없는 재료는 0.
 //   TryAdd — 이름이 비었거나 수량이 1보다 작으면 아무것도 바꾸지 않고 false.
-// 지금 재료를 늘리는 경로는 귀환 보고 확정뿐이고, 쓰는 경로(던전 재료 요리)는 후속이다.
+//   TryConsume — 음수이거나 보유 수보다 많으면 아무것도 바꾸지 않고 false. 0개는 바꾸지 않고 true.
+// 던전 재료를 쓰는 경로(던전 재료 요리)는 후속이다. 양념은 조리 시작 때 쓴다.
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -28,7 +30,7 @@ namespace DOB.Systems
         }
     }
 
-    /// <summary>던전 재료의 보유 수를 관리한다. 금화·양념은 다루지 않는다.</summary>
+    /// <summary>품목별 보유 수. 던전 재료와 양념은 서로 다른 인스턴스이며 금화는 다루지 않는다.</summary>
     public sealed class MaterialStock
     {
         private readonly Dictionary<string, int> counts = new Dictionary<string, int>();
@@ -63,6 +65,16 @@ namespace DOB.Systems
             if (string.IsNullOrEmpty(id) || amount < 1)
                 return false;
             counts[id] = checked(Count(id) + amount);
+            return true;
+        }
+
+        /// <summary>보유 수에서 뺀다. 음수·부족이면 바꾸지 않고 false.</summary>
+        public bool TryConsume(string id, int amount)
+        {
+            if (amount < 0 || amount > Count(id))
+                return false;
+            if (amount > 0)
+                counts[id] -= amount;
             return true;
         }
     }

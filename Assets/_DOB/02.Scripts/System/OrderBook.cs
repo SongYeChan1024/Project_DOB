@@ -1,41 +1,44 @@
-// OrderBook — 하루 영업의 주문 장부. 방문별 주문, 공유 마늘 재고, 조리 칸 하나, 들고 있는 접시 하나를 소유한다.
+// OrderBook — 하루 영업의 주문 장부. 방문별 주문, 조리 칸 하나, 들고 있는 접시 하나를 소유한다.
 // 호출자: FirstGuestKitchen(착석 시 주문 열기, 레시피 확정, 픽업·서빙, 떠난 방문 취소), 조리 Δ는 GameManager가 넘긴다.
-// 상태  : 연 순서의 주문 목록, 마늘 재고.
+// 상태  : 연 순서의 주문 목록. 양념 재고는 경제(EconomyManager.Spices)가 소유하고 여기서는 소비만 요청한다.
+//         대금은 맛 점수가 필요해 주방이 PriceJudge로 정한다.
 // 의사코드:
 //   TryOpen — 빈 ID·이미 주문이 있는 방문이면 거절하고, 아니면 대기 주문을 하나 추가한다.
 //   TryStart — 방문을 지정하지 않으면 가장 먼저 연 대기 주문을 고른다. 조리 중인 주문이 있거나 양념이 재고보다 많으면
-//              거절하고 재고를 그대로 둔다. 성공하면 양념을 재고에서 한 번 차감한다.
+//              거절하고 재고를 그대로 둔다. 성공하면 경제의 양념 재고에서 한 번 소비한다.
 //   Advance — 조리 중인 주문에만 조리 시계 Δ를 넘긴다.
 //   TryPickUp — 접시를 들고 있지 않을 때 완성된 주문 하나를 든다(지정하지 않으면 먼저 완성된 것).
-//   TryServe — 들고 있는 접시의 방문 ID와 같을 때만 한 번 계산한다. 다른 방문이면 거절하고 접시를 계속 든다.
+//   TryServe — 들고 있는 접시의 방문 ID와 같을 때만 한 번 서빙된다. 다른 방문이면 거절하고 접시를 계속 든다.
 //   Cancel — 서빙 전 주문을 취소한다. 조리 칸·들고 있던 접시는 그 주문의 상태로 정해지므로 함께 빈다. 양념은 돌려주지 않는다.
 using System;
 using System.Collections.Generic;
 
 namespace DOB.Systems
 {
-    /// <summary>방문 ID별 주문과 공유 재고. 일차마다 새로 만든다.</summary>
+    /// <summary>방문 ID별 주문. 일차마다 새로 만든다.</summary>
     public sealed class OrderBook
     {
         private readonly List<FirstGuestOrder> orders = new List<FirstGuestOrder>();
         private readonly float cookSeconds;
         private readonly int flourRequired;
-        private readonly int breadBasePrice;
+        private readonly MaterialStock spices;
+        private readonly string garlicId;
 
-        public OrderBook(int garlicStock, float cookSeconds, int flourRequired, int breadBasePrice)
+        /// <param name="spices">경제가 소유한 양념 재고.</param>
+        /// <param name="garlicId">이 레시피가 넣는 양념의 id.</param>
+        public OrderBook(MaterialStock spices, string garlicId, float cookSeconds, int flourRequired)
         {
-            if (garlicStock < 0) throw new ArgumentOutOfRangeException(nameof(garlicStock));
+            this.spices = spices ?? throw new ArgumentNullException(nameof(spices));
+            if (string.IsNullOrEmpty(garlicId)) throw new ArgumentException("양념 id가 필요합니다.", nameof(garlicId));
+            this.garlicId = garlicId;
             if (!(cookSeconds > 0f) || float.IsInfinity(cookSeconds)) throw new ArgumentOutOfRangeException(nameof(cookSeconds));
             if (flourRequired <= 0) throw new ArgumentOutOfRangeException(nameof(flourRequired));
-            if (breadBasePrice < 0) throw new ArgumentOutOfRangeException(nameof(breadBasePrice));
-            GarlicStock = garlicStock;
             this.cookSeconds = cookSeconds;
             this.flourRequired = flourRequired;
-            this.breadBasePrice = breadBasePrice;
         }
 
-        /// <summary>주문 사이에서 공유하는 마늘 재고.</summary>
-        public int GarlicStock { get; private set; }
+        /// <summary>주문 사이에서 공유하는 마늘 재고(경제의 양념 재고에서 읽는다).</summary>
+        public int GarlicStock => spices.Count(garlicId);
         /// <summary>연 순서의 주문 목록(취소·서빙된 주문 포함).</summary>
         public IReadOnlyList<FirstGuestOrder> Orders => orders;
         /// <summary>그 방문의 주문. 없으면 null.</summary>
@@ -55,7 +58,7 @@ namespace DOB.Systems
         {
             if (string.IsNullOrWhiteSpace(visitId) || Find(visitId) != null)
                 return false;
-            orders.Add(new FirstGuestOrder(visitId, cookSeconds, flourRequired, breadBasePrice));
+            orders.Add(new FirstGuestOrder(visitId, cookSeconds, flourRequired));
             return true;
         }
 
@@ -65,7 +68,7 @@ namespace DOB.Systems
             var order = visitId == null ? NextWaiting : Find(visitId);
             if (order == null || Cooking != null || garlic > GarlicStock || !order.TryStart(flour, garlic))
                 return false;
-            GarlicStock -= garlic;
+            spices.TryConsume(garlicId, garlic);
             return true;
         }
 
@@ -79,18 +82,18 @@ namespace DOB.Systems
             return order != null && Carried == null && order.TryPickUp();
         }
 
-        /// <summary>들고 있는 접시를 그 방문에 서빙하고 대금을 받는다. 다른 방문이면 거절한다.</summary>
-        public bool TryServe(string visitId, out int payment)
+        /// <summary>들고 있는 접시를 그 방문에 서빙한다. 다른 방문이면 거절한다. 대금은 주방이 정한다.</summary>
+        public bool TryServe(string visitId)
         {
-            payment = 0;
             var carried = Carried;
-            return carried != null && carried.TryServe(visitId, out payment);
+            return carried != null && carried.TryServe(visitId);
         }
 
-        /// <summary>저장 복원용. 주문이 하나도 없을 때만 저장된 주문들과 마늘 재고로 채운다. 이미 주문이 있거나 같은 방문·조리 중 주문이 겹치면 false.</summary>
-        public bool Restore(int garlicStock, IEnumerable<OrderProgress> saved)
+        /// <summary>저장 복원용. 주문이 하나도 없을 때만 저장된 주문들로 채운다. 이미 주문이 있거나 같은 방문·조리 중 주문이 겹치면 false.
+        /// 양념 재고는 경제가 따로 되살린다.</summary>
+        public bool Restore(IEnumerable<OrderProgress> saved)
         {
-            if (orders.Count > 0 || garlicStock < 0)
+            if (orders.Count > 0)
                 return false;
             var restored = new List<FirstGuestOrder>();
             var seen = new HashSet<string>();
@@ -104,12 +107,11 @@ namespace DOB.Systems
                     // 조리 칸이 하나라 조리 중인 주문도 하나여야 한다.
                     if (state == FirstGuestOrderState.Cooking && restored.Exists(o => o.State == FirstGuestOrderState.Cooking))
                         return false;
-                    var order = new FirstGuestOrder(entry.VisitId, cookSeconds, flourRequired, breadBasePrice);
+                    var order = new FirstGuestOrder(entry.VisitId, cookSeconds, flourRequired);
                     order.Restore(state, entry.RemainingSeconds, entry.UsedGarlic);
                     restored.Add(order);
                 }
             orders.AddRange(restored);
-            GarlicStock = garlicStock;
             return true;
         }
 

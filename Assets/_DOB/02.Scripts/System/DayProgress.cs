@@ -108,7 +108,9 @@ namespace DOB.Systems
         [DataMember(Name = "phase")] private int phase;
         [DataMember(Name = "confirmedReports")] private string[] confirmedReports;
         [DataMember(Name = "gold")] public int Gold { get; private set; }
-        [DataMember(Name = "garlic")] public int Garlic { get; private set; }
+        // 스키마 5는 마늘 개수만 저장했다. 스키마 6부터는 쓰지 않고 spices를 쓴다.
+        [DataMember(Name = "garlic", EmitDefaultValue = false)] private int garlic;
+        [DataMember(Name = "spices")] private MaterialCount[] spices;
         // 아래는 영업 단계에서만 쓴다.
         [DataMember(Name = "roster")] public RosterProgress Roster { get; private set; }
         [DataMember(Name = "orders")] private OrderProgress[] orders;
@@ -116,6 +118,8 @@ namespace DOB.Systems
         [DataMember(Name = "results")] private VisitResult[] results;
 
         public DayPhase Phase => (DayPhase)phase;
+        /// <summary>누른 시점의 양념 재고. 스키마 5 진행이면 마늘만 있다.</summary>
+        public IReadOnlyList<MaterialCount> Spices => spices ?? FirstServiceSaveData.LegacyGarlic(garlic);
         /// <summary>이미 확정한 귀환 보고의 방문 ID.</summary>
         public IReadOnlyList<string> ConfirmedReports => confirmedReports ?? Array.Empty<string>();
         public IReadOnlyList<OrderProgress> Orders => orders ?? Array.Empty<OrderProgress>();
@@ -123,13 +127,13 @@ namespace DOB.Systems
         /// <summary>오늘 서빙해 확정한 방문 결과(전리품은 비어 있다).</summary>
         public IReadOnlyList<VisitResult> Results => results ?? Array.Empty<VisitResult>();
 
-        public DayProgress(DayPhase phase, IEnumerable<string> confirmedReports, int gold, int garlic, RosterProgress roster = null,
+        public DayProgress(DayPhase phase, IEnumerable<string> confirmedReports, int gold, IEnumerable<MaterialCount> spices, RosterProgress roster = null,
             IEnumerable<OrderProgress> orders = null, IEnumerable<GuestbookProgress> guestbook = null, IEnumerable<VisitResult> results = null)
         {
             this.phase = (int)phase;
             this.confirmedReports = confirmedReports == null ? null : new List<string>(confirmedReports).ToArray();
             Gold = gold;
-            Garlic = garlic;
+            this.spices = new List<MaterialCount>(spices ?? Array.Empty<MaterialCount>()).ToArray();
             Roster = roster;
             this.orders = orders == null ? null : new List<OrderProgress>(orders).ToArray();
             this.guestbook = guestbook == null ? null : new List<GuestbookProgress>(guestbook).ToArray();
@@ -141,7 +145,7 @@ namespace DOB.Systems
         {
             if (Phase != DayPhase.MorningReport && Phase != DayPhase.Preparation && Phase != DayPhase.Service)
                 return false;
-            if (Gold < 0 || Garlic < 0)
+            if (Gold < 0 || garlic < 0 || !FirstServiceSaveData.SpicesAreValid(Spices))
                 return false;
             var confirmed = new HashSet<string>();
             foreach (string id in ConfirmedReports)

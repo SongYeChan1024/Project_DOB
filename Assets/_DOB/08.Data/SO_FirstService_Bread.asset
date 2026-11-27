@@ -14,11 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.Define::DOB.Define.FirstServiceRecipe
   dishId: Bread
   cookSeconds: 6
-  startGarlic: 2
   flourRequired: 2
   garlicRequired: 1
   breadBasePrice: 8
-  startGold: 50
   breadStamina: 1
   breadTrap: 1
   garlicPoison: 1

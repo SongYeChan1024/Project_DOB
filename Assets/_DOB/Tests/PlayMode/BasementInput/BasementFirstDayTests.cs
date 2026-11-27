@@ -177,9 +177,12 @@ namespace DOB.Tests
             yield return Press(Key.E);
             Assert.That(plate.gameObject.activeInHierarchy, Is.False, "서빙한 접시를 손에 계속 표시하지 않는다");
             Assert.That(kitchen.HasServed, Is.True);
-            Assert.That(kitchen.Gold, Is.EqualTo(59));
+            // 대금은 손님 입맛과 접시 맛(구운 빵 + 마늘)으로 정한 맛 점수에 따른다.
+            var market = MarketRules.Load();
+            int paid = PriceJudge.Payment(market, 8, UnityEngine.Object.FindAnyObjectByType<GuestManager>().FlavorScoreFor(market, visit.GuestId, "구운 빵", new[] { "마늘" }), 1);
+            Assert.That(kitchen.Gold, Is.EqualTo(50 + paid));
             Assert.That(kitchen.GarlicStock, Is.EqualTo(1));
-            Assert.That(hud.Receipt.text, Does.Contain("+9금화"));
+            Assert.That(hud.Receipt.text, Does.Contain($"+{paid}금화"));
             Assert.That(servedVisit, Is.EqualTo(visit.VisitId));
             Assert.That(servedName, Is.EqualTo(visit.GuestName));
             Assert.That(hud.Receipt.text, Does.Contain(servedName).And.Contain(servedLine));
@@ -218,10 +221,10 @@ namespace DOB.Tests
             Assert.That(loadedScenes, Does.Contain("Loading"));
             Assert.That(UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId, Is.Not.EqualTo(firstVisit));
             kitchen = UnityEngine.Object.FindAnyObjectByType<FirstGuestKitchen>();
-            Assert.That(kitchen.Gold, Is.EqualTo(59));
+            Assert.That(kitchen.Gold, Is.EqualTo(50 + paid));
             Assert.That(kitchen.GarlicStock, Is.EqualTo(1));
             Assert.That(kitchen.HasServed, Is.False);
-            AssertCheckpoint("autosave", 2, 59, 1);
+            AssertCheckpoint("autosave", 2, 50 + paid, 1);
 
             // 2일차는 아침보고 → 준비 → 영업 순서로 열리고, 영업 전에는 손님이 들어오지 않는다.
             var game = BasementComposition.Current.Game;
@@ -245,7 +248,7 @@ namespace DOB.Tests
             Assert.That(economy.Materials.All().Sum(m => m.Count), Is.EqualTo(report.Loot.Count));
             Assert.That(settlement.ConfirmReport(firstVisit), Is.EqualTo(ReportConfirmResult.AlreadyConfirmed));
             Assert.That(economy.Materials.All().Sum(m => m.Count), Is.EqualTo(report.Loot.Count));
-            Assert.That(kitchen.Gold, Is.EqualTo(59), "귀환 보고는 금화를 바꾸지 않는다");
+            Assert.That(kitchen.Gold, Is.EqualTo(50 + paid), "귀환 보고는 금화를 바꾸지 않는다");
             yield return Click("StartService");
             Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.Service));
             yield return Until(() => UnityEngine.Object.FindAnyObjectByType<FirstGuestService>().VisitId != null, "2일차 영업에서 손님 입장");
@@ -364,7 +367,7 @@ namespace DOB.Tests
         {
             var report = new VisitResult("guest-1", "visit-1", "하루", 1, "구운 빵", true, new[] { 0, 0, 0, 0, 0, 0 },
                 ExpeditionGrade.GreatSuccess, new[] { "들풀", "들풀", "숲버섯" });
-            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1,
+            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, Garlic(1),
                 new[] { new MaterialCount("숲버섯", 1) }, new[] { report });
 
             SettlementManager settlement = null;
@@ -596,9 +599,11 @@ namespace DOB.Tests
         [Serializable]
         private sealed class SavedCheckpoint
         {
-            public int day = -1, gold = -1, garlicStock = -1;
+            public int day = -1, gold = -1;
             public string stage = "", slot = "";
         }
+
+        private static MaterialCount[] Garlic(int count) => new[] { new MaterialCount("garlic", count) };
 
         // 저장 로더가 읽는 기존 DataContract JSON 형식으로 이전 진행을 준비한다.
         private void SeedAutosave(int day, int gold, int garlic)
@@ -619,7 +624,8 @@ namespace DOB.Tests
             Assert.That(save.stage, Is.EqualTo("Preparation"));
             Assert.That(save.day, Is.EqualTo(day));
             Assert.That(save.gold, Is.EqualTo(gold));
-            Assert.That(save.garlicStock, Is.EqualTo(garlic));
+            Assert.That(new FirstServiceSaveStore(directory).TryLoad(slot == "manual" ? FirstServiceSaveSlot.Manual : FirstServiceSaveSlot.Auto, out var loaded), Is.True);
+            Assert.That(loaded.GarlicStock, Is.EqualTo(garlic));
         }
 
         private void RecordScene(Scene scene, LoadSceneMode mode) => loadedScenes.Add(scene.name);
