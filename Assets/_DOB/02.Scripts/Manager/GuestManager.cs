@@ -79,6 +79,14 @@ namespace DOB.Manager
             return TasteJudge.Score(tastes, TasteJudge.DishFlavors(rules, dish, seasonings));
         }
 
+        /// <summary>금화에 쓰는 접시 맛 점수(기본 + 입맛 일치 수). 입맛 기준이 없거나 손님 입맛이 없으면 기본 점수.</summary>
+        public int FlavorScoreFor(MarketRules market, string guestId, string dish, IEnumerable<string> seasonings)
+        {
+            var rules = Resources.Load<TasteRules>(TasteRules.ResourceName);
+            var tastes = TastesOf(guestId);
+            return PriceJudge.FlavorScore(market, tastes, rules ? TasteJudge.DishFlavors(rules, dish, seasonings) : new HashSet<string>());
+        }
+
         /// <summary>그 방문의 손님 오브젝트. 없으면 null.</summary>
         public GuestAgent Find(string visitId) => agents.Find(a => a.VisitId == visitId);
 

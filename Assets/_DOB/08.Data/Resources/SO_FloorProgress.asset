@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7185f2cbe3efb4b66c8281b05e54ad9, type: 3}
+  m_Name: SO_FloorProgress
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.FloorProgressRules
+  openWins: 2
+  revealPerReport: 2
+  floors:
+  - name: 슬라임 숲
+    axes:
+    - 독
+    - 체력
+  - name: 곰팡이 동굴
+    axes:
+    - 독
+    - 어둠
+    - 함정
+  - name: 용암 균열
+    axes:
+    - 열
+    - 체력
+    - 함정
+  - name: 서리 회랑
+    axes:
+    - 냉기
+    - 어둠
+    - 체력
+  - name: 눈먼 심연
+    axes:
+    - 독
+    - 냉기
+    - 어둠
+    - 체력

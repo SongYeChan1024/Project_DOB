@@ -1,0 +1,65 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d694de68464d8945cfe1a171f5ff3894, type: 3}
+  m_Name: SO_Market
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.MarketRules
+  startGold: 50
+  spices:
+  - id: garlic
+    name: 마늘
+    effect: 해독
+    flavor: 향긋
+    price: 2
+    startStock: 2
+  - id: mint
+    name: 박하
+    effect: 내열
+    flavor: 시원
+    price: 2
+    startStock: 0
+  - id: ginger
+    name: 생강
+    effect: 방한
+    flavor: 얼큰
+    price: 2
+    startStock: 0
+  - id: carrot
+    name: 당근즙
+    effect: 야광
+    flavor: 달콤
+    price: 3
+    startStock: 0
+  - id: salt
+    name: 소금
+    effect: 활력
+    flavor: 짭짤
+    price: 2
+    startStock: 2
+  - id: pepper
+    name: 후추
+    effect: 감각
+    flavor: 알싸
+    price: 2
+    startStock: 0
+  notForSale:
+  - 밀가루
+  - 감자
+  - 고기
+  - 숲 송로
+  - 반딧불 이끼
+  - 화산 소금
+  - 서리 수정
+  - 심연 진주
+  baseTasteScore: 2
+  maxTasteBonus: 2
+  priceBaseRate: 0.6
+  priceTasteRate: 0.2

@@ -12,6 +12,8 @@ namespace DOB.Tests
 {
     public sealed class DayProgressTests
     {
+
+        private static MaterialCount[] Garlic(int count) => new[] { new MaterialCount("garlic", count) };
         private ServiceRosterSettings settings;
 
         [SetUp]
@@ -82,21 +84,21 @@ namespace DOB.Tests
         [Test]
         public void OrdersComeBackWithTheirStateTimeAndGarlicAndAHeldPlateReturnsToTheCounter()
         {
-            var book = new OrderBook(2, 6f, 2, 8);
+            var book = new OrderBook(new MaterialStock(Garlic(2)), "garlic", 6f, 2);
             book.TryOpen("v1"); book.TryOpen("v2"); book.TryOpen("v3");
             book.TryStart("v1", 2, 1); book.Advance(6f); book.TryPickUp("v1");
             book.TryStart("v2", 2, 0); book.Advance(2f);
             var saved = book.Orders.Select(o => new OrderProgress(o.VisitId, o.State, o.RemainingSeconds, o.UsedGarlic)).ToList();
 
-            var restored = new OrderBook(5, 6f, 2, 8);
-            Assert.That(restored.Restore(book.GarlicStock, saved), Is.True);
-            Assert.That(restored.GarlicStock, Is.EqualTo(1));
+            var restored = new OrderBook(new MaterialStock(Garlic(1)), "garlic", 6f, 2);
+            Assert.That(restored.Restore(saved), Is.True);
+            Assert.That(restored.GarlicStock, Is.EqualTo(1), "양념 재고는 경제가 따로 되살린다");
             Assert.That(restored.Find("v1").State, Is.EqualTo(FirstGuestOrderState.Ready));
             Assert.That(restored.Find("v1").UsedGarlic, Is.EqualTo(1));
             Assert.That(restored.Cooking.VisitId, Is.EqualTo("v2"));
             Assert.That(restored.Cooking.RemainingSeconds, Is.EqualTo(4f));
             Assert.That(restored.NextWaiting.VisitId, Is.EqualTo("v3"));
-            Assert.That(restored.Restore(1, saved), Is.False, "이미 주문이 있으면 다시 채우지 않는다");
+            Assert.That(restored.Restore(saved), Is.False, "이미 주문이 있으면 다시 채우지 않는다");
         }
 
         [Test]
@@ -120,21 +122,21 @@ namespace DOB.Tests
         public void AProgressOutsideServiceCannotCarryARoster()
         {
             var roster = new RosterProgress(0f, false, null);
-            Assert.That(Valid(new DayProgress(DayPhase.Preparation, null, 10, 1, roster)), Is.False);
-            Assert.That(Valid(new DayProgress(DayPhase.Preparation, new[] { "v1" }, 10, 1)), Is.True);
-            Assert.That(Valid(new DayProgress(DayPhase.MorningReport, new[] { "v1", "v1" }, 10, 1)), Is.False, "같은 보고 두 번");
+            Assert.That(Valid(new DayProgress(DayPhase.Preparation, null, 10, Garlic(1), roster)), Is.False);
+            Assert.That(Valid(new DayProgress(DayPhase.Preparation, new[] { "v1" }, 10, Garlic(1))), Is.True);
+            Assert.That(Valid(new DayProgress(DayPhase.MorningReport, new[] { "v1", "v1" }, 10, Garlic(1))), Is.False, "같은 보고 두 번");
         }
 
         [Test]
         public void AServiceProgressMustPointOnlyAtItsOwnVisits()
         {
             var roster = new RosterProgress(3f, false, new[] { new VisitProgress("v1", "g1", ServiceVisitStage.Seated, ServiceVisitEnd.None, 2f, null, null, 0) });
-            Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, 0, roster,
+            Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, Garlic(0), roster,
                 new[] { new OrderProgress("v1", FirstGuestOrderState.Waiting, 6f, 0) })), Is.True);
-            Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, 0, roster,
+            Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, Garlic(0), roster,
                 new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, 0) })), Is.False);
             var ended = new RosterProgress(3f, false, new[] { new VisitProgress("v1", "g1", ServiceVisitStage.Seated, ServiceVisitEnd.Dispatched, 2f, 2, 0, 0) });
-            Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, 0, ended)), Is.False, "끝나지 않은 단계에 종료 방식");
+            Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, Garlic(0), ended)), Is.False, "끝나지 않은 단계에 종료 방식");
         }
 
         private static bool Valid(DayProgress progress) => progress.Validate();

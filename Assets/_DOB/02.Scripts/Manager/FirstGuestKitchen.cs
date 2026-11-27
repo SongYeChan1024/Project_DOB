@@ -1,14 +1,15 @@
-// FirstGuestKitchen — 주문 장부(OrderBook)를 주방 레시피 패널, 식당 상호작용, 영업 중 지갑에 연결한다.
+// FirstGuestKitchen — 주문 장부(OrderBook)를 주방 레시피 패널, 식당 상호작용, 경제(금화·양념)에 연결한다.
 // 호출자: FirstGuestService(E 입력·안내 위임, 착석 알림), GameManager(StartDay·ConnectHud·조리 Δ Tick, Served 구독).
-// 호출  : OrderBook, GuestManager(방문 원고 조회, VisitEnded), ExpeditionJudge.
-// 상태  : 영업 시작 금화·마늘, 현재 금화, 하루 주문 장부, 레시피 패널이 가리키는 방문.
+// 호출  : OrderBook, EconomyManager(양념 재고·서빙 대금), PriceJudge, GuestManager(방문 원고·입맛 조회, VisitEnded), ExpeditionJudge.
+// 상태  : 하루 주문 장부, 레시피 패널이 가리키는 방문. 금화·양념은 경제가 소유하고 여기서는 읽거나 요청만 한다.
 // 의사코드:
 //   착석 알림마다 그 방문의 주문을 연다. 서빙 전에 방문이 끝나면(돌려보냄·대기 이탈) 그 주문을 취소한다.
 //   E(주방 근처): 완성된 접시가 있으면 먼저 완성된 것을 든다. 아니면 조리 칸이 비었을 때 먼저 연 대기 주문의 레시피를 연다.
 //   확정하면 공유 재고가 레시피 양만큼 있으면 마늘을 넣고, 없으면 양념 없이 굽는다(첫 플레이 E11).
 //   조리 시간은 GameManager가 넘기는 조리 Δ로만 흐른다(응대·재료 선택 중에도 흐르고, 일시 정지·전환에 멈춘다).
 //   E(접시를 든 채 손님 자리 근처): 가장 가까운 착석 손님에게 서빙을 요청한다. 접시 주인이 아니면 장부가 거절한다.
-//   서빙이 성공하면 축별 부족을 한 번 계산해 출발 한마디를 고르고, 같은 값을 Served로 알려
+//   서빙이 성공하면 대금 = PriceJudge(기본가, 손님 입맛과 접시 맛의 맛 점수, 넣은 양념 수)을 경제에 한 번 더한다.
+//   축별 부족을 한 번 계산해 출발 한마디를 고르고, 같은 값을 Served로 알려
 //   GameManager가 방명록 글 등록·방문 결과 확정·명단의 파견 종료를 요청하게 한다.
 //   화면 약속(켜질 때 UIManager에 연결, 꺼질 때 해제): IServiceStatus(영업 HUD), IKitchenBurners(화구 표시), IKitchenOrders(요리 화면).
 //     값은 모두 OrderBook·명단에서 읽기만 한다. 주문표는 착석해 연 주문부터 서빙 전까지(취소 제외), 들고 있는 접시는 완성으로 보인다.
@@ -39,13 +40,11 @@ namespace DOB.Manager
 
         private OrderBook book;
         private string panelVisit;
-        private int gold;
-        private int? startingGold;
-        private int? startingGarlic;
-        public int DayStartGold => startingGold ?? recipe.StartGold;
-        public int DayStartGarlic => startingGarlic ?? recipe.StartGarlic;
-        public int Gold => gold;
-        public int GarlicStock => book?.GarlicStock ?? DayStartGarlic;
+        private EconomyManager economy;
+        /// <summary>지금 금화(경제의 값).</summary>
+        public int Gold => economy ? economy.Gold : 0;
+        /// <summary>지금 마늘 재고(경제의 양념 재고).</summary>
+        public int GarlicStock => economy ? economy.SpiceCount(GarlicId) : 0;
         /// <summary>오늘 서빙한 주문이 하나라도 있다.</summary>
         public bool HasServed
         {
@@ -90,8 +89,10 @@ namespace DOB.Manager
         }
 
         private const string Dish = "구운 빵";
-        // 입맛 기준(SO_TasteRules)의 양념 이름과 같아야 접시 맛에 들어간다.
-        private const string Garlic = "마늘";
+        // 이 레시피가 넣는 양념의 시장 id(SO_Market).
+        private const string GarlicId = "garlic";
+        // 입맛 기준(SO_TasteRules)의 양념 이름은 시장 표의 이름과 같다.
+        private string Garlic => economy.Rules.TryGet(GarlicId, out var spice) ? spice.name : GarlicId;
         /// <summary>서빙이 성공할 때 한 번 알린다 (방명록 등록·방문 결과 확정·파견 종료용).</summary>
         public event System.Action<ServedMeal> Served;
         // 양념이 부족하면 무료 기본 재료로 굽는다 (첫 플레이 E11). 재고는 주문 사이에서 공유한다.
@@ -170,8 +171,8 @@ namespace DOB.Manager
         int IKitchenOrders.GarlicRequired => GarlicForBread;
         int IKitchenOrders.GarlicStock => GarlicStock;
         int IKitchenOrders.Protection(string axis, bool garlic) => recipe.Protection(axis, garlic);
-        // 장부의 대금(기본가 + 넣은 마늘 수)과 같은 식이다.
-        int IKitchenOrders.Price(bool garlic) => recipe.BreadBasePrice + (garlic ? recipe.GarlicRequired : 0);
+        // 서빙 대금과 같은 식이다. 맛 점수는 화면이 다루는 주문의 손님 입맛으로 정한다.
+        int IKitchenOrders.Price(bool garlic) => ScreenOrder is FirstGuestOrder order ? PaymentFor(order.VisitId, garlic ? recipe.GarlicRequired : 0) : 0;
         int? IKitchenOrders.KnownRisk(string axis) => ScreenOrder is FirstGuestOrder order ? VisitOf(order.VisitId)?.NotebookRisk(axis) : null;
 
         /// <summary>요리 화면의 조리 시작 요청. 거절이면 재고·주문을 바꾸지 않는다.</summary>
@@ -225,12 +226,15 @@ namespace DOB.Manager
         private GuestDialogueVisit VisitOf(string visitId) => service.Guests.Find(visitId)?.Visit;
         private string NameOf(string visitId) => VisitOf(visitId)?.GuestName ?? "손님";
 
-        public void StartDay(int goldAtOpening, int garlicAtOpening)
+        /// <summary>오늘 금화·양념을 소유한 경제를 연결한다. GameManager가 하루를 열 때 부른다.</summary>
+        public void StartDay(EconomyManager dayEconomy) => economy = dayEconomy;
+
+        // 서빙 대금: 기본가·맛 점수·넣은 양념 수. 맛 점수는 손님 입맛과 접시 맛(레시피 + 양념)으로 정한다.
+        private int PaymentFor(string visitId, int garlic)
         {
-            startingGold = goldAtOpening;
-            startingGarlic = garlicAtOpening;
-            // 주방은 영업 단계에서야 켜지므로, 아침보고·준비 화면도 저장된 금화를 보도록 여기서 맞춘다.
-            gold = goldAtOpening;
+            string guestId = VisitOf(visitId)?.GuestId;
+            int taste = service.Guests.FlavorScoreFor(economy.Rules, guestId, Dish, garlic > 0 ? new[] { Garlic } : null);
+            return PriceJudge.Payment(economy.Rules, recipe.BreadBasePrice, taste, garlic);
         }
 
         // Additive UI가 로드되면 해당 씬이 소유한 버튼과 표시창을 한 번 연결한다.
@@ -246,14 +250,9 @@ namespace DOB.Manager
         /// <summary>연 순서의 주문(취소·서빙 포함). 주방이 꺼져 있으면 빈 목록.</summary>
         public IReadOnlyList<FirstGuestOrder> Orders => book != null ? book.Orders : (IReadOnlyList<FirstGuestOrder>)System.Array.Empty<FirstGuestOrder>();
 
-        /// <summary>수동 저장을 불러올 때 영업 중 금화·마늘·주문을 되살린다. 주방이 켜진 뒤에만, 주문이 비어 있을 때만 된다. 착석 알림은 다시 보내지 않는다.</summary>
-        public bool RestoreProgress(int savedGold, int garlic, IEnumerable<OrderProgress> orders)
-        {
-            if (book == null || savedGold < 0 || !book.Restore(garlic, orders))
-                return false;
-            gold = savedGold;
-            return true;
-        }
+        /// <summary>수동 저장을 불러올 때 영업 중 주문을 되살린다. 주방이 켜진 뒤에만, 주문이 비어 있을 때만 된다. 착석 알림은 다시 보내지 않는다.
+        /// 금화·양념은 경제가 따로 되살린다.</summary>
+        public bool RestoreProgress(IEnumerable<OrderProgress> orders) => book != null && book.Restore(orders);
 
         /// <summary>조리 시계가 허용한 경과 시간을 조리 중인 주문에 넘긴다. GameManager가 영업 중에만 부른다.</summary>
         public void Tick(float cookingDeltaSeconds) => book?.Advance(cookingDeltaSeconds);
@@ -262,8 +261,7 @@ namespace DOB.Manager
         {
             recipePanel.SetActive(false);
             receipt.text = string.Empty;
-            gold = DayStartGold;
-            book = new OrderBook(DayStartGarlic, recipe.CookSeconds, recipe.FlourRequired, recipe.BreadBasePrice);
+            book = new OrderBook(economy.Spices, GarlicId, recipe.CookSeconds, recipe.FlourRequired);
             service.GuestSeated += OpenOrder;
             service.Guests.VisitEnded += CancelOrder;
             service.MealInteraction = Interact;
@@ -327,9 +325,9 @@ namespace DOB.Manager
             {
                 // 접시 주인이 아닌 손님 자리에서는 장부가 거절해 접시를 계속 든다.
                 string target = service.NearestSeatedVisit();
-                if (target == null || !book.TryServe(target, out int payment))
+                if (target == null || !book.TryServe(target))
                     return false;
-                Serve(book.Find(target), payment);
+                Serve(book.Find(target));
                 return true;
             }
 
@@ -349,9 +347,10 @@ namespace DOB.Manager
             return true;
         }
 
-        private void Serve(FirstGuestOrder order, int payment)
+        private void Serve(FirstGuestOrder order)
         {
-            gold += payment;
+            int payment = PaymentFor(order.VisitId, order.UsedGarlic);
+            economy.Earn(payment);
             var visit = VisitOf(order.VisitId);
             string name = NameOf(order.VisitId);
             bool hasGarlic = order.UsedGarlic > 0;
@@ -367,7 +366,7 @@ namespace DOB.Manager
                 protections = ExpeditionJudge.PerAxis(axis => recipe.Protection(axis, hasGarlic));
                 resolve = $"\n“{visit.DepartureLine(ExpeditionJudge.Total(shortfalls))}”";
             }
-            receipt.text = $"{name}   “{line}”{resolve}\n서빙 +{payment}금화   ·   보유 {gold}금화   ·   남은 마늘 {GarlicStock}개";
+            receipt.text = $"{name}   “{line}”{resolve}\n서빙 +{payment}금화   ·   보유 {Gold}금화   ·   남은 마늘 {GarlicStock}개";
             if (receipt.preferredHeight > receipt.rectTransform.rect.height)
                 receipt.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, receipt.preferredHeight);
             Served?.Invoke(new ServedMeal(order.VisitId, name, line, Dish, hasGarlic, shortfalls, risks, protections,

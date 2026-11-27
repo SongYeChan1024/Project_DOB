@@ -1,6 +1,6 @@
 // 슬롯별 JSON을 같은 디렉터리의 임시 파일에 완전히 쓴 후 교체한다. 손상된 원본은 직전 백업으로 읽는다.
 // 정산은 쓰기 잠금 안에서 저장 일차를 다시 읽고, 아직 처리하지 않은 방문일의 지급 후 상태만 기록한다.
-// 스냅샷에는 던전 재료 재고, 다음 아침의 미처리 귀환 보고, 전날 방문 호감과 입소문 추가 인원, 손님 명부와 일차 시드가 함께 들어간다 (FirstServiceSaveData).
+// 스냅샷에는 양념·던전 재료 재고, 다음 아침의 미처리 귀환 보고, 전날 방문 호감과 입소문 추가 인원, 손님 명부와 일차 시드, 층 진행이 함께 들어간다 (FirstServiceSaveData).
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,12 +16,15 @@ namespace DOB.Systems
     {
         private static readonly object WriteGate = new object();
         private readonly string directory;
+        // 저장 슬롯의 양념 id 검사 기준. 병렬 정산이 다른 스레드에서 읽어도 되도록 만들 때 한 번 읽는다.
+        private readonly ICollection<string> knownSpices;
 
         /// <summary>프리뷰 전용 저장 경로를 호출자가 정한다. 슬롯을 찾아보기만 할 때는 폴더를 만들지 않는다.</summary>
         public FirstServiceSaveStore(string directory)
         {
             if (string.IsNullOrWhiteSpace(directory)) throw new ArgumentException("저장 경로가 필요합니다.", nameof(directory));
             this.directory = Path.GetFullPath(directory);
+            knownSpices = FirstServiceSaveData.LoadKnownSpices();
         }
 
         public bool TryLoad(FirstServiceSaveSlot slot, out FirstServiceSaveData data)
@@ -41,22 +44,22 @@ namespace DOB.Systems
 
         /// <summary>일차 시작 스냅샷을 쓴다. 재료·미처리 귀환 보고·전날 방문 호감을 생략하면 비어 있는 것으로,
         /// 입소문 추가 인원을 생략하면 0으로 저장한다. progress를 주면 수동 저장을 누른 시점의 진행을 함께 쓴다.</summary>
-        public FirstServiceSaveData SavePreparation(FirstServiceSaveSlot slot, int day, int gold, int garlicStock,
+        public FirstServiceSaveData SavePreparation(FirstServiceSaveSlot slot, int day, int gold, IEnumerable<MaterialCount> spices,
             IEnumerable<MaterialCount> materials = null, IEnumerable<VisitResult> pendingReports = null,
             IEnumerable<VisitAffinity> visitAffinities = null, int wordOfMouthBonus = 0,
-            IEnumerable<GuestRecord> guests = null, int? daySeed = null, DayProgress progress = null)
+            IEnumerable<GuestRecord> guests = null, int? daySeed = null, DayProgress progress = null, FloorProgressState floors = null)
         {
             lock (WriteGate)
             using (LockDirectory())
-                return Write(slot, day, gold, garlicStock, materials, pendingReports, visitAffinities, wordOfMouthBonus, guests, daySeed, progress);
+                return Write(slot, day, gold, spices, materials, pendingReports, visitAffinities, wordOfMouthBonus, guests, daySeed, progress, floors);
         }
 
         /// <summary>수입 대신 지급이 끝난 절대 잔액·재고와 그날의 방문 결과·방문 호감, 다음 영업의 입소문 추가 인원을 받아
         /// 다음 일차 시작으로 쓴다. 같은 날의 두 번째 호출은 기존 저장본을 반환한다.</summary>
-        public FirstServiceSaveData SettleDay(int completedDay, int goldAfterPayment, int garlicAfterService,
+        public FirstServiceSaveData SettleDay(int completedDay, int goldAfterPayment, IEnumerable<MaterialCount> spicesAfterService,
             IEnumerable<MaterialCount> materialsAfterReports = null, IEnumerable<VisitResult> visitResults = null,
             IEnumerable<VisitAffinity> visitAffinities = null, int wordOfMouthBonus = 0,
-            IEnumerable<GuestRecord> guests = null, int? daySeed = null)
+            IEnumerable<GuestRecord> guests = null, int? daySeed = null, FloorProgressState floors = null)
         {
             if (completedDay < 1 || completedDay == int.MaxValue) throw new ArgumentOutOfRangeException(nameof(completedDay));
             lock (WriteGate)
@@ -64,8 +67,8 @@ namespace DOB.Systems
             {
                 if (TryLoad(FirstServiceSaveSlot.Auto, out var previous) && previous.Day > completedDay)
                     return previous;
-                return Write(FirstServiceSaveSlot.Auto, completedDay + 1, goldAfterPayment, garlicAfterService,
-                    materialsAfterReports, visitResults, visitAffinities, wordOfMouthBonus, guests, daySeed, null);
+                return Write(FirstServiceSaveSlot.Auto, completedDay + 1, goldAfterPayment, spicesAfterService,
+                    materialsAfterReports, visitResults, visitAffinities, wordOfMouthBonus, guests, daySeed, null, floors);
             }
         }
 
@@ -77,7 +80,7 @@ namespace DOB.Systems
 
         private string SlotPath(FirstServiceSaveSlot slot) => Path.Combine(directory, FirstServiceSaveData.SlotName(slot) + ".json");
 
-        private static bool TryRead(string path, FirstServiceSaveSlot slot, out FirstServiceSaveData data)
+        private bool TryRead(string path, FirstServiceSaveSlot slot, out FirstServiceSaveData data)
         {
             data = null;
             try
@@ -86,7 +89,7 @@ namespace DOB.Systems
                 {
                     var reader = new DataContractJsonSerializer(typeof(FirstServiceSaveData));
                     var candidate = (FirstServiceSaveData)reader.ReadObject(file);
-                    if (candidate == null || !candidate.IsValidFor(slot)) return false;
+                    if (candidate == null || !candidate.IsValidFor(slot, knownSpices)) return false;
                     data = candidate;
                     return true;
                 }
@@ -101,16 +104,16 @@ namespace DOB.Systems
                 ex.GetBaseException() is SerializationException) { return false; }
         }
 
-        private FirstServiceSaveData Write(FirstServiceSaveSlot slot, int day, int gold, int garlicStock,
+        private FirstServiceSaveData Write(FirstServiceSaveSlot slot, int day, int gold, IEnumerable<MaterialCount> spices,
             IEnumerable<MaterialCount> materials, IEnumerable<VisitResult> pendingReports,
             IEnumerable<VisitAffinity> visitAffinities, int wordOfMouthBonus, IEnumerable<GuestRecord> guests, int? daySeed,
-            DayProgress progress)
+            DayProgress progress, FloorProgressState floors)
         {
             DateTime timestamp = DateTime.UtcNow;
             if (TryLoadLatest(out var latest) && timestamp <= latest.SavedAtUtc && latest.SavedAtUtc < DateTime.MaxValue)
                 timestamp = latest.SavedAtUtc.AddTicks(1);
-            var data = new FirstServiceSaveData(slot, day, gold, garlicStock, timestamp, materials, pendingReports,
-                visitAffinities, wordOfMouthBonus, guests, daySeed, progress);
+            var data = new FirstServiceSaveData(slot, day, gold, spices, timestamp, materials, pendingReports,
+                visitAffinities, wordOfMouthBonus, guests, daySeed, progress, floors, knownSpices);
             string path = SlotPath(slot);
             string backup = path + ".bak";
             string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";

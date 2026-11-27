@@ -51,6 +51,9 @@ namespace DOB.Systems
         /// <summary>이미 확정한 보고의 방문 ID. 수동 저장이 진행으로 남긴다.</summary>
         public IEnumerable<string> ConfirmedIds => confirmed;
 
+        /// <summary>그 방문의 보고. 없으면 null.</summary>
+        public VisitResult Find(string visitId) => reports.Find(r => r.VisitId == visitId);
+
         /// <summary>이 방문의 보고를 이미 처리했는지.</summary>
         public bool IsConfirmed(string visitId) => visitId != null && confirmed.Contains(visitId);
 

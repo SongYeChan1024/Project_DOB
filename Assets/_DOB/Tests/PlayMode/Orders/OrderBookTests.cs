@@ -1,5 +1,5 @@
 // OrderBookTests — 방문별 주문, 공유 마늘 재고, 조리 칸 하나, 들고 있는 접시 하나, 떠난 방문의 취소를 검증한다.
-// 의사코드: 시험 레시피(조리 6초, 밀가루 2, 기본가 8)로 장부를 열고 order-book 명세의 시나리오를 그대로 따라간다.
+// 의사코드: 시험 레시피(조리 6초, 밀가루 2)와 마늘 재고로 장부를 열고 order-book 명세의 시나리오를 그대로 따라간다. 대금은 PriceJudge가 정한다(EconomyTests).
 using DOB.Systems;
 using NUnit.Framework;
 
@@ -10,7 +10,7 @@ namespace DOB.Tests
         private const string A = "visit-a";
         private const string B = "visit-b";
 
-        private static OrderBook Book(int garlic = 2) => new OrderBook(garlic, 6f, 2, 8);
+        private static OrderBook Book(int garlic = 2) => new OrderBook(new MaterialStock(new[] { new MaterialCount("garlic", garlic) }), "garlic", 6f, 2);
 
         private static void CookAndCarry(OrderBook book, string visit, int garlic)
         {
@@ -63,7 +63,7 @@ namespace DOB.Tests
             book.TryOpen(A);
             book.TryOpen(B);
             CookAndCarry(book, A, 1);
-            Assert.That(book.TryServe(A, out _), Is.True);
+            Assert.That(book.TryServe(A), Is.True);
             CookAndCarry(book, B, 1);
             Assert.That(book.GarlicStock, Is.Zero);
         }
@@ -105,16 +105,14 @@ namespace DOB.Tests
             var book = Book();
             book.TryOpen(A);
             book.TryOpen(B);
-            Assert.That(book.TryServe(A, out int payment), Is.False, "접시 없이 서빙");
+            Assert.That(book.TryServe(A), Is.False, "접시 없이 서빙");
             CookAndCarry(book, A, 1);
-            Assert.That(book.TryServe(B, out payment), Is.False, "다른 손님에게 서빙");
-            Assert.That(payment, Is.Zero);
+            Assert.That(book.TryServe(B), Is.False, "다른 손님에게 서빙");
             Assert.That(book.Carried.VisitId, Is.EqualTo(A), "접시는 여전히 A의 것");
 
-            Assert.That(book.TryServe(A, out payment), Is.True);
-            Assert.That(payment, Is.EqualTo(9), "기본가 8 + 마늘 1");
-            Assert.That(book.TryServe(A, out payment), Is.False, "같은 주문 두 번째 서빙");
-            Assert.That(payment, Is.Zero);
+            Assert.That(book.TryServe(A), Is.True);
+            Assert.That(book.Find(A).UsedGarlic, Is.EqualTo(1), "대금 계산에 쓰는 넣은 양념 수");
+            Assert.That(book.TryServe(A), Is.False, "같은 주문 두 번째 서빙");
         }
 
         [Test]
@@ -127,7 +125,7 @@ namespace DOB.Tests
             Assert.That(book.TryStart(B, 2, 1), Is.True);
             book.Advance(6f);
             Assert.That(book.TryPickUp(), Is.False, "접시를 든 채 두 번째 픽업");
-            Assert.That(book.TryServe(A, out _), Is.True);
+            Assert.That(book.TryServe(A), Is.True);
             Assert.That(book.TryPickUp(), Is.True);
             Assert.That(book.Carried.VisitId, Is.EqualTo(B));
         }
@@ -154,7 +152,7 @@ namespace DOB.Tests
             CookAndCarry(book, A, 1);
             Assert.That(book.Cancel(A), Is.True);
             Assert.That(book.Carried, Is.Null);
-            Assert.That(book.TryServe(A, out _), Is.False);
+            Assert.That(book.TryServe(A), Is.False);
             Assert.That(book.Cancel(A), Is.False, "이미 취소됨");
         }
 
@@ -164,7 +162,7 @@ namespace DOB.Tests
             var book = Book();
             book.TryOpen(A);
             CookAndCarry(book, A, 1);
-            book.TryServe(A, out _);
+            book.TryServe(A);
             Assert.That(book.Cancel(A), Is.False);
             Assert.That(book.Find(A).State, Is.EqualTo(FirstGuestOrderState.Served));
         }
