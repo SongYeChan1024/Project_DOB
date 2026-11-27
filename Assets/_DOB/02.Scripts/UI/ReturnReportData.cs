@@ -22,6 +22,35 @@ namespace DOB.UI
         public int illustrationTier;
         /// <summary>돌아온 손님 (돌아온 순서). 비면 "어젯밤 던전에 간 손님이 없어요".</summary>
         public ReturnGuestData[] guests = Array.Empty<ReturnGuestData>();
+        /// <summary>[최종 정산]을 누르면 뜨는 전날 정산 창 (시안 27 · 28). null이면 정산 창 없이 바로 확인한다.</summary>
+        public DaySettlementData settlement;
+    }
+
+    /// <summary>전날 정산 창에 보여 줄 값. 모두 Presenter가 받은 값을 글자로 옮긴 것이고 화면은 계산하지 않는다.
+    /// 값이 없는 칸(null · 0)은 숨긴다.</summary>
+    [Serializable]
+    public sealed class DaySettlementData
+    {
+        /// <summary>정산하는 날 (어제). 예: 1 → 「1일차 영업 정산」</summary>
+        public int day;
+        /// <summary>예: 어제 하루를 정리했어요 · 손님 3명이 다녀갔어요</summary>
+        public string summary;
+        /// <summary>대성공 · 성공 · 간신히 · 부상 손님 수 (ReturnResult 순서).</summary>
+        public int[] grades = new int[4];
+        /// <summary>예: 슬라임 젤리 ×2 · 숲버섯 ×1. 비면 「가져온 재료가 없어요」.</summary>
+        public string loot;
+        /// <summary>손님들 방문 호감 합계와 최대 (최대가 0이면 막대 · 최대를 숨김).</summary>
+        public int affectionSum;
+        public int affectionMax;
+        /// <summary>막대 눈금 (0~1, 예: 0.6 · 0.75 · 0.85 · 1).</summary>
+        public float[] affectionSteps = Array.Empty<float>();
+        /// <summary>예: +1명. null이면 줄을 숨긴다.</summary>
+        public string newGuests;
+        /// <summary>새로 알게 된 것 · 단골 · 쉬는 손님 줄 (TMP 서식 가능).</summary>
+        public string[] news = Array.Empty<string>();
+        /// <summary>어제 번 금화 · 지금 가진 금화 (예: +31 · 81). 둘 다 null이면 금화 칸을 숨긴다.</summary>
+        public string goldEarned;
+        public string goldNow;
     }
 
     /// <summary>손님 한 명의 보고 (기획 4-7).</summary>

@@ -185,15 +185,16 @@ namespace DOB.Manager
         private PrepViewData BuildData()
         {
             var spices = BuildSpices();
-            foreach (var recipe in Recipes)
+            var book = BookRecipes();
+            foreach (var recipe in book)
                 recipe.picture = Icon("Dish" + recipe.id);
             return new PrepViewData
             {
                 gold = Gold,
                 news = "2층 곰팡이 동굴에 박쥐 떼가 늘었대요",
                 spices = spices,
-                recipes = Recipes,
-                recipeTotal = Recipes.Length,
+                recipes = book,
+                recipeTotal = book.Length,
                 upgrades = BuildUpgrades(),
                 floors = BuildFloors(),
                 races = new[]
@@ -278,7 +279,7 @@ namespace DOB.Manager
         {
             if (!Ingredients.TryGetValue(id, out var v)) return string.Empty;
             string where = $"{v.floor}층 {FloorNames[v.floor]} {(v.rare ? "희귀 재료" : "재료")}";
-            var uses = Recipes
+            var uses = BookRecipes()
                 .Where(r => r.ingredients.Split('·').Any(part => part.Trim().StartsWith(v.name + " ")))
                 .Select(r => $"{r.name}: {string.Join(" · ", r.effects.Select(e => $"{e.name} {e.value}"))}");
             return string.Join("\n", new[] { where }.Concat(uses));
@@ -397,6 +398,26 @@ namespace DOB.Manager
         }
 
         // 기획 11장 레시피 표 (처음엔 기본 레시피 3개만 열림). id는 요리 그림 이름과 같게 (T_UI_Dish + id)
+        // 의사코드: 레시피북 = SO_Kitchen의 레시피(이름 · 재료 · 효과 · 기본가) + 열린 레시피(주방 쪽 UnlockedRecipes, 연결 전이면 시작 레시피)
+        //           + 맛 표현(SO_TasteRules 요리별 맛). SO_Kitchen이 없으면 아래 기획 표(더미)를 그대로 쓴다. 화면은 해금 판정을 하지 않는다.
+        internal static RecipeItemData[] BookRecipes()
+        {
+            var kitchen = Define.KitchenRules.Load();
+            if (!kitchen || kitchen.Recipes == null || kitchen.Recipes.Count == 0) return Recipes;
+            var taste = Resources.Load<Define.TasteRules>(Define.TasteRules.ResourceName);
+            var unlocked = UIManager.KitchenOrders?.UnlockedRecipes;
+            return kitchen.Recipes.Select(r => new RecipeItemData
+            {
+                id = r.id, name = r.name, basePrice = r.basePrice,
+                unlocked = unlocked != null ? unlocked.Contains(r.id) : r.startUnlocked,
+                ingredients = string.Join(" · ", (r.ingredients ?? Array.Empty<Define.IngredientAmount>()).Select(i => $"{i.id} × {i.count}")),
+                basicOnly = (r.ingredients ?? Array.Empty<Define.IngredientAmount>()).All(i => kitchen.IsBasic(i.id)),
+                effects = (r.effects ?? Array.Empty<Define.RecipeEffect>()).Select(e => new EffectAmount { name = e.effect, value = e.amount }).ToArray(),
+                flavor = taste ? string.Join(" · ", taste.FlavorsOf(r.name) ?? Array.Empty<string>()) : Recipes.FirstOrDefault(x => x.id == r.id)?.flavor,
+            }).ToArray();
+        }
+
+        // 기획 11장 전체 레시피 표 — SO_Kitchen이 없을 때(더미) · 단독 테스트 씬의 요리 화면 판정에 쓴다
         internal static readonly RecipeItemData[] Recipes =
         {
             R("Bread", "구운 빵", true, "밀가루 × 2", true, "고소 · 담백", 8, ("활력", 1), ("감각", 1)),

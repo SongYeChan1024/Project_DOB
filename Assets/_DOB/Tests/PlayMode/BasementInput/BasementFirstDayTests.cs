@@ -242,7 +242,7 @@ namespace DOB.Tests
             Assert.That(settlement.IsReportConfirmed(firstVisit), Is.False);
             Assert.That(settlement.TodayResults, Is.Empty);
             Assert.That(economy.Materials.All(), Is.Empty);
-            yield return Click("ConfirmMorningReport");
+            yield return ConfirmMorningReport();
             Assert.That(game.Phase, Is.EqualTo(DOB.Define.DayPhase.Preparation));
             Assert.That(settlement.IsReportConfirmed(firstVisit), Is.True);
             Assert.That(economy.Materials.All().Sum(m => m.Count), Is.EqualTo(report.Loot.Count));
@@ -389,7 +389,7 @@ namespace DOB.Tests
                 // 첫 진입에서는 화면이 보고를 하나 먼저 확정한 경우를 흉내 낸다. 아침 보고를 끝내도 다시 지급되지 않는다.
                 if (attempt == 0)
                     Assert.That(settlement.ConfirmReport("visit-1"), Is.EqualTo(ReportConfirmResult.Confirmed));
-                yield return Click("ConfirmMorningReport");
+                yield return ConfirmMorningReport();
                 Assert.That(settlement.IsReportConfirmed("visit-1"), Is.True);
                 Assert.That(economy.Materials.Count("숲버섯"), Is.EqualTo(2));
                 Assert.That(economy.Materials.Count("들풀"), Is.EqualTo(2));
@@ -546,6 +546,13 @@ namespace DOB.Tests
             data.pointerPressRaycast = RaycastHits[0];
             data.pointerCurrentRaycast = RaycastHits[0];
             ExecuteEvents.Execute(target, data, ExecuteEvents.pointerClickHandler);
+        }
+
+        // 귀환 보고 확인 = [최종 정산]으로 정산 창을 연 뒤 결재란(ConfirmMorningReport)에 날인 (시안 27 · 28, 홍준우)
+        private static IEnumerator ConfirmMorningReport()
+        {
+            yield return Click("OpenSettlement");
+            yield return Click("ConfirmMorningReport");
         }
 
         // 버튼 중심에서 EventSystem 레이캐스트의 최상단 클릭 대상이 그 버튼일 때만 실제 포인터 이벤트로 누른다.
