@@ -3,7 +3,7 @@
 // 역할   : 양념 목록을 보여 주고, 줄마다 살 개수를 고르게 한 뒤 [결제] 한 번으로 구매 요청을 알린다.
 //          합계 · 남는 금화는 미리보기일 뿐이고, 실제 차감과 성공 여부는 Presenter(백엔드)가 정한다.
 // 호출자 : PrepScreensView (Show), PrepScreenPresenter (이벤트 구독, ShowNotice)
-// 호출   : MarketRowView
+// 호출   : MarketRowView, GoldCounter (결제 뒤 지갑 카운트다운)
 // 상태   : 고른 개수(장바구니)만 가진다. 화면을 다시 열거나 결제가 끝나면 비운다.
 //
 // 의사코드
@@ -88,28 +88,7 @@ namespace DOB.UI
                 if (ownedBefore.TryGetValue(spice.id, out int before) && spice.owned > before) row.PopOwned();
             }
             RefreshTotals();
-            if (paidFrom >= 0 && isActiveAndEnabled) StartCoroutine(PayOut(paidFrom, data.gold));
-        }
-
-        // 의사코드: 지갑 숫자를 결제 전 → 결제 후로 하나씩 줄이고, 지갑 옆에 빨간 −N이 떠올라 사라진다
-        private System.Collections.IEnumerator PayOut(int from, int to)
-        {
-            var minus = Instantiate(goldText, goldText.transform.parent);
-            minus.text = "-" + (from - to); // 글꼴에 − 기호가 없어 하이픈을 쓴다
-            minus.color = new Color32(220, 90, 60, 255);
-            minus.raycastTarget = false;
-            var mr = minus.rectTransform;
-            Vector2 home = mr.anchoredPosition + new Vector2(0f, mr.rect.height * 0.6f); // 지갑 숫자 바로 위에서 떠오른다
-            for (float t = 0f; t < paySeconds; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
-            {
-                float k = t / paySeconds;
-                goldText.text = Mathf.RoundToInt(Mathf.Lerp(from, to, k)).ToString();
-                mr.anchoredPosition = home + new Vector2(0f, 40f * k);
-                minus.alpha = 1f - k * k;
-                yield return null;
-            }
-            Destroy(minus.gameObject);
-            goldText.text = to.ToString();
+            if (paidFrom >= 0 && isActiveAndEnabled) StartCoroutine(GoldCounter.PayOut(goldText, paidFrom, data.gold, paySeconds));
         }
 
         /// <summary>짧은 안내를 띄운다. null이면 숨긴다.</summary>

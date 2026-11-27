@@ -2034,6 +2034,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &996650396452347751
 GameObject:
@@ -3995,6 +3997,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &2344423549960765613
 GameObject:
@@ -5085,8 +5089,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1888c6ca8912b764db98d03c2633bded, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
-  hoverScale: 1.06
-  pressScale: 0.95
+  hoverScale: 1
+  pressScale: 1
+  hoverShift: {x: 12, y: 0}
+  pressShift: {x: 22, y: 0}
   speed: 24
 --- !u!1 &3274628489910998332
 GameObject:
@@ -5224,6 +5230,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &3545430187801710933
 GameObject:
@@ -5435,8 +5443,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1888c6ca8912b764db98d03c2633bded, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
-  hoverScale: 1.06
-  pressScale: 0.95
+  hoverScale: 1
+  pressScale: 1
+  hoverShift: {x: 12, y: 0}
+  pressShift: {x: 22, y: 0}
   speed: 24
 --- !u!1 &3911463072277246780
 GameObject:
@@ -6466,6 +6476,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &4182313938996008998
 GameObject:
@@ -7357,8 +7369,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1888c6ca8912b764db98d03c2633bded, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
-  hoverScale: 1.06
-  pressScale: 0.95
+  hoverScale: 1
+  pressScale: 1
+  hoverShift: {x: 12, y: 0}
+  pressShift: {x: 22, y: 0}
   speed: 24
 --- !u!1 &4756916292643801744
 GameObject:
@@ -9542,8 +9556,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1888c6ca8912b764db98d03c2633bded, type: 3}
   m_Name: 
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
-  hoverScale: 1.06
-  pressScale: 0.95
+  hoverScale: 1
+  pressScale: 1
+  hoverShift: {x: 12, y: 0}
+  pressShift: {x: 22, y: 0}
   speed: 24
 --- !u!1 &5842265809829936149
 GameObject:
@@ -10014,6 +10030,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &5940334643831699752
 GameObject:
@@ -12369,6 +12387,8 @@ MonoBehaviour:
   titleText: {fileID: 3723360930385628383}
   bodyText: {fileID: 4658399591288308692}
   gap: 8
+  riseSeconds: 0.12
+  riseDistance: 6
 --- !u!1 &7976557259828615351
 GameObject:
   m_ObjectHideFlags: 0
@@ -13211,6 +13231,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &8911714246577205628
 GameObject:

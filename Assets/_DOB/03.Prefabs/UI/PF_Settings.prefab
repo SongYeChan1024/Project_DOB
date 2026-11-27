@@ -323,7 +323,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 26, y: 0}
+  m_SizeDelta: {x: 31.2, y: 5.2}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &316147156487834100
 CanvasRenderer:
@@ -510,6 +510,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1216447833956448090}
   - component: {fileID: 244938412705654011}
+  - component: {fileID: 1421153710362955763}
   m_Layer: 0
   m_Name: Volume1
   m_TagString: Untagged
@@ -590,6 +591,22 @@ MonoBehaviour:
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &1421153710362955763
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 483123708958515638}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bdeb4119b2c1684f8259710f9caa78c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.SliderFeel
+  grabScale: 1.35
+  grabColor: {r: 1.25, g: 1.1, b: 0.75, a: 1}
+  valueLabel: {fileID: 3969675119770580556}
+  speed: 20
 --- !u!1 &567575865835934686
 GameObject:
   m_ObjectHideFlags: 0
@@ -863,6 +880,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &952281831514628277
 GameObject:
@@ -1699,6 +1718,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &1465225694552489609
 GameObject:
@@ -2699,6 +2720,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &2945326622660949932
 GameObject:
@@ -2958,6 +2981,7 @@ GameObject:
   m_Component:
   - component: {fileID: 4210886465125083467}
   - component: {fileID: 5954703606276688263}
+  - component: {fileID: 7322704176103014585}
   m_Layer: 0
   m_Name: Volume0
   m_TagString: Untagged
@@ -3038,6 +3062,22 @@ MonoBehaviour:
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &7322704176103014585
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3309877178656257965}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bdeb4119b2c1684f8259710f9caa78c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.SliderFeel
+  grabScale: 1.35
+  grabColor: {r: 1.25, g: 1.1, b: 0.75, a: 1}
+  valueLabel: {fileID: 7712233626661686925}
+  speed: 20
 --- !u!1 &3397574149512759435
 GameObject:
   m_ObjectHideFlags: 0
@@ -3423,6 +3463,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &3774802929532070304
 GameObject:
@@ -4208,6 +4250,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7603931599436664683}
   - component: {fileID: 1340502069073930827}
+  - component: {fileID: 229013637070483556}
   m_Layer: 0
   m_Name: Volume2
   m_TagString: Untagged
@@ -4288,6 +4331,22 @@ MonoBehaviour:
   m_OnValueChanged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &229013637070483556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4555018943314397016}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bdeb4119b2c1684f8259710f9caa78c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.SliderFeel
+  grabScale: 1.35
+  grabColor: {r: 1.25, g: 1.1, b: 0.75, a: 1}
+  valueLabel: {fileID: 2766425149643747507}
+  speed: 20
 --- !u!1 &5104614926798155048
 GameObject:
   m_ObjectHideFlags: 0
@@ -5000,6 +5059,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &5825186189819348591
 GameObject:
@@ -6071,6 +6132,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &7251419792368558008
 GameObject:
@@ -6458,6 +6521,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &7487167227133888731
 GameObject:
@@ -7168,6 +7233,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &8077054705899746849
 GameObject:
@@ -7478,7 +7545,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 26, y: 0}
+  m_SizeDelta: {x: 31.2, y: 5.2}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &2764931364287387017
 CanvasRenderer:
@@ -8193,6 +8260,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &8927627600215192371
 GameObject:
@@ -8330,6 +8399,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &8929928902201414964
 GameObject:
@@ -8366,7 +8437,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 26, y: 0}
+  m_SizeDelta: {x: 31.2, y: 5.2}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4600286129515843879
 CanvasRenderer:
