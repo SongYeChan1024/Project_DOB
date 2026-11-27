@@ -1,4 +1,4 @@
-// 서빙 때 확정한 한 방문의 탐험 결과. VisitResultLog가 만들고, 저장(FirstServiceSaveData)과 귀환 보고(ReturnReportLog),
+// 서빙 때 확정한 한 방문의 탐험 결과. VisitResultLog가 만들고(전리품은 마감 정산 때 WithLoot로 채운 사본), 저장(FirstServiceSaveData)과 귀환 보고(ReturnReportLog),
 // 보고 화면이 같은 데이터를 읽는다. 만든 뒤에는 값을 바꾸지 않는다.
 using System.Collections.Generic;
 using System.Runtime.Serialization;
@@ -43,7 +43,7 @@ namespace DOB.Define
         /// <summary>RiskAxes.All 순서의 요리·양념이 막은 칸 수. 기록되지 않은 방문이면 null.</summary>
         public IReadOnlyList<int> Protections => protections;
         public ExpeditionGrade Grade => (ExpeditionGrade)grade;
-        /// <summary>전리품으로 받을 던전 재료 이름. 같은 재료가 여러 번 들어갈 수 있다.</summary>
+        /// <summary>전리품으로 받을 던전 재료 이름. 같은 재료가 여러 번 들어갈 수 있다. 서빙 시점에는 비어 있고 마감 정산 때 정한다.</summary>
         public IReadOnlyList<string> Loot => loot;
 
         public VisitResult(string guestId, string visitId, string guestName, int floor, string dish, bool usedSeasoning,
@@ -61,5 +61,9 @@ namespace DOB.Define
             this.grade = (int)grade;
             this.loot = loot;
         }
+
+        /// <summary>전리품만 바꾼 사본. 원본은 그대로 둔다.</summary>
+        public VisitResult WithLoot(string[] newLoot) =>
+            new VisitResult(GuestId, VisitId, GuestName, Floor, Dish, UsedSeasoning, shortfalls, Grade, newLoot, risks, protections);
     }
 }

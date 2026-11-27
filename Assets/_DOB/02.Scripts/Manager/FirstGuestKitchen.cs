@@ -51,8 +51,6 @@ namespace DOB.Manager
         }
         /// <summary>플레이어가 완성된 접시를 들고 있다.</summary>
         public bool IsCarrying => book?.Carried != null;
-        /// <summary>레시피(재료 선택) 패널이 열려 있다. 손님 입장·대기 시계를 멈추는 사유다.</summary>
-        public bool IsChoosingIngredients => recipePanel && recipePanel.activeSelf;
         /// <summary>서빙이 성공한 한 끼. 축별 부족·실제 위험·요리가 막은 칸은 RiskAxes.All 순서다.</summary>
         public readonly struct ServedMeal
         {
