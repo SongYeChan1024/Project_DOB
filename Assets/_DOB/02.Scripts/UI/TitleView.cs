@@ -1,6 +1,7 @@
 // =====================================================================
 // TitleView — 타이틀 화면 표시와 입력
 // 역할   : 메뉴 버튼·로딩 표시·새로 시작 확인창·설정 창(설정 PF_Settings)·실패 안내를 보여 주고,
+//          데모 완료 슬롯이 있으면 「엔딩 날 다시 하기」 메뉴와 확인창을 보여 준다 (시안 24, 이어하기 · 확인창을 복제해 만듦)
 //          버튼 입력을 이벤트로 알린다. 씬 이동·저장 확인은 하지 않는다.
 // 호출자 : TitlePresenter (메뉴 구성, 잠금, 확인창, 실패 안내 요청)
 // 호출   : 없음 (이벤트로만 알림)
@@ -55,9 +56,22 @@ namespace DOB.UI
         public event Action ContinueClicked;
         /// <summary>나가기를 눌렀다.</summary>
         public event Action QuitClicked;
+        /// <summary>「엔딩 날 다시 하기」를 눌렀다.</summary>
+        public event Action DemoReplayClicked;
+        /// <summary>엔딩 날 다시 하기 확인창에서 「다시 하기」를 눌렀다.</summary>
+        public event Action DemoReplayConfirmed;
+
+        // 「엔딩 날 다시 하기」 메뉴 · 확인창 (시안 24). Title 씬을 고치지 않게 이어하기 · 새로 시작 확인창을 복제해 만든다
+        private const string DemoReplayWord = "엔딩 날 다시 하기";
+        private static readonly Color DemoGold = new Color(0.965f, 0.831f, 0.541f, 1f);
+        private Button demoButton;
+        private TMP_Text demoLabel, demoDetail;
+        private GameObject demoPopup;
+        private TMP_Text demoMessage;
 
         private void Awake()
         {
+            BuildDemoReplay(); // 이어하기에 일차 줄(Detail)이 붙기 전에 복제한다
             newGameButton.onClick.AddListener(() => NewGameClicked?.Invoke());
             continueButton.onClick.AddListener(() => ContinueClicked?.Invoke());
             quitButton.onClick.AddListener(() => QuitClicked?.Invoke());
@@ -71,6 +85,63 @@ namespace DOB.UI
             loadingIndicator.SetActive(false);
             loadFailedMessage.SetActive(false);
             confirmPopup.SetActive(false);
+        }
+
+        // 의사코드: 이어하기 버튼을 복제해 바로 뒤에 두고 글자를 금빛 「엔딩 날 다시 하기」로, 너비를 글자에 맞춘다.
+        //           새로 시작 확인창을 복제해 문구 · 단추 글자를 바꾸고, 단추를 이 메뉴의 이벤트에 잇는다. 둘 다 처음엔 숨긴다.
+        private void BuildDemoReplay()
+        {
+            if (!continueButton || !continueLabel) return;
+            demoButton = Instantiate(continueButton, continueButton.transform.parent);
+            demoButton.name = "DemoReplayButton";
+            demoButton.transform.SetSiblingIndex(continueButton.transform.GetSiblingIndex() + 1);
+            demoLabel = demoButton.transform.Find(continueLabel.name).GetComponent<TMP_Text>();
+            demoLabel.text = DemoReplayWord;
+            demoLabel.color = DemoGold;
+            var layout = demoButton.GetComponent<LayoutElement>();
+            if (layout) layout.preferredWidth = layout.minWidth = Mathf.Ceil(demoLabel.GetPreferredValues(DemoReplayWord).x);
+            demoButton.onClick = new Button.ButtonClickedEvent(); // 이어하기에 씬에서 걸어 둔 연결이 있어도 따라오지 않게
+            demoButton.onClick.AddListener(() => DemoReplayClicked?.Invoke());
+            demoButton.gameObject.SetActive(false);
+
+            if (!confirmPopup) return;
+            demoPopup = Instantiate(confirmPopup, confirmPopup.transform.parent);
+            demoPopup.name = "DemoConfirmPopup";
+            demoMessage = demoPopup.transform.Find("Message")?.GetComponent<TMP_Text>();
+            SetChildLabel(demoPopup, "YesButton", "다시 하기").onClick.AddListener(() => DemoReplayConfirmed?.Invoke());
+            SetChildLabel(demoPopup, "NoButton", "취소").onClick.AddListener(() => ShowDemoConfirm(false));
+            demoPopup.SetActive(false);
+        }
+
+        private static Button SetChildLabel(GameObject root, string buttonName, string text)
+        {
+            var button = root.transform.Find(buttonName).GetComponent<Button>();
+            button.onClick = new Button.ButtonClickedEvent(); // 복제 원본(새로 시작 확인)의 연결을 끊는다
+            var label = button.GetComponentInChildren<TMP_Text>(true);
+            if (label) label.text = text;
+            return button;
+        }
+
+        /// <summary>데모 완료 슬롯이 있으면 「엔딩 날 다시 하기」와 그 일차 줄을 보인다. null이면 숨긴다.</summary>
+        public void ShowDemoReplay(string checkpointLabel)
+        {
+            if (!demoButton) return;
+            bool show = !string.IsNullOrEmpty(checkpointLabel);
+            if (show)
+            {
+                if (!demoDetail) { demoDetail = MakeDetail(demoButton, demoLabel); demoDetail.color = new Color(0.88f, 0.72f, 0.42f, 1f); }
+                demoDetail.text = checkpointLabel;
+            }
+            demoButton.gameObject.SetActive(show);
+        }
+
+        /// <summary>엔딩 날 다시 하기 확인창을 열거나 닫는다. day는 다시 할 일차.</summary>
+        public void ShowDemoConfirm(bool show, int day = 0)
+        {
+            if (!demoPopup) return;
+            if (show && demoMessage)
+                demoMessage.text = $"엔딩을 본 {day}일차 아침으로 돌아갑니다.\n이 하루를 마감하면 엔딩을 보고 타이틀로 돌아오며,\n이번 플레이는 저장되지 않습니다.";
+            demoPopup.SetActive(show);
         }
 
         private void OpenSettings()
@@ -129,24 +200,25 @@ namespace DOB.UI
         // 저장 일차 줄은 버튼 아래 바깥에 둔다. 버튼 안에 두면 마우스를 올릴 때 나오는 밑줄이 글자를 가린다.
         // 이름은 Detail (테스트가 이 이름으로 읽음). Title 씬을 고치지 않게 이어하기 글자를 복제해 처음 한 번 만든다.
         private TMP_Text continueDetail;
-        private TMP_Text ContinueDetail()
+        private TMP_Text ContinueDetail() => continueDetail ? continueDetail : continueDetail = MakeDetail(continueButton, continueLabel);
+
+        private static TMP_Text MakeDetail(Button button, TMP_Text label)
         {
-            if (continueDetail) return continueDetail;
-            continueDetail = Instantiate(continueLabel, continueButton.transform);
-            continueDetail.name = "Detail";
-            continueDetail.raycastTarget = false;
-            continueDetail.fontSize = 20;
-            continueDetail.enableAutoSizing = false;
-            continueDetail.textWrappingMode = TextWrappingModes.NoWrap;
-            continueDetail.overflowMode = TextOverflowModes.Overflow;
-            continueDetail.alignment = TextAlignmentOptions.Top;
-            var rect = continueDetail.rectTransform;
+            var detail = Instantiate(label, button.transform);
+            detail.name = "Detail";
+            detail.raycastTarget = false;
+            detail.fontSize = 20;
+            detail.enableAutoSizing = false;
+            detail.textWrappingMode = TextWrappingModes.NoWrap;
+            detail.overflowMode = TextOverflowModes.Overflow;
+            detail.alignment = TextAlignmentOptions.Top;
+            var rect = detail.rectTransform;
             rect.anchorMin = new Vector2(0f, 0f);
             rect.anchorMax = new Vector2(1f, 0f);
             rect.pivot = new Vector2(0.5f, 1f);
             rect.anchoredPosition = Vector2.zero;
             rect.sizeDelta = new Vector2(0f, 26f);
-            return continueDetail;
+            return detail;
         }
 
         /// <summary>전환 요청 중이면 모든 버튼을 잠그고 로딩 표시를 켠다.</summary>
@@ -154,6 +226,7 @@ namespace DOB.UI
         {
             newGameButton.interactable = !busy;
             continueButton.interactable = !busy;
+            if (demoButton) demoButton.interactable = !busy;
             settingsButton.interactable = !busy;
             quitButton.interactable = !busy;
             loadingIndicator.SetActive(busy);
