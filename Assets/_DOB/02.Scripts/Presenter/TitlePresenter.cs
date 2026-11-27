@@ -2,7 +2,7 @@
 // TitlePresenter — 타이틀 화면과 씬 전환을 잇는다
 // 역할   : TitleView의 입력을 받아 저장 여부 확인, 새로 시작 확인, 씬 전환 요청, 종료를 처리한다.
 // 호출자 : TitleView 이벤트 (NewGameClicked, NewGameConfirmed, ContinueClicked, QuitClicked)
-// 호출   : 일차 저장소, BasementComposition.EnterDay, TitleView 표시 메서드
+// 호출   : 일차 저장소, BasementComposition.EnterDay, TitleView 표시 메서드 (전환 전 FadeOutThen으로 화면을 어둡게)
 // 상태   : 전환 요청을 보냈는지(isRequesting)만 가진다. 저장·세션 상태는 갖지 않는다.
 // =====================================================================
 using System;
@@ -96,12 +96,14 @@ namespace DOB.Manager
 
             isRequesting = true;
             view.SetBusy(true);
-            if (!BasementComposition.EnterDay(checkpoint))
+            // 화면이 어두워진 뒤 전환을 요청한다. 실패하면 잠금 · 덮개를 풀고 안내한다
+            view.FadeOutThen(() =>
             {
+                if (BasementComposition.EnterDay(checkpoint)) return;
                 isRequesting = false;
                 view.SetBusy(false);
                 view.ShowLoadFailed();
-            }
+            });
         }
 
         // 표시와 실제 클릭 사이에 바뀐 슬롯도 반영한다. 저장이 없을 때는 새 게임을 열 수 있다.

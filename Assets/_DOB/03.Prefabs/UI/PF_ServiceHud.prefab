@@ -3672,6 +3672,10 @@ MonoBehaviour:
   fallDistance: 150
   fallDegrees: 26
   slideSpeed: 10
+  readyPopSeconds: 0.4
+  readyPopHeight: 16
+  readyPopScale: 1.1
+  readyPopDegrees: 5
 --- !u!114 &9041525822874850101
 MonoBehaviour:
   m_ObjectHideFlags: 0
