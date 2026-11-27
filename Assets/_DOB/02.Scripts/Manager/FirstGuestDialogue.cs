@@ -1,5 +1,7 @@
 // 손님 원고를 찾으면 응대 프리팹을 열고 수첩 메모를 복원한다. 버튼은 현재 방문 담당자에게 요청한다.
 // 거절 사유는 대사창에 표시한다. 수락 또는 닫기 후 마지막 페이드가 끝나면 화면 인스턴스를 정리한다.
+// 초상: 초상 목록(SO_GuestPortraitCatalog)에서 손님 이름이 같은 항목을 찾는다. 없으면 그림 없이 연다.
+//       기본 초상 위에 컨디션 레이어를 겹친다. 💡 지침 레이어를 아래, 개인 취약점 레이어를 위에 둔다 (2026-11-27 추가, 기획 확인 전).
 using System;
 using System.Collections.Generic;
 using DOB.Define;
@@ -24,6 +26,7 @@ namespace DOB.Manager
         private GuestDialogueData display;
         private Func<string, string> requestFollow;
         private Func<string, string> requestSendHome;
+        private GuestPortraitCatalog portraitCatalog;
 
         public string FirstGuestId => guests.Length > 0 && guests[0] ? guests[0].GuestId : null;
         public bool FirstGuestCanSendHome => guests.Length > 0 && guests[0] && guests[0].CanSendHome;
@@ -45,7 +48,10 @@ namespace DOB.Manager
             if (!legacyGuest)
                 return false;
 
-            return Open(BuildDisplayData(legacyGuest));
+            var data = BuildDisplayData(legacyGuest);
+            // 튜토리얼 원고에는 취약점 · 지침 정보가 없어 기본 초상만 쓴다.
+            SetPortrait(data, legacyGuest.GuestName, null, false);
+            return Open(data);
         }
 
         public bool TryOpenVisit(GuestDialogueVisit visit, bool canSendHome)
@@ -54,7 +60,46 @@ namespace DOB.Manager
                 return false;
             var data = BuildDisplayData(visit);
             data.canSendHome = canSendHome;
+            SetPortrait(data, visit.GuestName, visit.PersonalWeakness, visit.IsTired);
             return Open(data);
+        }
+
+        /// <summary>손님 이름에 맞는 기본 초상과 겹칠 컨디션 레이어를 채운다. 목록에 없는 손님이면 그림 없이 둔다.</summary>
+        private void SetPortrait(GuestDialogueData data, string guestName, string weakness, bool isTired)
+        {
+            if (!portraitCatalog)
+                portraitCatalog = Resources.Load<GuestPortraitCatalog>(GuestPortraitCatalog.ResourceName);
+            if (!portraitCatalog || string.IsNullOrEmpty(guestName))
+                return;
+            foreach (var entry in portraitCatalog.Entries)
+            {
+                // 레이어는 기본 초상 위에서만 의미가 있으므로 기본 초상이 없으면 그림 없이 연다.
+                if (entry.guestName != guestName || !entry.basePortrait)
+                    continue;
+                data.portrait = entry.basePortrait;
+                var layers = new List<Sprite>();
+                // 💡 지침을 아래, 개인 취약점을 위에 겹친다 (기획 확인 전).
+                if (isTired) AddLayer(layers, entry, GuestPortraitCatalog.TiredCondition);
+                AddLayer(layers, entry, weakness);
+                data.portraitLayers = layers.ToArray();
+                return;
+            }
+        }
+
+        private static void AddLayer(List<Sprite> layers, GuestPortraitCatalog.Entry entry, string condition)
+        {
+            var sprite = ConditionLayer(entry, condition);
+            if (sprite) layers.Add(sprite);
+        }
+
+        private static Sprite ConditionLayer(GuestPortraitCatalog.Entry entry, string condition)
+        {
+            if (string.IsNullOrEmpty(condition) || entry.conditions == null)
+                return null;
+            foreach (var item in entry.conditions)
+                if (item.condition == condition && item.sprite)
+                    return item.sprite;
+            return null;
         }
 
         private bool Open(GuestDialogueData data)

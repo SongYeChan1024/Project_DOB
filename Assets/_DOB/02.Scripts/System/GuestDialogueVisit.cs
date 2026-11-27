@@ -44,6 +44,10 @@ namespace DOB.Systems
         public string Race { get; }
         public string Job { get; }
         public int Floor { get; }
+        /// <summary>이번 방문의 피로 여부 (입력값 그대로).</summary>
+        public bool IsTired { get; }
+        /// <summary>손님의 개인 취약점 축 이름. 없으면 null (입력값 그대로).</summary>
+        public string PersonalWeakness { get; }
         public string Line { get; }
         public IReadOnlyList<GuestVisitClue> Clues { get; }
 
@@ -63,6 +67,8 @@ namespace DOB.Systems
             Race = input.Race;
             Job = input.Job;
             Floor = input.Floor;
+            IsTired = input.IsTired;
+            PersonalWeakness = input.PersonalWeakness;
             Line = line;
             Clues = clues.AsReadOnly();
             this.actualRisk = actualRisk;

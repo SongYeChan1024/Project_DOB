@@ -29,6 +29,10 @@ namespace DOB.UI
         public bool isRegular;
         /// <summary>목적지 간판 문구 (예: "1층 슬라임 숲"). 층별 위험 도감의 이름으로도 쓴다.</summary>
         public string destinationLabel;
+        /// <summary>기본 초상 그림. null이면 프리팹의 「그림 대기」 상자를 그대로 보여 준다.</summary>
+        public Sprite portrait;
+        /// <summary>기본 초상 위 같은 자리에 겹칠 컨디션 레이어 (앞쪽이 아래). 기본 초상이 없으면 쓰지 않는다.</summary>
+        public Sprite[] portraitLayers = Array.Empty<Sprite>();
 
         // ---------------- 대사 · 단서 ----------------
 
