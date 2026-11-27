@@ -531,8 +531,8 @@ namespace DOB.Tests
 
             yield return StartCooking(s);
             Assert.That((status.StateAt(0), status.StateAt(1)), Is.EqualTo((OrderTicketState.Cooking, OrderTicketState.Waiting)));
-            Assert.That((burners.Count, burners.StateAt(0), burners.DishIdAt(0), burners.CookSecondsAt(0)), Is.EqualTo((1, BurnerState.Cooking, "Bread", 6f)));
-            Assert.That(orders.OrderId, Is.EqualTo(first.VisitId), "조리 중이 대기보다 먼저");
+            Assert.That((burners.Count, burners.StateAt(0), burners.DishIdAt(0), burners.CookSecondsAt(0)), Is.EqualTo((1, BurnerState.Cooking, "Bread", 6f)), "시작 화구는 한 칸");
+            Assert.That(orders.OrderId, Is.EqualTo(first.VisitId), "빈 화구가 없으면 조리 중이 대기보다 먼저");
             int garlic = orders.GarlicStock;
             Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired, orders.GarlicRequired), Is.EqualTo(CookStartResult.BurnerBusy));
             Assert.That(orders.TryPickUp(first.VisitId), Is.EqualTo(PickUpResult.NotCooked));
@@ -546,7 +546,7 @@ namespace DOB.Tests
             Assert.That(orders.TryPickUp(first.VisitId), Is.EqualTo(PickUpResult.AlreadyHolding));
             Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired - 1, orders.GarlicRequired), Is.EqualTo(CookStartResult.WrongIngredients));
             Assert.That(s.Kitchen.Orders.Single(o => o.VisitId == second.VisitId).State, Is.EqualTo(FirstGuestOrderState.Waiting));
-            Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired, orders.GarlicRequired), Is.EqualTo(CookStartResult.Started));
+            Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired, orders.GarlicRequired), Is.EqualTo(CookStartResult.Started), "접시를 들면 칸이 빈다");
 
             int gold = status.Gold;
             // 요리 화면의 예상 대금은 화면이 다루는 주문(둘째 손님) 기준이라, 서빙하는 첫 손님의 대금은 같은 식으로 따로 구한다.
@@ -584,6 +584,82 @@ namespace DOB.Tests
             yield return Click("YesButton");
             var moods = UIManager.GuestMoods;
             Assert.That((moods.StateAt(1), moods.ReactionAt(1)), Is.EqualTo((GuestMoodState.Leaving, TasteReaction.Dislike)));
+        }
+
+        // kitchen-burners: 시작 1칸, 준비 단계에서만 💡 금화 60으로 두 번째 화구를 산다. 산 화구는 수동 저장을 불러와도 남고, 영업에서 두 칸이 된다.
+        [UnityTest]
+        public IEnumerator ASecondBurnerIsBoughtInPreparationAndSurvivesAManualSave()
+        {
+            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 70, Garlic(1));
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(2), "이어하기로 2일차 진입");
+            var game = BasementComposition.Current.Game;
+            var economy = Object.FindAnyObjectByType<EconomyManager>();
+            Assert.That((game.OwnedBurners, game.NextBurnerPrice), Is.EqualTo((1, (int?)60)));
+            Assert.That(game.TryBuyBurner(), Is.EqualTo(PurchaseResult.MarketClosed), "아침 보고 중에는 살 수 없다");
+            yield return Click("ConfirmMorningReport");
+            Assert.That(game.Phase, Is.EqualTo(DayPhase.Preparation));
+            Assert.That(game.TryBuyBurner(), Is.EqualTo(PurchaseResult.Purchased));
+            Assert.That((game.OwnedBurners, economy.Gold, game.NextBurnerPrice), Is.EqualTo((2, 10, (int?)null)));
+            Assert.That(game.TryBuyBurner(), Is.EqualTo(PurchaseResult.NotForSale), "최대 화구");
+            Assert.That(economy.Gold, Is.EqualTo(10));
+
+            game.SaveManual();
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(2), "수동 저장 이어하기");
+            game = BasementComposition.Current.Game;
+            Assert.That((game.Phase, game.OwnedBurners), Is.EqualTo((DayPhase.Preparation, 2)), "산 화구는 불러와도 남는다");
+            yield return Click("StartService");
+            yield return Until(() => UIManager.KitchenBurners != null, "영업 화구 표시 연결");
+            Assert.That(UIManager.KitchenBurners.Count, Is.EqualTo(2));
+            Assert.That(UIManager.KitchenBurners.BurnerAt(1), Is.Not.EqualTo(UIManager.KitchenBurners.BurnerAt(0)), "두 칸의 표시 위치가 겹치지 않는다");
+        }
+
+        // sound-playback: 성공 결과에만 한 번씩 울리고, 씬마다 곡은 하나이며, ESC 일시 정지 중 BGM은 💡 0.4배로 줄어든다.
+        [UnityTest]
+        public IEnumerator SoundsFollowOnlySuccessesAndEachSceneKeepsOneBgm()
+        {
+            var played = new System.Collections.Generic.List<SoundCue>();
+            void Record(SoundCue cue) => played.Add(cue);
+            int Count(SoundCue cue) => played.Count(c => c == cue);
+            SoundManager.Played += Record;
+            try
+            {
+                TestGuestRoster.Use(guests: 2);
+                yield return StartFromTitle();
+                Assert.That((SoundManager.CurrentTrack, SoundManager.BgmSourceCount), Is.EqualTo(("Service", 1)), "함께 열리는 Restaurant·BasementUI는 곡을 바꾸지 않는다");
+                var s = FindScene();
+                yield return Until(() => s.Guests.Agents.Count == 2 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "두 손님 입장");
+                Assert.That(Count(SoundCue.GuestEntered), Is.EqualTo(2));
+
+                yield return GreetAndSeat(s, s.Guests.Agents[0], 0);
+                yield return CookAndCarry(s);
+                Assert.That(Count(SoundCue.CookFinished), Is.EqualTo(1));
+                Place(s.Player, s.Layout.GetSeat(2).position);
+                Assert.That(s.Service.TryInteract(), Is.False, "빈 자리 서빙");
+                Assert.That((Count(SoundCue.Served), Count(SoundCue.GoldEarned)), Is.EqualTo((0, 0)), "실패한 서빙은 소리 없음");
+                Place(s.Player, s.Layout.GetSeat(0).position);
+                Assert.That(s.Service.TryInteract(), Is.True);
+                Assert.That((Count(SoundCue.Served), Count(SoundCue.GoldEarned)), Is.EqualTo((1, 1)));
+
+                float bgm = GameSettings.GetVolume(GameSettings.Volume.Bgm);
+                yield return Press(Key.Escape);
+                Assert.That(Time.timeScale, Is.Zero);
+                yield return null;
+                Assert.That(SoundManager.BgmVolume, Is.EqualTo(bgm * SoundCatalog.Load().PauseBgmScale).Within(1e-4f));
+                yield return Press(Key.Escape);
+                yield return null;
+                Assert.That(SoundManager.BgmVolume, Is.EqualTo(bgm).Within(1e-4f));
+                Assert.That(SoundCatalog.Load().Validate(), Is.Null);
+                yield return LoadTitle();
+                Assert.That((SoundManager.CurrentTrack, SoundManager.BgmSourceCount), Is.EqualTo(("Title", 1)), "타이틀로 돌아가면 타이틀 곡");
+            }
+            finally
+            {
+                SoundManager.Played -= Record;
+            }
         }
 
         // 부수 효과가 있는 요청은 성공할 때까지 프레임마다 한 번씩만 보낸다.

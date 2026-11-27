@@ -8,6 +8,7 @@
 // 새로 쓰는 스냅샷은 항상 최신 스키마이다. 시작 스냅샷의 보고는 항상 미처리이고, 확정한 보고는 진행의 확정 ID로 남긴다.
 // 데모 완료 슬롯은 엔딩을 본 일차의 시작 스냅샷을 보관한다(진행 없음).
 // 스키마 6에서 마늘 개수(garlicStock) 대신 양념 재고 목록(spices)과 층 진행(floors)을 더했다 (F8·F9, 💡 홍준우와 저장 계약 합의 전).
+// 스키마 7에서 열린 레시피(recipes)·가진 화구 수(burners)와 진행 중 주문의 레시피·양념·화구를 더했다 (F6, 💡 홍준우와 저장 계약 합의 전).
 // 스키마 1~5의 garlicStock은 마늘 재고로 읽고 다른 양념은 0, 층 진행이 없으면 1층만 열림·성공 0·공개 없음으로 본다.
 // 음수 재고·겹치는 양념·시장 기준(SO_Market)에 없는 양념 id가 든 슬롯은 유효하지 않다.
 using System;
@@ -23,9 +24,11 @@ namespace DOB.Systems
     [DataContract]
     public sealed class FirstServiceSaveData
     {
-        public const int CurrentSchemaVersion = 6;
+        public const int CurrentSchemaVersion = 7;
         // 스키마 5까지 저장하던 유일한 양념. 스키마 6의 시장 id와 같다.
-        private const string LegacyGarlicId = "garlic";
+        internal const string LegacyGarlicId = "garlic";
+        // 스키마 6까지 주문은 모두 구운 빵이었다.
+        internal const string LegacyRecipeId = "Bread";
         private const int OldestReadableSchemaVersion = 1;
         public const string PreparationStage = "Preparation";
 
@@ -51,6 +54,9 @@ namespace DOB.Systems
         // 스키마 1~5에는 없다.
         [DataMember(Name = "spices")] private MaterialCount[] spices;
         [DataMember(Name = "floors")] private FloorProgressState floors;
+        // 스키마 7: 열린 레시피 id. 이전 스키마는 null이며 불러오는 쪽이 시작 레시피와 저장된 재료로 다시 연다.
+        [DataMember(Name = "recipes")] private string[] recipes;
+        [DataMember(Name = "burners")] private int? burners;
 
         /// <summary>일차 시작 때의 던전 재료 재고.</summary>
         public IReadOnlyList<MaterialCount> Materials => materials ?? Array.Empty<MaterialCount>();
@@ -80,6 +86,10 @@ namespace DOB.Systems
         }
         /// <summary>일차 시작 층 진행. 이전 스키마면 null(1층만 열림·성공 0·공개 없음).</summary>
         public FloorProgressState Floors => floors;
+        /// <summary>열린 레시피 id. 스키마 6 이하이면 null.</summary>
+        public IReadOnlyList<string> UnlockedRecipes => recipes;
+        /// <summary>가진 화구 수. 이전 스키마면 null(시작 화구 수로 연다).</summary>
+        public int? Burners => burners;
 
         public DateTime SavedAtUtc => DateTime.ParseExact(savedAtUtc, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
         public FirstServiceSaveSlot Slot => slot == "autosave" ? FirstServiceSaveSlot.Auto
@@ -89,7 +99,7 @@ namespace DOB.Systems
             IEnumerable<MaterialCount> materials = null, IEnumerable<VisitResult> pendingReports = null,
             IEnumerable<VisitAffinity> visitAffinities = null, int wordOfMouthBonus = 0,
             IEnumerable<GuestRecord> guests = null, int? daySeed = null, DayProgress progress = null, FloorProgressState floors = null,
-            ICollection<string> knownSpices = null)
+            IEnumerable<string> unlockedRecipes = null, int? ownedBurners = null, ICollection<string> knownSpices = null, ICollection<string> knownRecipes = null)
         {
             if (day < 1) throw new ArgumentOutOfRangeException(nameof(day));
             if (gold < 0) throw new ArgumentOutOfRangeException(nameof(gold));
@@ -99,6 +109,8 @@ namespace DOB.Systems
             Gold = gold;
             this.spices = new List<MaterialCount>(spices ?? Array.Empty<MaterialCount>()).ToArray();
             this.floors = floors;
+            recipes = unlockedRecipes == null ? null : new List<string>(unlockedRecipes).ToArray();
+            burners = ownedBurners;
             savedAtUtc = timestamp.ToString("O", CultureInfo.InvariantCulture);
             slot = SlotName(destination);
             this.materials = materials == null ? null : new List<MaterialCount>(materials).ToArray();
@@ -108,23 +120,26 @@ namespace DOB.Systems
             this.guests = guests == null ? null : new List<GuestRecord>(guests).ToArray();
             this.daySeed = daySeed;
             this.progress = progress;
-            if (!ContentIsValid(knownSpices))
-                throw new ArgumentException("양념·재료 수량, 귀환 보고, 방문 호감, 입소문 인원, 손님 명부 또는 층 진행이 올바르지 않습니다.");
+            if (!ContentIsValid(knownSpices, knownRecipes))
+                throw new ArgumentException("양념·재료 수량, 귀환 보고, 방문 호감, 입소문 인원, 손님 명부, 층 진행 또는 레시피가 올바르지 않습니다.");
         }
 
         /// <param name="knownSpices">시장 기준의 양념 id. null이면 id 검사를 건너뛴다.</param>
-        internal bool IsValidFor(FirstServiceSaveSlot expectedSlot, ICollection<string> knownSpices = null)
+        /// <param name="knownRecipes">주방 기준의 레시피 id. null이면 id 검사를 건너뛴다.</param>
+        internal bool IsValidFor(FirstServiceSaveSlot expectedSlot, ICollection<string> knownSpices = null, ICollection<string> knownRecipes = null)
         {
             return SchemaVersion >= OldestReadableSchemaVersion && SchemaVersion <= CurrentSchemaVersion &&
                 Stage == PreparationStage && Day >= 1 &&
-                Gold >= 0 && garlicStock >= 0 && slot == SlotName(expectedSlot) && ContentIsValid(knownSpices) &&
+                Gold >= 0 && garlicStock >= 0 && slot == SlotName(expectedSlot) && ContentIsValid(knownSpices, knownRecipes) &&
                 DateTime.TryParseExact(savedAtUtc, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var time) &&
                 time.Kind == DateTimeKind.Utc;
         }
 
         // 손상된 파일의 재료·보고·호감이 재고, 보고 목록, 다음 영업 인원에 들어가지 않도록 읽을 때와 쓸 때 같은 기준으로 검사한다.
-        private bool ContentIsValid(ICollection<string> knownSpices)
+        private bool ContentIsValid(ICollection<string> knownSpices, ICollection<string> knownRecipes)
         {
+            if (!RecipesAreValid(knownSpices, knownRecipes))
+                return false;
             if (wordOfMouthBonus < 0 || progress != null && !progress.Validate() || !SpicesAreValid(Spices, knownSpices) || progress != null && !SpicesAreValid(progress.Spices, knownSpices) || floors != null && !floors.Validate())
                 return false;
             var guestIds = new HashSet<string>();
@@ -161,6 +176,34 @@ namespace DOB.Systems
                     if (string.IsNullOrEmpty(loot)) return false;
             }
             return true;
+        }
+
+        // 열린 레시피는 비거나 겹치지 않고 아는 id여야 한다. 진행 중 주문의 레시피·양념도 아는 id여야 한다.
+        private bool RecipesAreValid(ICollection<string> knownSpices, ICollection<string> knownRecipes)
+        {
+            if (burners < 1)
+                return false;
+            var seen = new HashSet<string>();
+            if (recipes != null)
+                foreach (string id in recipes)
+                    if (string.IsNullOrEmpty(id) || !seen.Add(id) || knownRecipes != null && !knownRecipes.Contains(id))
+                        return false;
+            if (progress != null)
+                foreach (var order in progress.Orders)
+                    if (order != null && (knownRecipes != null && !knownRecipes.Contains(order.Recipe)
+                        || order.Spice != null && knownSpices != null && !knownSpices.Contains(order.Spice)))
+                        return false;
+            return true;
+        }
+
+        /// <summary>주방 기준(SO_Kitchen)의 레시피 id. 기준이 없으면 null. Resources를 읽으므로 메인 스레드에서만 부른다.</summary>
+        public static ICollection<string> LoadKnownRecipes()
+        {
+            var kitchen = KitchenRules.Load();
+            if (!kitchen) return null;
+            var ids = new HashSet<string>();
+            foreach (var recipe in kitchen.Recipes) ids.Add(recipe.id);
+            return ids;
         }
 
         /// <summary>시장 기준(SO_Market)의 양념 id. 기준이 없으면 null. Resources를 읽으므로 메인 스레드에서만 부른다.</summary>

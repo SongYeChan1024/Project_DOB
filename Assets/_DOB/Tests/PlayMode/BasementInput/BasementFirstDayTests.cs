@@ -186,8 +186,8 @@ namespace DOB.Tests
             Assert.That(servedVisit, Is.EqualTo(visit.VisitId));
             Assert.That(servedName, Is.EqualTo(visit.GuestName));
             Assert.That(hud.Receipt.text, Does.Contain(servedName).And.Contain(servedLine));
-            var bread = UnityEditor.AssetDatabase.LoadAssetAtPath<FirstServiceRecipe>("Assets/_DOB/08.Data/SO_FirstService_Bread.asset");
-            var shortfalls = ExpeditionJudge.Shortfalls(visit.ActualRisk, axis => bread.Protection(axis, true));
+            Assert.That(KitchenRules.Load().TryGet("Bread", out var bread), Is.True);
+            var shortfalls = ExpeditionJudge.Shortfalls(visit.ActualRisk, axis => RecipeJudge.Protection(bread, market, "garlic", axis));
             int shortfall = ExpeditionJudge.Total(shortfalls);
             Assert.That(servedLine, Is.EqualTo(visit.TasteLine(true)));
             Assert.That(hud.Receipt.text, Does.Contain(visit.DepartureLine(shortfall)));
@@ -199,7 +199,7 @@ namespace DOB.Tests
             Assert.That(served.Grade, Is.EqualTo(ExpeditionJudge.Grade(shortfall)));
             // 보고 화면이 "막아냈다" 줄을 그릴 수 있게 그날의 실제 위험과 요리가 막은 칸도 함께 남는다.
             Assert.That(served.Risks, Is.EqualTo(ExpeditionJudge.PerAxis(visit.ActualRisk)));
-            Assert.That(served.Protections, Is.EqualTo(ExpeditionJudge.PerAxis(axis => bread.Protection(axis, true))));
+            Assert.That(served.Protections, Is.EqualTo(ExpeditionJudge.PerAxis(axis => RecipeJudge.Protection(bread, market, "garlic", axis))));
             // 전리품 자격은 그날 정산 뒤 누적 호감으로 정하므로 서빙 시점에는 비어 있다.
             Assert.That(served.Loot, Is.Empty);
             Assert.That(UnityEngine.Object.FindAnyObjectByType<EconomyManager>().Materials.All(), Is.Empty, "전리품은 다음 아침에 받는다");

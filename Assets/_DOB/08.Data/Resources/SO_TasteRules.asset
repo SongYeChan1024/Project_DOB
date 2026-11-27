@@ -42,6 +42,31 @@ MonoBehaviour:
     flavors:
     - 고소
     - 담백
+  - name: 감자 스튜
+    flavors:
+    - 진한
+  - name: 고기 구이
+    flavors:
+    - 진한
+    - 바삭
+  - name: 들풀 파이
+    flavors:
+    - 고소
+    - 향긋
+  - name: 숲버섯 수프
+    flavors:
+    - 담백
+  - name: 당근 케이크
+    flavors:
+    - 달콤
+  - name: 슬라임 젤리 샐러드
+    flavors:
+    - 상큼
+    - 시원
+  - name: 숲 송로 수프
+    flavors:
+    - 담백
+    - 향긋
   - name: 마늘
     flavors:
     - 향긋

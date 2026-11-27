@@ -3,7 +3,7 @@
 // 역할   : 씬 조립이 끝난 뒤 하루를 연다. 하루 단계(DayCycle)·방명록(RelationshipManager)·하루 진행 화면(DayFlowPresenter)을
 //          연결하고, 단계에 맞춰 응대·주방을 켜고, 마감 정산과 수동 저장을 처리한다.
 //          금화·양념·던전 재료는 EconomyManager, 방문 결과·귀환 보고·층 진행은 SettlementManager, 마감 정산 저장은 SaveManager,
-//          하루 단계는 DayCycle이 소유하며 여기서 따로 보관하지 않는다.
+//          레시피 기준·열린 레시피는 KitchenManager, 하루 단계는 DayCycle이 소유하며 여기서 따로 보관하지 않는다.
 // 호출자 : BasementComposition (Prepare → 로딩 화면 닫힘 → StartService)
 // 호출   : DayCycle, DayFlowPresenter, RelationshipManager, SettlementManager, EconomyManager, FirstGuestService,
 //          FirstGuestKitchen, GuestManager(명단), ServicePauseReasons, SaveManager, FirstServiceSaveStore, BasementPauseMenu,
@@ -23,6 +23,8 @@
 //              영업 단계였으면 식당이 준비돼 명단이 열린 첫 Update에서 명단·좌석·주문·금화·마늘·방명록·방문 결과를 되살린다. 그 전에는 시계를 흘리지 않는다.
 //   단계 변경 — 준비가 되면 남은 귀환 보고를 모두 확정해 전리품을 재고에 한 번씩 반영한다(화면이 일부를 먼저 확정했어도 안전).
 //              영업이 되면 응대·주방을 켠다.
+//   성공 알림 — 입장·조리 완성·서빙·금화·보고 확정을 SoundManager 효과음으로 잇는다(불러오기 복원 중의 보고 재확정은 소리 없음).
+//              보고 확정 뒤에는 KitchenManager가 새로 들어온 재료로 레시피를 연다.
 //   서빙 알림 — 그 방문의 손님으로 방명록 글을 등록하고, 주방이 계산한 축별 부족으로 탐험 결과를 확정한다.
 //              손님 입맛과 접시(요리·양념)로 입맛 점수를 정해 명단에 서빙(대기·입맛 점수 기록)과 파견 종료를 요청한다.
 //              손님은 명단의 종료 알림으로 계단을 향한다.
@@ -51,6 +53,7 @@
 //   OnDisable — 구독을 풀고 응대·주방을 끈다.
 // =====================================================================
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DOB.Define;
@@ -87,6 +90,14 @@ namespace DOB.Manager
         private bool newTimeline;
         // 마감 정산 저장과 그 결과를 소유한다. 씬에 없으면 하루를 열 때 붙인다.
         private SaveManager saveManager;
+        // 레시피 기준과 열린 레시피를 소유한다. 씬에 없으면 하루를 열 때 붙인다.
+        private KitchenManager kitchenManager;
+        // 일차 시작의 열린 레시피(수동 저장이 일차 시작 스냅샷에 함께 쓴다).
+        private IReadOnlyList<string> dayStartRecipes;
+        // 일차 시작의 화구 수(수동 저장의 일차 시작 스냅샷용). 준비 단계에서 산 화구는 진행(DayProgress)에 남는다.
+        private int dayStartBurners;
+        // 수동 저장을 불러와 확정 보고를 다시 반영하는 동안에는 효과음을 내지 않는다.
+        private bool restoring;
         // 수동 저장이 일차 시작 상태를 그대로 다시 쓰도록 보관한다. 새 게임이면 null.
         private FirstServiceSaveData dayStart;
         private DayCycle cycle;
@@ -144,6 +155,16 @@ namespace DOB.Manager
             economy.BeginDay(start?.Gold, start?.Spices, start?.Materials);
             if (!settlement.BeginDay(start?.PendingReports, economy.Materials, start?.Floors))
                 return false;
+            kitchenManager = GetComponent<KitchenManager>();
+            if (!kitchenManager) kitchenManager = gameObject.AddComponent<KitchenManager>();
+            kitchenManager.BeginDay(start?.UnlockedRecipes, economy.Materials, start?.Burners);
+            if (kitchenManager.SetupError is string kitchenError)
+            {
+                Debug.LogError("[DOB] 주방 기준을 확인하세요. " + kitchenError, kitchenManager);
+                return false;
+            }
+            dayStartRecipes = kitchenManager.Unlocked;
+            dayStartBurners = kitchenManager.OwnedBurners;
             saveManager = GetComponent<SaveManager>();
             if (!saveManager) saveManager = gameObject.AddComponent<SaveManager>();
             saveManager.Begin(store);
@@ -162,8 +183,9 @@ namespace DOB.Manager
             settleButton = hud.Settle;
             settleButton.interactable = false;
             settleButton.onClick.AddListener(Settle);
-            kitchen.StartDay(economy);
+            kitchen.StartDay(economy, kitchenManager);
             kitchen.Served += RecordMeal;
+            ConnectSignals(true);
 
             relationship.BeginDay(Settings.GuestbookWriteSeconds, start?.VisitAffinities, start?.WordOfMouthBonus ?? 0, start?.Guests, startDay);
             daySeed = start?.DaySeed ?? Guid.NewGuid().GetHashCode();
@@ -201,6 +223,13 @@ namespace DOB.Manager
             IsReady = true;
         }
 
+        /// <summary>가진 화구 수. 하루를 열기 전이면 0.</summary>
+        public int OwnedBurners => kitchenManager ? kitchenManager.OwnedBurners : 0;
+        /// <summary>다음 화구 값. 다 샀으면 null.</summary>
+        public int? NextBurnerPrice => kitchenManager ? kitchenManager.NextBurnerPrice : null;
+        /// <summary>준비 화면의 화구 구매 요청(화면 연결은 홍준우 인계). 준비 단계에서만 금화를 쓰고 화구를 하나 늘린다.</summary>
+        public PurchaseResult TryBuyBurner() => kitchenManager ? kitchenManager.TryBuyBurner(economy) : PurchaseResult.MarketClosed;
+
         /// <summary>현재 영업을 계속하면서 누른 시점의 진행을 수동 슬롯에 기록한다. 파일 오류는 호출자에게 전달한다.</summary>
         public void SaveManual()
         {
@@ -212,7 +241,7 @@ namespace DOB.Manager
                     throw new IOException("영업 정산을 저장하지 못했습니다.");
                 var next = saveManager.Settled;
                 saves.SavePreparation(FirstServiceSaveSlot.Manual, next.Day, next.Gold, next.Spices, next.Materials, next.PendingReports,
-                    next.VisitAffinities, next.WordOfMouthBonus, next.Guests, next.DaySeed, null, next.Floors);
+                    next.VisitAffinities, next.WordOfMouthBonus, next.Guests, next.DaySeed, null, next.Floors, next.UnlockedRecipes, next.Burners);
                 return;
             }
             SaveDayStart(FirstServiceSaveSlot.Manual, CaptureProgress());
@@ -222,7 +251,7 @@ namespace DOB.Manager
         // 불러올 때 시작 재고에 한 번씩 다시 더한다. 지금 재고를 그대로 쓰면 미처리 보고와 겹쳐 두 번 받게 된다 (FeatureManagerMap A·B).
         private void SaveDayStart(FirstServiceSaveSlot slot, DayProgress progress = null) => saves.SavePreparation(slot, startDay, economy.DayStartGold,
             economy.DayStartSpices, dayStart?.Materials, dayStart?.PendingReports, dayStart?.VisitAffinities, dayStart?.WordOfMouthBonus ?? 0,
-            dayStart?.Guests, daySeed, progress, dayStart?.Floors);
+            dayStart?.Guests, daySeed, progress, dayStart?.Floors, dayStartRecipes, dayStartBurners);
 
         private DayProgress CaptureProgress()
         {
@@ -232,28 +261,31 @@ namespace DOB.Manager
                 return null;
             var confirmed = settlement.ConfirmedReports;
             if (cycle.Phase != DayPhase.Service)
-                return new DayProgress(cycle.Phase, confirmed, economy.Gold, economy.Spices.All());
+                return new DayProgress(cycle.Phase, confirmed, economy.Gold, economy.Spices.All(), burners: kitchenManager.OwnedBurners);
             var roster = guests.Roster;
             // 식당이 아직 준비되지 않았으면 영업에서 바뀐 것이 없으므로 일차 시작으로 충분하다.
             if (roster == null)
                 return null;
             var visits = roster.Visits.Select(v => new VisitProgress(v.VisitId, v.GuestId, v.Stage, v.End, v.WaitSeconds, v.WaitScore,
                 v.TasteScore, guests.Find(v.VisitId) is GuestAgent agent ? agent.SeatIndex : -1));
-            var orders = kitchen.Orders.Select(o => new OrderProgress(o.VisitId, o.State, o.RemainingSeconds, o.UsedGarlic));
+            var orders = kitchen.Orders.Select(o => new OrderProgress(o.VisitId, o.State, o.RemainingSeconds, o.RecipeId, o.Spice, o.BurnerIndex));
             return new DayProgress(DayPhase.Service, confirmed, economy.Gold, economy.Spices.All(),
                 new RosterProgress(roster.NextArrivalSeconds, roster.ArrivalDue, visits), orders, relationship.Guestbook.Snapshot(),
-                settlement.TodayResults);
+                settlement.TodayResults, kitchenManager.OwnedBurners);
         }
 
         // 저장된 확정 보고를 다시 확정하고(전리품·층 진행이 한 번씩 반영된다) 누른 시점의 금화·양념으로 바꾼 뒤 저장된 단계까지 넘긴다.
         // 영업 진행은 식당이 준비된 뒤 ResumeService가 되살린다.
         private void ResumePhase(DayProgress progress)
         {
+            restoring = true;
             foreach (string visitId in progress.ConfirmedReports)
                 settlement.ConfirmReport(visitId);
+            restoring = false;
             // 영업 단계로 넘어가면 주방이 켜지며 양념 재고를 잡으므로, 그 전에 바꾼다.
             if (!economy.Restore(progress.Gold, progress.Spices))
                 Debug.LogError("[DOB] 수동 저장의 금화·양념을 되살리지 못했습니다.", this);
+            kitchenManager.RestoreBurners(progress.Burners);
             while (cycle.Phase != progress.Phase && cycle.TryComplete(cycle.Phase, out _)) { }
             if (cycle.Phase != DayPhase.Service)
                 pendingProgress = null;
@@ -332,7 +364,7 @@ namespace DOB.Manager
                 var reports = settlement.SettledResults(relationship.FindGuest);
                 nextDaySeed = nextDaySeed ?? Guid.NewGuid().GetHashCode();
                 saveManager.Settle(newTimeline, Day, economy.Gold, economy.Spices.All(), materials, reports, affinities, bonus, ledger,
-                    nextDaySeed, settlement.FloorSnapshot);
+                    nextDaySeed, settlement.FloorSnapshot, kitchenManager.Unlocked, kitchenManager.OwnedBurners);
                 return true;
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
@@ -340,6 +372,36 @@ namespace DOB.Manager
                 Debug.LogWarning("[DOB] 영업 정산을 저장할 수 없습니다. 마감 확인으로 다시 시도합니다. " + e.Message, this);
                 return false;
             }
+        }
+
+        // 성공 결과에만 효과음을 낸다(sound-playback). 귀환 보고 확정은 전리품이 들어온 뒤라 레시피 해금도 여기서 한다.
+        private void ConnectSignals(bool on)
+        {
+            if (on)
+            {
+                guests.GuestEntered += OnGuestEntered;
+                kitchen.CookFinished += OnCookFinished;
+                kitchen.Served += OnServedSound;
+                economy.GoldEarned += OnGoldEarned;
+                settlement.ReportConfirmed += OnReportConfirmed;
+                return;
+            }
+            if (guests) guests.GuestEntered -= OnGuestEntered;
+            if (kitchen) { kitchen.CookFinished -= OnCookFinished; kitchen.Served -= OnServedSound; }
+            if (economy) economy.GoldEarned -= OnGoldEarned;
+            if (settlement) settlement.ReportConfirmed -= OnReportConfirmed;
+        }
+
+        private void OnGuestEntered(string visitId) => SoundManager.Play(SoundCue.GuestEntered);
+        private void OnCookFinished(string visitId) => SoundManager.Play(SoundCue.CookFinished);
+        private void OnServedSound(FirstGuestKitchen.ServedMeal meal) => SoundManager.Play(SoundCue.Served);
+        private void OnGoldEarned(int gold) => SoundManager.Play(SoundCue.GoldEarned);
+
+        private void OnReportConfirmed(string visitId)
+        {
+            kitchenManager.Refresh(economy.Materials);
+            if (!restoring)
+                SoundManager.Play(SoundCue.ReportStamped);
         }
 
         private void OnPhaseChanged(DayPhase phase)
@@ -412,6 +474,7 @@ namespace DOB.Manager
             dayFlow = null;
             if (cycle != null) cycle.PhaseChanged -= OnPhaseChanged;
             if (kitchen) kitchen.Served -= RecordMeal;
+            ConnectSignals(false);
             if (returnReport) returnReport.Bind(null, null);
             returnReport = null;
             if (settleButton) settleButton.onClick.RemoveListener(Settle);

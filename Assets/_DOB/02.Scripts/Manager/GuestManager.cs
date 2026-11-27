@@ -64,6 +64,8 @@ namespace DOB.Manager
         public string SetupError => !template ? "손님 템플릿이 없습니다." : !Settings ? "영업 손님 기준값이 없습니다." : Settings.Validate();
         /// <summary>방문 ID, 종료 방식. 명단이 방문을 끝낸 순간 한 번 알린다.</summary>
         public event Action<string, ServiceVisitEnd> VisitEnded;
+        /// <summary>새 손님이 입장했을 때 한 번 알린다(효과음). 불러오기 복원은 알리지 않는다.</summary>
+        public event Action<string> GuestEntered;
 
         /// <summary>오늘 손님의 입맛 태그. 오늘 손님이 아니거나 입맛 기준이 없어 정하지 못했으면 빈 목록.</summary>
         public IReadOnlyList<string> TastesOf(string guestId) =>
@@ -142,6 +144,7 @@ namespace DOB.Manager
                 if (visit == null || !Roster.Admit(visit.VisitId, visit.GuestId))
                     return;
                 Spawn(visit);
+                GuestEntered?.Invoke(visit.VisitId);
             }
         }
 

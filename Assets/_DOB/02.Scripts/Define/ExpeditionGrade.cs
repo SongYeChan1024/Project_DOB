@@ -17,5 +17,15 @@ namespace DOB.Define
     {
         // 대사 규칙 에셋(GuestDialogueRules)의 axis 문자열과 같은 이름을 쓴다.
         public static readonly IReadOnlyList<string> All = new[] { "독", "열", "냉기", "어둠", "체력", "함정" };
+
+        // 요리·양념의 효과 이름(기획 11장 표). All과 같은 순서다.
+        private static readonly string[] Effects = { "해독", "내열", "방한", "야광", "활력", "감각" };
+
+        /// <summary>효과 이름이 막는 위험 축(해독 → 독). 모르는 이름이면 null.</summary>
+        public static string AxisOfEffect(string effect)
+        {
+            int index = System.Array.IndexOf(Effects, effect);
+            return index < 0 ? null : All[index];
+        }
     }
 }

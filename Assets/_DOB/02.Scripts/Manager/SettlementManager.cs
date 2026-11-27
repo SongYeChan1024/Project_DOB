@@ -75,9 +75,15 @@ namespace DOB.Manager
         {
             var result = reports != null ? reports.Confirm(visitId) : ReportConfirmResult.NotFound;
             if (result == ReportConfirmResult.Confirmed)
+            {
                 floors.Apply(reports.Find(visitId));
+                ReportConfirmed?.Invoke(visitId);
+            }
             return result;
         }
+
+        /// <summary>귀환 보고를 처음 확정했을 때 한 번 알린다(전리품이 재고에 들어간 뒤). 레시피 해금·효과음용.</summary>
+        public event System.Action<string> ReportConfirmed;
 
         /// <summary>그 보고가 공개한 위험 축과 새로 연 층. 아직 확정하지 않았으면 null.</summary>
         public FloorOutcome FloorOutcomeOf(string visitId) => floors?.OutcomeOf(visitId);

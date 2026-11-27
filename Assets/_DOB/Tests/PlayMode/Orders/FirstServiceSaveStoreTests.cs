@@ -406,7 +406,7 @@ namespace DOB.Tests
         public void AServiceProgressSurvivesTheFileAndAMismatchedOneFallsBackToTheBackup()
         {
             var roster = new RosterProgress(3f, false, new[] { new VisitProgress("v1", "g1", ServiceVisitStage.Seated, ServiceVisitEnd.None, 2f, null, null, 1) });
-            var progress = new DayProgress(DayPhase.Service, null, 60, Garlic(1), roster, new[] { new OrderProgress("v1", FirstGuestOrderState.Cooking, 4f, 1) });
+            var progress = new DayProgress(DayPhase.Service, null, 60, Garlic(1), roster, new[] { new OrderProgress("v1", FirstGuestOrderState.Cooking, 4f, "Bread", "garlic", 0) });
             store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, Garlic(2), progress: progress);
             // 두 번째 쓰기에서 첫 파일이 백업이 된다.
             store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, Garlic(2), progress: progress);
@@ -418,13 +418,47 @@ namespace DOB.Tests
 
             string path = Path.Combine(directory, "manual.json");
             string text = File.ReadAllText(path);
-            Assert.That(text, Does.Contain("\"usedGarlic\":1,\"visitId\":\"v1\""));
-            File.WriteAllText(path, text.Replace("\"usedGarlic\":1,\"visitId\":\"v1\"", "\"usedGarlic\":1,\"visitId\":\"v9\""));
+            Assert.That(text, Does.Contain("\"spice\":\"garlic\",\"state\":1,\"visitId\":\"v1\""));
+            Assert.That(text, Does.Not.Contain("usedGarlic"), "스키마 7은 레시피·양념 id로 쓴다");
+            File.WriteAllText(path, text.Replace("\"state\":1,\"visitId\":\"v1\"", "\"state\":1,\"visitId\":\"v9\""));
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var fallback), Is.True, "명단에 없는 주문이면 백업을 읽는다");
             Assert.That(fallback.Progress.Orders.Single().VisitId, Is.EqualTo("v1"));
 
-            var orphan = new DayProgress(DayPhase.Service, null, 60, Garlic(1), roster, new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, 0) });
+            var orphan = new DayProgress(DayPhase.Service, null, 60, Garlic(1), roster, new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, null, null, -1) });
             Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, Garlic(2), progress: orphan));
+        }
+
+        [Test]
+        public void UnlockedRecipesRoundTripAndOlderSavesHaveNone()
+        {
+            var saved = store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 40, Garlic(1), unlockedRecipes: new[] { "Bread", "MushroomSoup" });
+            Assert.That(saved.SchemaVersion, Is.EqualTo(7));
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var loaded), Is.True);
+            Assert.That(loaded.UnlockedRecipes, Is.EqualTo(new[] { "Bread", "MushroomSoup" }));
+
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, Garlic(1), unlockedRecipes: new[] { "Pizza" }), "모르는 레시피");
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, Garlic(1), unlockedRecipes: new[] { "Bread", "Bread" }), "겹친 레시피");
+
+            // 스키마 6 파일에는 열린 레시피가 없다. 불러오는 쪽이 시작 레시피 + 재고로 다시 연다.
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, Garlic(1));
+            string path = Path.Combine(directory, "manual.json");
+            File.WriteAllText(path, File.ReadAllText(path).Replace("\"schemaVersion\":7", "\"schemaVersion\":6"));
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var legacy), Is.True);
+            Assert.That(legacy.UnlockedRecipes, Is.Null);
+            Assert.That(legacy.Burners, Is.Null, "이전 저장은 시작 화구 수로 연다");
+        }
+
+        [Test]
+        public void OwnedBurnersRoundTripAndZeroIsRejected()
+        {
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 40, Garlic(1), burners: 2);
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Auto, out var loaded), Is.True);
+            Assert.That(loaded.Burners, Is.EqualTo(2));
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, Garlic(1), burners: 0));
+            var progress = new DayProgress(DayPhase.Preparation, null, 10, Garlic(1), burners: 2);
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 40, Garlic(1), progress: progress, burners: 1);
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var manual), Is.True);
+            Assert.That((manual.Burners, manual.Progress.Burners), Is.EqualTo(((int?)1, (int?)2)), "일차 시작 1칸, 누른 시점 2칸");
         }
     }
 }

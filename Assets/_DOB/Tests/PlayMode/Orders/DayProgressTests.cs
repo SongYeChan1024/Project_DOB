@@ -82,19 +82,25 @@ namespace DOB.Tests
         }
 
         [Test]
-        public void OrdersComeBackWithTheirStateTimeAndGarlicAndAHeldPlateReturnsToTheCounter()
+        public void OrdersComeBackWithTheirRecipeSpiceBurnerAndTimeAndAHeldPlateReturnsToItsBurner()
         {
-            var book = new OrderBook(new MaterialStock(Garlic(2)), "garlic", 6f, 2);
+            var rules = KitchenRules.Load();
+            rules.TryGet("Bread", out var bread);
+            var book = new OrderBook(rules, new MaterialStock(), new MaterialStock(Garlic(2)), () => 2);
             book.TryOpen("v1"); book.TryOpen("v2"); book.TryOpen("v3");
-            book.TryStart("v1", 2, 1); book.Advance(6f); book.TryPickUp("v1");
-            book.TryStart("v2", 2, 0); book.Advance(2f);
-            var saved = book.Orders.Select(o => new OrderProgress(o.VisitId, o.State, o.RemainingSeconds, o.UsedGarlic)).ToList();
+            book.TryStart("v1", bread, "garlic"); book.Advance(6f); book.TryPickUp("v1");
+            book.TryStart("v2", bread, null); book.Advance(2f);
+            var saved = book.Orders.Select(o => new OrderProgress(o.VisitId, o.State, o.RemainingSeconds, o.RecipeId, o.Spice, o.BurnerIndex)).ToList();
 
-            var restored = new OrderBook(new MaterialStock(Garlic(1)), "garlic", 6f, 2);
+            var spices = new MaterialStock(Garlic(1));
+            var restored = new OrderBook(rules, new MaterialStock(), spices, () => 2);
             Assert.That(restored.Restore(saved), Is.True);
-            Assert.That(restored.GarlicStock, Is.EqualTo(1), "양념 재고는 경제가 따로 되살린다");
+            Assert.That(spices.Count("garlic"), Is.EqualTo(1), "양념 재고는 경제가 따로 되살린다");
             Assert.That(restored.Find("v1").State, Is.EqualTo(FirstGuestOrderState.Ready));
-            Assert.That(restored.Find("v1").UsedGarlic, Is.EqualTo(1));
+            Assert.That(restored.Find("v1").Spice, Is.EqualTo("garlic"));
+            Assert.That(restored.Find("v1").RecipeId, Is.EqualTo("Bread"));
+            Assert.That(restored.Find("v2").BurnerIndex, Is.Zero, "저장된 화구 번호로 돌아온다");
+            Assert.That(restored.Find("v1").BurnerIndex, Is.EqualTo(1), "든 접시는 빈 화구에 완성 접시로 돌아온다");
             Assert.That(restored.Cooking.VisitId, Is.EqualTo("v2"));
             Assert.That(restored.Cooking.RemainingSeconds, Is.EqualTo(4f));
             Assert.That(restored.NextWaiting.VisitId, Is.EqualTo("v3"));
@@ -132,9 +138,9 @@ namespace DOB.Tests
         {
             var roster = new RosterProgress(3f, false, new[] { new VisitProgress("v1", "g1", ServiceVisitStage.Seated, ServiceVisitEnd.None, 2f, null, null, 0) });
             Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, Garlic(0), roster,
-                new[] { new OrderProgress("v1", FirstGuestOrderState.Waiting, 6f, 0) })), Is.True);
+                new[] { new OrderProgress("v1", FirstGuestOrderState.Waiting, 6f, null, null, -1) })), Is.True);
             Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, Garlic(0), roster,
-                new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, 0) })), Is.False);
+                new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, null, null, -1) })), Is.False);
             var ended = new RosterProgress(3f, false, new[] { new VisitProgress("v1", "g1", ServiceVisitStage.Seated, ServiceVisitEnd.Dispatched, 2f, 2, 0, 0) });
             Assert.That(Valid(new DayProgress(DayPhase.Service, null, 0, Garlic(0), ended)), Is.False, "끝나지 않은 단계에 종료 방식");
         }

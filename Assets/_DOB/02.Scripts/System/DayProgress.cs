@@ -1,4 +1,4 @@
-// 수동 저장에 일차 시작 스냅샷과 함께 넣는 「누른 시점」의 진행 상태 (F13, 2026-11-25 결정).
+// 수동 저장에 일차 시작 스냅샷과 함께 넣는 「누른 시점」의 진행 상태 (F13, 2026-11-25 결정). 스키마 7부터 주문에 레시피·양념·화구를 담는다.
 // 저장(FirstServiceSaveData 스키마 5)이 담고, 불러올 때 GameManager가 일차 시작으로 하루를 연 뒤 각 System에 복원을 요청한다.
 // 재고는 따로 저장하지 않는다. 「시작 재고 + 확정한 보고의 전리품」으로 다시 계산되므로 같은 보고를 두 번 받지 않는다(FeatureManagerMap A·B 사례).
 // 의사코드: Validate — 단계가 아침 보고·준비·영업 중 하나, 금화·마늘 ≥ 0, 확정 보고 ID 중복 없음.
@@ -68,16 +68,29 @@ namespace DOB.Systems
         [DataMember(Name = "visitId")] public string VisitId { get; private set; }
         [DataMember(Name = "state")] private int state;
         [DataMember(Name = "remainingSeconds")] public float RemainingSeconds { get; private set; }
-        [DataMember(Name = "usedGarlic")] public int UsedGarlic { get; private set; }
+        // 스키마 6까지는 구운 빵에 넣은 마늘 수만 저장했다. 스키마 7부터는 recipe·spice를 쓴다.
+        [DataMember(Name = "usedGarlic", EmitDefaultValue = false)] private int usedGarlic;
+        [DataMember(Name = "recipe", EmitDefaultValue = false)] private string recipe;
+        [DataMember(Name = "spice", EmitDefaultValue = false)] private string spice;
+        [DataMember(Name = "burner", EmitDefaultValue = false)] private int? burner;
 
         public FirstGuestOrderState State => (FirstGuestOrderState)state;
+        /// <summary>확정한 레시피 id. 이전 스키마는 구운 빵.</summary>
+        public string Recipe => recipe ?? FirstServiceSaveData.LegacyRecipeId;
+        /// <summary>넣은 양념 id. 이전 스키마는 마늘 수가 1 이상이면 마늘.</summary>
+        public string Spice => recipe != null ? spice : usedGarlic > 0 ? FirstServiceSaveData.LegacyGarlicId : null;
+        /// <summary>조리 중·완성 접시가 놓인 화구 번호. 이전 스키마나 화구 밖이면 null.</summary>
+        public int? Burner => burner >= 0 ? burner : null;
+        internal int LegacyGarlic => usedGarlic;
 
-        public OrderProgress(string visitId, FirstGuestOrderState state, float remainingSeconds, int usedGarlic)
+        public OrderProgress(string visitId, FirstGuestOrderState state, float remainingSeconds, string recipe, string spice, int burner)
         {
             VisitId = visitId;
             this.state = (int)state;
             RemainingSeconds = remainingSeconds;
-            UsedGarlic = usedGarlic;
+            this.recipe = recipe ?? FirstServiceSaveData.LegacyRecipeId;
+            this.spice = spice;
+            this.burner = burner >= 0 ? burner : (int?)null;
         }
     }
 
@@ -116,6 +129,7 @@ namespace DOB.Systems
         [DataMember(Name = "orders")] private OrderProgress[] orders;
         [DataMember(Name = "guestbook")] private GuestbookProgress[] guestbook;
         [DataMember(Name = "results")] private VisitResult[] results;
+        [DataMember(Name = "burners")] private int? burners;
 
         public DayPhase Phase => (DayPhase)phase;
         /// <summary>누른 시점의 양념 재고. 스키마 5 진행이면 마늘만 있다.</summary>
@@ -126,10 +140,14 @@ namespace DOB.Systems
         public IReadOnlyList<GuestbookProgress> Guestbook => guestbook ?? Array.Empty<GuestbookProgress>();
         /// <summary>오늘 서빙해 확정한 방문 결과(전리품은 비어 있다).</summary>
         public IReadOnlyList<VisitResult> Results => results ?? Array.Empty<VisitResult>();
+        /// <summary>저장을 누른 시점의 화구 수(준비 단계 구매 포함). 이전 스키마면 null.</summary>
+        public int? Burners => burners;
 
         public DayProgress(DayPhase phase, IEnumerable<string> confirmedReports, int gold, IEnumerable<MaterialCount> spices, RosterProgress roster = null,
-            IEnumerable<OrderProgress> orders = null, IEnumerable<GuestbookProgress> guestbook = null, IEnumerable<VisitResult> results = null)
+            IEnumerable<OrderProgress> orders = null, IEnumerable<GuestbookProgress> guestbook = null, IEnumerable<VisitResult> results = null,
+            int? burners = null)
         {
+            this.burners = burners;
             this.phase = (int)phase;
             this.confirmedReports = confirmedReports == null ? null : new List<string>(confirmedReports).ToArray();
             Gold = gold;
@@ -145,7 +163,7 @@ namespace DOB.Systems
         {
             if (Phase != DayPhase.MorningReport && Phase != DayPhase.Preparation && Phase != DayPhase.Service)
                 return false;
-            if (Gold < 0 || garlic < 0 || !FirstServiceSaveData.SpicesAreValid(Spices))
+            if (Gold < 0 || garlic < 0 || burners < 1 || !FirstServiceSaveData.SpicesAreValid(Spices))
                 return false;
             var confirmed = new HashSet<string>();
             foreach (string id in ConfirmedReports)
@@ -165,7 +183,7 @@ namespace DOB.Systems
             var orderIds = new HashSet<string>();
             foreach (var order in Orders)
                 if (order == null || !visitIds.Contains(order.VisitId) || !orderIds.Add(order.VisitId) || order.RemainingSeconds < 0f
-                    || order.UsedGarlic < 0 || !Enum.IsDefined(typeof(FirstGuestOrderState), order.State))
+                    || order.LegacyGarlic < 0 || !Enum.IsDefined(typeof(FirstGuestOrderState), order.State))
                     return false;
             foreach (var entry in Guestbook)
                 if (entry == null || !visitIds.Contains(entry.VisitId) || float.IsNaN(entry.RemainingSeconds) || float.IsInfinity(entry.RemainingSeconds))
