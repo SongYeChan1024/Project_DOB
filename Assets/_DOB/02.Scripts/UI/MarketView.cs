@@ -10,6 +10,7 @@
 // [보이기]  양념마다 줄을 만들고 살 개수 0으로 시작한다
 // [-/+]     0 아래로 내려가지 않는다. 합계가 가진 금화를 넘으면 [+]를 잠근다
 // [결제]    고른 게 있을 때만 누를 수 있다. 누르면 (양념 id → 개수) 목록을 알린다
+// [결제 뒤]  (시안 16 ②) 다시 그려질 때 금화가 줄었으면 지갑 숫자가 하나씩 줄고 −N이 떠오르며, 보유가 늘어난 양념 숫자가 톡
 // [닫기]    닫기 요청만 알린다
 // =====================================================================
 using System;
@@ -38,6 +39,8 @@ namespace DOB.UI
         [SerializeField] private Button closeButton;
         /// <summary>실패 사유 등 짧은 안내 (예: 금화가 모자라요).</summary>
         [SerializeField] private TMP_Text noticeText;
+        /// <summary>결제 뒤 금화가 줄어드는 시간 (초).</summary>
+        [SerializeField] private float paySeconds = 0.6f;
 
         private readonly List<MarketRowView> rows = new List<MarketRowView>();
         private readonly Dictionary<string, int> cart = new Dictionary<string, int>();
@@ -57,6 +60,10 @@ namespace DOB.UI
         /// <summary>시장 목록을 새로 그린다. 고른 개수는 비운다.</summary>
         public void Show(PrepViewData viewData)
         {
+            // 결제 뒤 다시 그려질 때: 금화가 줄었으면 줄어드는 카운트다운 + 보유가 늘어난 줄을 톡 (시안 16 ②)
+            int paidFrom = data != null && viewData != null && viewData.gold < data.gold ? data.gold : -1;
+            var ownedBefore = new Dictionary<string, int>();
+            if (paidFrom >= 0) foreach (var s in data.spices) ownedBefore[s.id] = s.owned;
             data = viewData;
             cart.Clear();
             ShowNotice(null);
@@ -78,8 +85,31 @@ namespace DOB.UI
                 row.Bind(spice, i % 2 == 0);
                 row.QuantityDelta += delta => ChangeQuantity(spice, delta);
                 rows.Add(row);
+                if (ownedBefore.TryGetValue(spice.id, out int before) && spice.owned > before) row.PopOwned();
             }
             RefreshTotals();
+            if (paidFrom >= 0 && isActiveAndEnabled) StartCoroutine(PayOut(paidFrom, data.gold));
+        }
+
+        // 의사코드: 지갑 숫자를 결제 전 → 결제 후로 하나씩 줄이고, 지갑 옆에 빨간 −N이 떠올라 사라진다
+        private System.Collections.IEnumerator PayOut(int from, int to)
+        {
+            var minus = Instantiate(goldText, goldText.transform.parent);
+            minus.text = "-" + (from - to); // 글꼴에 − 기호가 없어 하이픈을 쓴다
+            minus.color = new Color32(220, 90, 60, 255);
+            minus.raycastTarget = false;
+            var mr = minus.rectTransform;
+            Vector2 home = mr.anchoredPosition + new Vector2(0f, mr.rect.height * 0.6f); // 지갑 숫자 바로 위에서 떠오른다
+            for (float t = 0f; t < paySeconds; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                float k = t / paySeconds;
+                goldText.text = Mathf.RoundToInt(Mathf.Lerp(from, to, k)).ToString();
+                mr.anchoredPosition = home + new Vector2(0f, 40f * k);
+                minus.alpha = 1f - k * k;
+                yield return null;
+            }
+            Destroy(minus.gameObject);
+            goldText.text = to.ToString();
         }
 
         /// <summary>짧은 안내를 띄운다. null이면 숨긴다.</summary>

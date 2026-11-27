@@ -1226,6 +1226,10 @@ MonoBehaviour:
   cookLabel: {fileID: 3391246580959403413}
   cookIcon: {fileID: 4932259070168973504}
   closeButton: {fileID: 1482586007263992471}
+  steamSprite: {fileID: 21300000, guid: 8e02d8f9670703844bc645749a5869f6, type: 3}
+  dropSeconds: 0.3
+  wobbleSeconds: 0.45
+  wobbleDegrees: 3
 --- !u!114 &1124105580935414762
 MonoBehaviour:
   m_ObjectHideFlags: 0

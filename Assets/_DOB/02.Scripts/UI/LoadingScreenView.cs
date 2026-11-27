@@ -10,6 +10,7 @@
 // [보이기]   검은 바탕 가운데 금테 액자에 목적지 그림, 위에 목적지 제목, 아래에 팁 한 줄 (로딩 중 바뀌지 않음)
 // [진행]     실제 진행률을 받으면 바가 부드럽게 따라 차오르고 절대 줄어들지 않는다
 //            불씨는 채워진 끝을 따라 이동한다. 숫자(%)는 보이지 않는다
+//            (시안 19 ⑦) 불씨는 따라가며 깜빡이고, 바가 다 차는 순간 바 전체가 한 번 금빛으로 반짝인다
 // [페이드]   검은 덮개의 투명도를 정해진 시간 동안 바꾼다 (Presenter가 끝날 때까지 기다릴 수 있게 코루틴)
 //            로딩 중에는 덮개가 투명해도 입력을 막아, 아래에 먼저 열린 목적지 씬 버튼이 눌리지 않게 한다
 // [실패]     "불러오지 못했어요" 안내 + [타이틀로] (타이틀도 실패면 [게임 종료]) 버튼을 띄우고 누르면 알린다
@@ -45,6 +46,10 @@ namespace DOB.UI
         [SerializeField] private float followSpeed = 1.5f;
         [SerializeField] private float potBobHeight = 6f;
         [SerializeField] private float potBobSpeed = 6f;
+        /// <summary>불씨 깜빡임 크기 (배율 폭).</summary>
+        [SerializeField] private float emberFlicker = 0.15f;
+        [SerializeField] private float fullFlashSeconds = 0.45f;
+        [SerializeField] private Color fullFlashColor = new Color(1f, 0.95f, 0.75f, 1f);
 
         [Header("페이드"), SerializeField] private Image fadeOverlay;
 
@@ -57,6 +62,8 @@ namespace DOB.UI
         private float shownProgress;
         private bool quitInsteadOfTitle;
         private Vector2 potBasePos;
+        private Color barBaseColor;
+        private float flashT = -1f;
 
         /// <summary>실패 안내의 [타이틀로]를 눌렀다.</summary>
         public event Action ReturnToTitleClicked;
@@ -69,6 +76,7 @@ namespace DOB.UI
         private void Awake()
         {
             potBasePos = potIcon.anchoredPosition;
+            barBaseColor = barFill.color;
             failurePanel.SetActive(false);
         }
 
@@ -163,7 +171,10 @@ namespace DOB.UI
         private void Update()
         {
             // 실제 진행률을 부드럽게 따라가기 (로딩이 순간적으로 끝나도 바가 차오르는 게 보이게)
+            float before = shownProgress;
             shownProgress = Mathf.MoveTowards(shownProgress, targetProgress, followSpeed * Time.unscaledDeltaTime);
+            if (before < 1f && shownProgress >= 1f) flashT = 0f; // 다 찬 순간 한 번 반짝
+            if (flashT >= 0f) { flashT += Time.unscaledDeltaTime; if (flashT >= fullFlashSeconds) flashT = -1f; }
             ApplyProgress();
         }
 
@@ -179,6 +190,11 @@ namespace DOB.UI
             float width = barArea.rect.width;
             float bob = Mathf.Abs(Mathf.Sin(Time.unscaledTime * potBobSpeed)) * potBobHeight;
             potIcon.anchoredPosition = new Vector2(potBasePos.x + width * shownProgress, potBasePos.y + bob);
+            // 불씨가 일렁이듯 크기가 조금씩 흔들린다 (두 사인을 섞어 규칙적으로 안 보이게)
+            float flicker = Mathf.Sin(Time.unscaledTime * 13f) * 0.6f + Mathf.Sin(Time.unscaledTime * 29f) * 0.4f;
+            potIcon.localScale = Vector3.one * (1f + emberFlicker * flicker);
+            float flash = flashT >= 0f ? Mathf.Sin(Mathf.PI * flashT / fullFlashSeconds) : 0f;
+            barFill.color = Color.Lerp(barBaseColor, fullFlashColor, flash);
         }
     }
 }

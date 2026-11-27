@@ -14,6 +14,7 @@
 // [보고 받기] 첫 손님을 고르고 꼬리표 · 일러스트 · 보고 한 장을 그린다
 // [넘기기]    꼬리표 · ◀ 이전 · 다음 ▶ 으로 손님을 바꾼다. 본 손님은 꼬리표의 빨간 점이 사라진다
 //             보고 한 장을 그릴 때마다 결과 도장을 그 색으로 「쾅」 찍는다 (간신히 · 부상은 더 크게 흔들림)
+//             다른 손님으로 넘기면 종이가 왼쪽으로 밀려나고 새 종이가 오른쪽에서 들어온다 (시안 19 ⑧)
 //             도장 다음 순서로 「신규」 뱃지가 톡 튀어나오고, 호감 숫자가 +0부터 오르며 게이지가 어제 위치에서 차오른다 (시안 13)
 // [준비하러 가기] 안 본 보고가 남아도 바로 확인을 알린다 (보상은 백엔드가 이미 한 번씩 반영)
 // [닫기]      DayFlowPresenter가 Hide를 부른다
@@ -95,6 +96,9 @@ namespace DOB.UI
         /// <summary>뱃지 다음 호감이 오르기 시작하기까지.</summary>
         [SerializeField] private float affectionDelay = 0.15f;
         [SerializeField] private float affectionSeconds = 0.8f;
+        /// <summary>손님을 넘길 때 지금 종이가 밀려나는 시간 · 새 종이가 들어오는 시간 (시안 19 ⑧).</summary>
+        [SerializeField] private float turnOutSeconds = 0.12f;
+        [SerializeField] private float turnInSeconds = 0.13f;
 
         [Header("단추")]
         [SerializeField] private Button prevButton;
@@ -108,6 +112,10 @@ namespace DOB.UI
         private bool[] seen = Array.Empty<bool>();
         private int index;
         private Coroutine reveal;
+        private int drawnIndex = -1;  // 지금 종이에 그려진 손님 (-1: 아직 없음)
+        private Coroutine pageTurn;
+        private CanvasGroup paperGroup;
+        private Vector2 paperHome;
 
         /// <summary>화면이 열렸다 (일차). Presenter가 그날 보고를 ShowReport로 채운다.</summary>
         public event Action<int> Opened;
@@ -146,6 +154,7 @@ namespace DOB.UI
         {
             report = data ?? new ReturnReportViewData();
             seen = new bool[report.guests.Length];
+            drawnIndex = -1; // 새 보고는 넘김 없이 바로 그린다
             DrawIllustration();
             DrawChips();
             Select(0);
@@ -165,7 +174,49 @@ namespace DOB.UI
             prevButton.interactable = index > 0;
             nextButton.interactable = index < report.guests.Length - 1;
             RefreshChips();
-            DrawGuest(report.guests[index]);
+
+            // 다른 손님으로 넘길 때만 종이를 넘긴다 (처음 열 때 · 같은 손님은 바로 그림)
+            bool turn = drawnIndex >= 0 && drawnIndex != index && isActiveAndEnabled;
+            drawnIndex = index;
+            if (pageTurn != null) { StopCoroutine(pageTurn); pageTurn = null; }
+            if (turn) pageTurn = StartCoroutine(TurnPage(report.guests[index]));
+            else { PosePaper(0f, 0f, 1f); DrawGuest(report.guests[index]); }
+        }
+
+        // 의사코드 (시안 19 ⑧): 지금 종이가 왼쪽으로 밀려나며 기울고 흐려짐 → 새 손님으로 다시 그림(도장 「쾅」 시작)
+        //   → 새 종이가 오른쪽에서 들어와 제자리. 넘기는 중에 또 넘기면 앞 넘김을 멈추고 새로 시작한다
+        private System.Collections.IEnumerator TurnPage(ReturnGuestData next)
+        {
+            for (float t = 0f; t < turnOutSeconds; t += Step())
+            {
+                float e = t / turnOutSeconds;
+                PosePaper(-60f * e, -4f * e, 1f - e);
+                yield return null;
+            }
+            DrawGuest(next);
+            for (float t = 0f; t < turnInSeconds; t += Step())
+            {
+                float e = 1f - t / turnInSeconds;
+                e = e * e; // 끝에서 부드럽게 멈추게
+                PosePaper(40f * e, 2f * e, 1f - e);
+                yield return null;
+            }
+            PosePaper(0f, 0f, 1f);
+            pageTurn = null;
+        }
+
+        private void PosePaper(float x, float degrees, float alpha)
+        {
+            var rect = (RectTransform)paperContent.transform;
+            if (!paperGroup)
+            {
+                paperHome = rect.anchoredPosition;
+                paperGroup = paperContent.GetComponent<CanvasGroup>();
+                if (!paperGroup) paperGroup = paperContent.AddComponent<CanvasGroup>();
+            }
+            rect.anchoredPosition = paperHome + new Vector2(x, 0f);
+            rect.localRotation = Quaternion.Euler(0f, 0f, degrees);
+            paperGroup.alpha = alpha;
         }
 
         private void DrawIllustration()
