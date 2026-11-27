@@ -47,7 +47,9 @@ namespace DOB.Editor
         private static readonly (string id, Vector3 seat, bool start, string table, Vector3 tablePos, string prop, Vector3 propPos, float propYaw)[] Seats =
         {
             // 앞줄(시작 3석): 1인석 3개. 2026-11-25 이기혁이 테이블·의자를 1.4m 뒤(의자 z 2.8)로 옮긴 배치를 따른다.
-            // 소품은 의자와 겹치지 않게 좌석 옆으로 둔다. 창가 커튼은 창(z 0~2)에 붙어 있어 그대로 둔다.
+            // 소품은 의자와 겹치지 않게 좌석 옆으로 둔다. 창가 커튼은 왼쪽 벽 z 0~2 칸에 붙인다.
+            // 💡 2026-11-26 왼쪽 벽을 1.2m로 낮추며 창은 없어졌다. 낮은 벽 위로 트인 칸을 창가로 보고 커튼을 그대로 둔다
+            //    (커튼 위 2.6m는 Seat01 손님을 카메라에서 가리지 않음). 기획 확인 전 제안.
             ("Seat01", new Vector3(-4.3f, 0, 2.8f), true, "Table", new Vector3(-4.3f, 0, 2.0f), "Curtain", new Vector3(-5.85f, 0.3f, 1f), -90), // 바람 드는 창가 · 내열
             ("Seat02", new Vector3(-1.8f, 0, 2.8f), true, "Table", new Vector3(-1.8f, 0, 2.0f), "HerbPot", new Vector3(-2.9f, 0, 2.9f), 0),     // 약초 화분 옆 · 해독
             ("Seat03", new Vector3(0.7f, 0, 2.8f), true, "Table", new Vector3(0.7f, 0, 2.0f), "GlowLamp", new Vector3(1.6f, 0, 3.0f), 0),       // 빛나는 장식 · 야광
@@ -143,14 +145,11 @@ namespace DOB.Editor
             // 뒤쪽 벽: 오른쪽 끝 x 4~6은 던전 출구로 비운다.
             for (var x = MinX; x < 4f; x += Grid)
                 Wall(parent, "Wall_Back_" + x, new Vector3(x, 0, MaxZ), 0);
-            // 왼쪽 벽: 앞쪽 z -4~-2는 입장 계단으로 비우고, z 0~2는 창가 좌석(Seat01) 옆 창 달린 벽.
+            // 왼쪽 벽: 앞쪽 z -4~-2는 입장 계단으로 비운다.
+            // 카메라 쪽 벽이라 3m 벽은 벽 1m 안의 캐릭터를 가리므로 허리 높이(1.2m) 벽으로 둔다(2026-11-26 이기혁 결정).
+            // 낮은 벽에는 창을 낼 수 없어 창 달린 벽(WindowWall)도 같은 낮은 벽으로 바꾼다.
             for (var z = -2f; z < MaxZ; z += Grid)
-            {
-                if (Mathf.Approximately(z, 0f))
-                    WindowWall(parent, "WallWindow_Left_" + z, new Vector3(MinX, 0, z), -90);
-                else
-                    Wall(parent, "Wall_Left_" + z, new Vector3(MinX, 0, z), -90);
-            }
+                LowWall(parent, "Wall_Left_" + z, new Vector3(MinX, 0, z), -90);
             // 오른쪽 벽: 회전 90°에서 로컬 +X가 월드 -Z이므로 원점은 각 칸의 뒤쪽 모서리다.
             for (var z = MinZ; z < MaxZ; z += Grid)
                 Wall(parent, "Wall_Right_" + z, new Vector3(MaxX, 0, z + Grid), 90);
@@ -159,7 +158,9 @@ namespace DOB.Editor
             // 앞 모서리 기둥은 Gameplay 카메라 화면 아래쪽을 가려 두지 않는다(2026-11-23 결정).
             Pillar(parent, "Pillar_BackLeft", new Vector3(MinX - 0.2f, 0, MaxZ + 0.2f));
             // 입장 계단의 벽 쪽 난간(z -2.28~-2.03)이 기둥에 박히지 않게 기둥을 벽 쪽으로 0.3m 옮긴다(기둥 z -2.0~-1.4).
-            Pillar(parent, "Pillar_EntranceBack", new Vector3(MinX - 0.2f, 0, -1.7f));
+            // 왼쪽 벽과 같은 이유로 입장 계단 옆 기둥도 낮은 벽 높이에 맞춘다.
+            if (PlaceEnv(parent, "PillarLow", "Pillar_EntranceBack", new Vector3(MinX - 0.2f, 0, -1.7f), 0) == null)
+                CenterPiece(parent, "Pillar_EntranceBack", new Vector3(MinX - 0.2f, 0, -1.7f), 0, new Vector3(0.6f, LowWallHeight, 0.6f), "WoodDark");
 
             // 벽 이음새 기둥: 바르코3D 벽은 가장자리가 둥글어 2m 이음새마다 틈이 보이므로 가는 나무 기둥으로 가린다.
             // 벽 안쪽 면(두께 0.4m 중 실내 쪽)에 걸치도록 중심을 벽 면에서 0.1m 바깥에 둔다.
@@ -167,7 +168,11 @@ namespace DOB.Editor
             for (var x = MinX + Grid; x < 4f; x += Grid)
                 WallPost(parent, "WallPost_Back_" + x, new Vector3(x, 0, MaxZ + 0.1f));
             for (var z = 0f; z < MaxZ; z += Grid)
-                WallPost(parent, "WallPost_Left_" + z, new Vector3(MinX - 0.1f, 0, z));
+            {
+                var post = new Vector3(MinX - 0.1f, 0, z);
+                if (PlaceEnv(parent, "WallPostLow", "WallPost_Left_" + z, post, 0) == null)
+                    Visual(parent, "WallPost_Left_" + z, post + new Vector3(0, LowWallHeight / 2, 0), new Vector3(0.3f, LowWallHeight, 0.3f), "WoodDark");
+            }
             for (var z = MinZ; z < MaxZ; z += Grid)
                 WallPost(parent, "WallPost_Right_" + z, new Vector3(MaxX + 0.1f, 0, z));
 
@@ -198,25 +203,21 @@ namespace DOB.Editor
             WallBeam(root);
         }
 
+        /// <summary>왼쪽(카메라 쪽) 벽의 높이(m). PF_Env_WallLow·WallPostLow·PillarLow 모델 높이와 같다.</summary>
+        private const float LowWallHeight = 1.2f;
+
+        /// <summary>PF_Env_WallLow(회벽 아래 0.9m + 나무 보 0.3m만 남긴 2×1.2×0.4m 벽). 없으면 같은 크기 임시 블록.</summary>
+        private static void LowWall(Transform parent, string name, Vector3 corner, float yaw)
+        {
+            if (PlaceEnv(parent, "WallLow", name, corner, yaw) != null)
+                return;
+            CornerPiece(parent, name, corner, yaw, new Vector3(2, LowWallHeight, 0.4f), "Plaster");
+        }
+
         private static void WallBeam(Transform wall)
         {
             // 보 윗면을 벽 윗면(3m)보다 2cm 올려 두 면이 겹쳐 깜빡이지 않게 한다.
             Visual(wall, "Beam", new Vector3(1, 2.92f, 0.2f), new Vector3(2, 0.2f, 0.5f), "WoodDark");
-        }
-
-        private static void WindowWall(Transform parent, string name, Vector3 corner, float yaw)
-        {
-            if (PlaceEnv(parent, "WindowWall", name, corner, yaw) != null)
-                return;
-            var root = CornerPiece(parent, name, corner, yaw, new Vector3(2, 3, 0.4f), null);
-            // 창 둘레를 회벽으로 채우고 가운데 1.2×1.2m 유리를 나무 창틀로 두른다.
-            Visual(root, "Sill", new Vector3(1, 0.5f, 0.2f), new Vector3(2, 1, 0.4f), "Plaster");
-            Visual(root, "Head", new Vector3(1, 2.6f, 0.2f), new Vector3(2, 0.8f, 0.4f), "Plaster");
-            Visual(root, "JambA", new Vector3(0.2f, 1.6f, 0.2f), new Vector3(0.4f, 1.2f, 0.4f), "Plaster");
-            Visual(root, "JambB", new Vector3(1.8f, 1.6f, 0.2f), new Vector3(0.4f, 1.2f, 0.4f), "Plaster");
-            Visual(root, "Frame", new Vector3(1, 1.6f, 0.2f), new Vector3(1.3f, 1.3f, 0.3f), "WoodDark");
-            Visual(root, "Glass", new Vector3(1, 1.6f, 0.2f), new Vector3(1.2f, 1.2f, 0.34f), "Glass");
-            WallBeam(root);
         }
 
         private static void Railing(Transform parent, string name, Vector3 corner)
@@ -466,9 +467,10 @@ namespace DOB.Editor
             // 통 더미와 아치 기둥 사이에 둔다. 펼친 면(-Z)이 출구 동선(+X)을 보도록 -90° 돌린다.
             DecorPiece(parent, "ReceptionPodium", "Guestbook", new Vector3(3.3f, 0, 5.2f), -90, "WoodDark");
 
-            // 입구 쪽 왼쪽 벽 게시판(준비 화면 '오늘의 소식'과 같은 물건). 벽걸이라 바닥에서 0.9m 띄운다.
-            // 입구 기둥(z -1.4까지)과 벽 이음새 기둥(z -0.15부터) 사이 칸 가운데.
-            DecorPiece(parent, "NoticeBoard", "NoticeBoard", new Vector3(MinX + 0.05f, 0.9f, -0.78f), -90, "Wood");
+            // 게시판(준비 화면 '오늘의 소식'과 같은 물건). 벽걸이라 바닥에서 0.9m 띄운다.
+            // 왼쪽 벽이 1.2m로 낮아져 뒤 벽으로 옮긴다. 1.2m 폭이 들어가는 칸은 진열 선반(x -0.2까지)과
+            // 통 더미(x 1.64부터) 사이뿐이라 이음새 기둥(x 0·2)을 피해 그 가운데(x 0.3~1.5)에 둔다.
+            DecorPiece(parent, "NoticeBoard", "NoticeBoard", new Vector3(0.9f, 0.9f, MaxZ - 0.05f), 0, "Wood");
             // 뒤 벽 단골 물건 진열 선반(기획: 단골 사연 보상 물건을 식당에 진열).
             // 깊이 0.45m 선반의 뒷면이 뒷벽(z 6.0)에 박히지 않게 0.23m 앞에 둔다.
             DecorPiece(parent, "DisplayShelf", "DisplayShelf_Regulars", new Vector3(-1f, 0, MaxZ - 0.23f), 0, "WoodDark");
@@ -478,23 +480,22 @@ namespace DOB.Editor
 
             // 분위기용 벽난로는 두지 않는다. 불·열기는 Seat04의 '난로' 효과 소품만 보여 줘야 효과가 헷갈리지 않는다.
 
-            // 벽 등잔: 따뜻한 점광원. 벽 이음새 기둥(2m 간격)·게시판·창과 겹치지 않게 벽 칸 가운데에 둔다.
-            // (벽 쪽 바닥 위치, 앞면이 실내를 보게 하는 회전)
+            // 벽 등잔: 따뜻한 점광원. 벽 이음새 기둥(2m 간격)·게시판과 겹치지 않게 벽 칸 가운데에 둔다.
+            // (번호, 벽 쪽 바닥 위치, 앞면이 실내를 보게 하는 회전)
+            // 01·02는 왼쪽 벽 1.8m 높이에 있었으나 왼쪽 벽이 1.2m로 낮아져 뺐다. 남은 등잔 이름이 씬과 같도록 번호는 유지한다.
             var lanterns = new[]
             {
-                (new Vector3(MinX + 0.15f, 1.8f, 3f), -90f), (new Vector3(MinX + 0.15f, 1.8f, 5f), -90f),
-                (new Vector3(-3.5f, 1.8f, MaxZ - 0.15f), 0f), (new Vector3(3f, 1.8f, MaxZ - 0.15f), 0f),
-                (new Vector3(MaxX - 0.15f, 1.8f, -1f), 90f),
+                (3, new Vector3(-3.5f, 1.8f, MaxZ - 0.15f), 0f), (4, new Vector3(3f, 1.8f, MaxZ - 0.15f), 0f),
+                (5, new Vector3(MaxX - 0.15f, 1.8f, -1f), 90f),
             };
-            for (var i = 0; i < lanterns.Length; i++)
+            foreach (var (number, position, yaw) in lanterns)
             {
-                var (position, yaw) = lanterns[i];
-                var name = "Lantern_" + (i + 1).ToString("00");
+                var name = "Lantern_" + number.ToString("00");
                 if (PlaceEnv(parent, "WallLantern", name, position, yaw) == null)
                     Visual(parent, name, position + new Vector3(0, 0.4f, 0), new Vector3(0.2f, 0.3f, 0.2f), "Fire");
                 // 빛은 등잔 유리 높이에서 벽보다 조금 실내 쪽으로 낸다.
                 var inward = Quaternion.Euler(0, yaw, 0) * new Vector3(0, 0, -0.25f);
-                PointLight(parent, "Light_Lantern_" + (i + 1).ToString("00"), position + new Vector3(0, 0.35f, 0) + inward, 4.5f, 1.1f);
+                PointLight(parent, "Light_Lantern_" + number.ToString("00"), position + new Vector3(0, 0.35f, 0) + inward, 4.5f, 1.1f);
             }
         }
 
