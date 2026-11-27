@@ -14,12 +14,12 @@
 //   RecordMeal — 서빙이 끝난 방문의 글을 등록한다. 방명록이 열리지 않았거나 중복 방문이면 false.
 //   Tick — 정지 중이 아닐 때 GameManager가 넘긴 시간만큼 글 작성을 진행한다.
 //   SettleDay(명단의 방문, 오늘의 방문 결과) — 이미 정산했으면 보관한 결과를 그대로 돌려준다(저장 재시도에도 값이 같다).
-//     처음이면 AffinityJudge로 방문 호감을 확정하고(💡 입맛 점수 0), S·N을 집계해 다음 영업의 추가 인원을 정해 보관한다.
+//     처음이면 AffinityJudge로 방문 호감을 확정하고(입맛은 서빙 때 명단에 기록한 값), S·N을 집계해 다음 영업의 추가 인원을 정해 보관한다.
 //     결과 기록이 없는 파견 방문은 빠지고 오류 로그를 남긴다(정산은 막지 않는다).
 //     같은 때 한 번, 그날 손님 신원과 확정한 방문 호감·방문 결과를 명부에 반영한다(등록·누적·영구 거절·부상 휴식).
 //     명부는 정산에서만 바뀐다. 영업 도중 불러오면 일차 시작의 명부로 돌아간다.
 //   조회 — 전날 기록·오늘 추가 인원·전날 S와 N, 명부의 손님 찾기·오늘 올 수 있는 손님·쓰는 이름. 상태를 바꾸지 않는다.
-//   PreviewAffinity(방문, 결과) — 개발용. 끝난 방문 하나를 마감 정산과 같은 계산(같은 입맛 점수)으로 미리 본다.
+//   PreviewAffinity(방문, 결과) — 개발용. 끝난 방문 하나를 마감 정산과 같은 계산으로 미리 본다.
 //     끝나지 않았거나 결과가 없는 파견이면 null. 정산 결과에 넣지 않는다.
 using System;
 using System.Collections.Generic;
@@ -35,9 +35,6 @@ namespace DOB.Manager
     {
         /// <summary>방문 호감·입소문 기준값(08.Data/SO_AffinityRules).</summary>
         [SerializeField] private AffinityRules rules;
-
-        /// <summary>방문 호감에 넣는 입맛 점수(점). 💡 손님 입맛·요리 태그 데이터가 생길 때까지 0이다 (송예찬 확인 전).</summary>
-        public const int TasteScore = 0;
 
         // 통합 테스트가 방문 최대 점수 등을 바꾸려고 씬 기준값 대신 넣는다. 게임 코드는 쓰지 않는다.
         internal static AffinityRules RulesOverride;
@@ -80,7 +77,7 @@ namespace DOB.Manager
         public void BeginDay(float guestbookWriteSeconds, IReadOnlyList<VisitAffinity> yesterdayAffinities = null, int wordOfMouthBonus = 0,
             IEnumerable<GuestRecord> savedGuests = null, int serviceDay = 1)
         {
-            ledger = new GuestLedger(savedGuests);
+            ledger = new GuestLedger(savedGuests, Resources.Load<TasteRules>(TasteRules.ResourceName));
             day = serviceDay;
             Guestbook = new GuestbookLog(guestbookWriteSeconds);
             YesterdayAffinities = yesterdayAffinities ?? Array.Empty<VisitAffinity>();
@@ -102,7 +99,7 @@ namespace DOB.Manager
         {
             if (settledAffinities == null)
             {
-                settledAffinities = AffinityJudge.SettleDay(Rules, visits, results, TasteScore, out string error);
+                settledAffinities = AffinityJudge.SettleDay(Rules, visits, results, out string error);
                 if (error != null)
                     Debug.LogError("[DOB] " + error, this);
                 // 명부도 같은 때 한 번만 바꾼다. 재요청은 GuestLedger가 같은 일차를 거절한다.
@@ -117,7 +114,7 @@ namespace DOB.Manager
         {
             if (visit == null || !Rules)
                 return null;
-            var preview = AffinityJudge.SettleDay(Rules, new[] { visit }, results, TasteScore, out _);
+            var preview = AffinityJudge.SettleDay(Rules, new[] { visit }, results, out _);
             return preview.Count > 0 ? preview[0] : null;
         }
     }

@@ -48,6 +48,9 @@ namespace DOB.Systems
         // shortcut: 일차 시작 때 보유 수가 0이면 처음 얻는 것으로 본다, 던전 재료를 요리에 써서 0이 될 수 있게 되면 "얻은 적 있는 재료" 기록을 따로 저장한다.
         public bool IsNewMaterial(string material) => !string.IsNullOrEmpty(material) && !ownedAtStart.Contains(material);
 
+        /// <summary>이미 확정한 보고의 방문 ID. 수동 저장이 진행으로 남긴다.</summary>
+        public IEnumerable<string> ConfirmedIds => confirmed;
+
         /// <summary>이 방문의 보고를 이미 처리했는지.</summary>
         public bool IsConfirmed(string visitId) => visitId != null && confirmed.Contains(visitId);
 

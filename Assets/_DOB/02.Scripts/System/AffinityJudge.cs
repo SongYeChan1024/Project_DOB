@@ -6,10 +6,10 @@
 //     — 파견: 대기 + 입맛 + 등급 점수. 등급이 없으면 예외.
 //     — 돌려보냄·대기 이탈: 기준의 감점 하나. 대기·입맛·탐험 내역은 0.
 //     — 끝나지 않은 방문(None)은 예외.
-//   SettleDay(기준, 명단의 방문, 그날 방문 결과, 입맛 점수)
+//   SettleDay(기준, 명단의 방문, 그날 방문 결과)
 //     — 끝난 방문만 입장 순서대로 한 번씩 계산한다. 같은 방문 ID는 처음 것만 쓴다.
 //     — 파견 방문은 방문 결과에서 같은 방문 ID의 등급을 찾는다. 없으면 기록을 만들지 않고 오류 설명에 남긴다.
-//     — 입맛 점수는 호출자가 넘긴다(💡 입맛 채점 전까지 0).
+//     — 입맛 점수는 서빙 때 명단에 기록한 방문의 값이다(TasteJudge). 기록이 없으면 0.
 //   Tally(기준, 기록) — 파견·대기 이탈은 항상, 돌려보냄은 기준의 포함 설정일 때만 N에 세고 합계를 S에 더한다.
 //   ExtraGuests(기준, S, N) — N ≤ 0이면 0. 하루 최대 = 방문 최대 × N.
 //     문턱마다 필요 점수 = ceil(하루 최대 × 퍼센트 / 100)을 정수 연산으로 구하고, S가 이상인 문턱 수를 돌려준다.
@@ -45,7 +45,7 @@ namespace DOB.Systems
 
         /// <summary>그날 끝난 방문마다 호감을 한 번 확정한다. 결과 기록이 없는 파견 방문은 빼고 error에 남긴다(없으면 null).</summary>
         public static List<VisitAffinity> SettleDay(AffinityRules rules, IEnumerable<ServiceVisit> visits,
-            IEnumerable<VisitResult> results, int tasteScore, out string error)
+            IEnumerable<VisitResult> results, out string error)
         {
             if (visits == null) throw new ArgumentNullException(nameof(visits));
             var grades = new Dictionary<string, ExpeditionGrade>();
@@ -71,7 +71,7 @@ namespace DOB.Systems
                     }
                     grade = found;
                 }
-                records.Add(Score(rules, visit.GuestId, visit.VisitId, visit.End, visit.WaitScore ?? 0, tasteScore, grade));
+                records.Add(Score(rules, visit.GuestId, visit.VisitId, visit.End, visit.WaitScore ?? 0, visit.TasteScore ?? 0, grade));
             }
             return records;
         }

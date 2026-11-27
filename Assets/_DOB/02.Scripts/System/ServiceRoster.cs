@@ -11,11 +11,14 @@
 //   CanAdmit/Admit — 미뤄 둔 입장이 있고 입구 줄에 자리가 있을 때만 새 방문 ID를 등록한다. 등록하면 다음 간격을
 //             주입받은 난수로 최소~최대 사이에서 뽑는다. 줄이 차 있으면 자리가 날 때까지 기다린다.
 //   단계 요청 — 방문 ID로 입구 대기 → 응대 → 안내 → 착석 → 서빙됨 순서만 허용한다. 응대를 닫으면 입구 대기로 돌아간다.
-//             서빙할 때 대기 점수 = max(0, 시작 − floor(대기/간격))를 기록한다(WaitScoreNow와 같은 계산).
+//             서빙할 때 대기 점수 = max(0, 시작 − floor(대기/간격))와 호출자가 정한 입맛 점수를 한 번 기록한다(WaitScoreNow와 같은 계산).
 //   조회 — WaitScoreNow: 지금 서빙하면 받을 대기 점수. PatienceLeft: 대기 이탈까지 남은 시간 max(0, 한도 − 대기). 상태를 바꾸지 않는다.
 //   TryEnd — 파견은 서빙된 방문, 돌려보냄은 응대 중인 방문, 대기 이탈은 입구 대기·착석 방문만 한 번 끝낸다.
 //             없는 ID·이미 끝난 방문은 거절하고 아무것도 바꾸지 않는다. 파견이면 손님 ID를 서빙 인원 집합에 넣는다.
 //   AllEnded — 예정 방문이 모두 입장했고 모두 끝났을 때만 true.
+//   복원(수동 저장 불러오기) — GuestManager가 같은 시드로 저장된 입장 수만큼 AdmitRestored로 다시 등록한 뒤(입장 간격 난수도 같은 순서로 쓴다)
+//             Restore로 방문별 단계·대기·점수·종료와 입장 시계를 덮어쓴다. 종료 알림은 보내지 않는다.
+//             응대 중·안내 중이던 방문은 응대를 닫은 것과 같게 입구 대기로 되돌린다(💡 대화·동행은 저장하지 않는다).
 using System;
 using System.Collections.Generic;
 using DOB.Define;
@@ -39,6 +42,8 @@ namespace DOB.Systems
         public float WaitSeconds { get; internal set; }
         /// <summary>서빙 시점에 확정한 대기 점수. 서빙 전에는 null.</summary>
         public int? WaitScore { get; internal set; }
+        /// <summary>서빙 시점에 확정한 입맛 점수(−2·0·+2). 서빙 전·서빙 없이 끝난 방문은 null.</summary>
+        public int? TasteScore { get; internal set; }
     }
 
     /// <summary>하루 영업의 방문 명단. 일차마다 새로 만든다.</summary>
@@ -79,6 +84,8 @@ namespace DOB.Systems
         public int QueueCount => visits.FindAll(v => v.Stage == ServiceVisitStage.AtEntrance).Count;
         /// <summary>미뤄 둔 입장이 있고 입구 줄에 자리가 있다.</summary>
         public bool CanAdmit => arrivalDue && QueueCount < settings.QueueCapacity;
+        /// <summary>입장이 하나 미뤄져 있다(줄 자리가 나면 들어온다).</summary>
+        public bool ArrivalDue => arrivalDue;
         /// <summary>예정 방문이 모두 입장했고 모두 끝났다.</summary>
         public bool AllEnded => Entered == Planned && visits.TrueForAll(v => v.Stage == ServiceVisitStage.Ended);
         /// <summary>그날 서빙 후 파견한 서로 다른 손님 수.</summary>
@@ -121,6 +128,45 @@ namespace DOB.Systems
             return true;
         }
 
+        /// <summary>저장 복원용. 줄·입장 시계와 관계없이 방문을 등록하고 Admit과 같은 순서로 다음 간격 난수를 쓴다. 중복·빈 ID는 거절한다.</summary>
+        public bool AdmitRestored(string visitId, string guestId)
+        {
+            if (Entered >= Planned || string.IsNullOrEmpty(visitId) || string.IsNullOrEmpty(guestId) || Find(visitId) != null)
+                return false;
+            visits.Add(new ServiceVisit(visitId, guestId));
+            arrivalDue = false;
+            if (Entered < Planned)
+                NextArrivalSeconds = (float)(settings.ArrivalMinSeconds
+                    + random.NextDouble() * (settings.ArrivalMaxSeconds - settings.ArrivalMinSeconds));
+            return true;
+        }
+
+        /// <summary>저장된 방문 상태와 입장 시계로 덮어쓴다. 저장의 방문이 등록된 방문과 순서·ID가 다르면 아무것도 바꾸지 않고 false.</summary>
+        public bool Restore(RosterProgress progress)
+        {
+            if (progress == null || progress.Visits.Count != visits.Count)
+                return false;
+            for (int i = 0; i < visits.Count; i++)
+                if (progress.Visits[i].VisitId != visits[i].VisitId || progress.Visits[i].GuestId != visits[i].GuestId)
+                    return false;
+            for (int i = 0; i < visits.Count; i++)
+            {
+                var saved = progress.Visits[i];
+                var visit = visits[i];
+                visit.Stage = saved.Stage == ServiceVisitStage.Greeting || saved.Stage == ServiceVisitStage.Guided
+                    ? ServiceVisitStage.AtEntrance : saved.Stage;
+                visit.End = saved.End;
+                visit.WaitSeconds = saved.WaitSeconds;
+                visit.WaitScore = saved.WaitScore;
+                visit.TasteScore = saved.TasteScore;
+                if (saved.End == ServiceVisitEnd.Dispatched)
+                    servedGuests.Add(visit.GuestId);
+            }
+            NextArrivalSeconds = progress.NextArrivalSeconds;
+            arrivalDue = progress.ArrivalDue;
+            return true;
+        }
+
         /// <summary>입구에서 기다리던 방문의 응대를 연다. 응대 중에는 대기 시간이 늘지 않는다.</summary>
         public bool TryBeginGreeting(string visitId) => Move(visitId, ServiceVisitStage.AtEntrance, ServiceVisitStage.Greeting);
 
@@ -133,13 +179,15 @@ namespace DOB.Systems
         /// <summary>안내한 방문이 의자에 앉았다. 이때부터 서빙 전 대기 시간을 다시 센다.</summary>
         public bool TrySeat(string visitId) => Move(visitId, ServiceVisitStage.Guided, ServiceVisitStage.Seated);
 
-        /// <summary>착석한 방문에 서빙했다. 대기 시간을 멈추고 그 시점의 대기 점수를 기록한다.</summary>
-        public bool TryServe(string visitId)
+        /// <summary>착석한 방문에 서빙했다. 대기 시간을 멈추고 그 시점의 대기 점수와 입맛 점수를 기록한다.</summary>
+        /// <param name="tasteScore">TasteJudge가 정한 입맛 점수. 모르면 null(정산에서 0).</param>
+        public bool TryServe(string visitId, int? tasteScore = null)
         {
             if (!Move(visitId, ServiceVisitStage.Seated, ServiceVisitStage.Served))
                 return false;
             var visit = Find(visitId);
             visit.WaitScore = WaitScoreNow(visit);
+            visit.TasteScore = tasteScore;
             return true;
         }
 

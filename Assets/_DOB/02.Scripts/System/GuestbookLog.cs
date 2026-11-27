@@ -76,6 +76,19 @@ namespace DOB.Systems
             return true;
         }
 
+        /// <summary>수동 저장용. 등록 순서의 글과 남은 작성 시간.</summary>
+        public List<GuestbookProgress> Snapshot() =>
+            entries.ConvertAll(e => new GuestbookProgress(e.GuestId, e.VisitId, e.GuestName, e.Line, e.RemainingSeconds));
+
+        /// <summary>저장 복원용. 남은 작성 시간까지 그대로 글을 다시 등록한다. 완성 알림은 보내지 않는다. 빈 ID·중복이면 false.</summary>
+        public bool Restore(string guestId, string visitId, string guestName, string line, float remainingSeconds)
+        {
+            if (string.IsNullOrEmpty(guestId) || string.IsNullOrEmpty(visitId) || entries.Exists(e => e.VisitId == visitId))
+                return false;
+            entries.Add(new GuestbookEntry(guestId, visitId, guestName, line, remainingSeconds));
+            return true;
+        }
+
         /// <summary>작성 중인 글의 시간을 흘린다. 정지 중이면 0을 넘긴다.</summary>
         public void Tick(float deltaSeconds)
         {
