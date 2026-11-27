@@ -156,8 +156,8 @@ namespace DOB.Tests
             Assert.That(AffinityJudge.Tally(Rules(), dispatched.Append(Record(ServiceVisitEnd.WaitedOut, -4))), Is.EqualTo((14, 4)));
 
             var withSentHome = dispatched.Append(Record(ServiceVisitEnd.SentHome, -4)).ToList();
-            Assert.That(AffinityJudge.Tally(Rules(), withSentHome), Is.EqualTo((18, 3)), "시험값: 돌려보낸 방문은 뺀다");
-            Assert.That(AffinityJudge.Tally(Rules("{\"countSentHome\":true}"), withSentHome), Is.EqualTo((14, 4)));
+            Assert.That(AffinityJudge.Tally(Rules(), withSentHome), Is.EqualTo((14, 4)), "기본: 돌려보낸 방문도 N에 1명·S에 −4로 넣는다 (2026-11-25 확정)");
+            Assert.That(AffinityJudge.Tally(Rules("{\"countSentHome\":false}"), withSentHome), Is.EqualTo((18, 3)), "끄면 뺀다");
         }
 
         // ── 2.4 기준값 검사 ──

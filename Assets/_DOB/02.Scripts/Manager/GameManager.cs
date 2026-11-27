@@ -22,9 +22,9 @@
 //              영업이 되면 응대·주방을 켠다.
 //   서빙 알림 — 그 방문의 손님으로 방명록 글을 등록하고, 주방이 계산한 축별 부족으로 탐험 결과를 확정한다.
 //              명단에 서빙(대기 점수 기록)과 파견 종료를 요청한다. 손님은 명단의 종료 알림으로 계단을 향한다.
-//   Update   — 응대 화면·재료 선택(레시피 패널·조리 화면)·일시 정지·전환으로 정지 사유를 갱신한다.
-//              조리 Δ(일시 정지·전환에만 멈춤)로 방명록 작성·조리 시간을, 영업 중이면 입장·대기 Δ(사유가 하나라도 있으면 멈춤)로
-//              명단을 흘린다. 💡 영업 시간 제한은 없다. 수첩 사유는 화면이 생기면 연결한다(홍준우 인계).
+//   Update   — 일시 정지·전환으로 정지 사유를 갱신한다. 응대·수첩·재료 선택은 정지 사유가 아니다(F2 노션 확정: ESC만 정지).
+//              같은 Δ(사유가 하나라도 있으면 0)로 방명록 작성·조리 시간과, 영업 중이면 명단의 입장·대기를 흘린다.
+//              💡 영업 시간 제한은 없다.
 //              영업 중 명단의 예정 방문이 모두 끝나고 방명록이 완성되면 DayCycle.TrySettle로 마감하고 바로 정산을 저장한다.
 //              마감 확인 버튼은 마감 단계에서만 누를 수 있다.
 //   SaveManual — 현재 진행이 아니라 보관해 둔 일차 시작 스냅샷(금화·마늘·재료·미처리 보고·전날 호감·입소문 인원·명부·시드)을 수동 슬롯에 쓴다.
@@ -35,10 +35,11 @@
 //              정산에는 지금의 금화·마늘·던전 재료와 오늘의 방문 결과(다음 아침의 미처리 보고)가 들어간다.
 //              스냅샷을 만들기 직전에 관계 총괄이 명단과 방문 결과로 방문 호감·다음 영업 추가 인원을 한 번 확정해 함께 넣는다.
 //              같은 때 그날 손님 신원으로 명부(누적 호감·영구 거절·부상 휴식)를 한 번 확정하고, 다음 일차의 시드를 새로 정해 함께 넣는다.
+//              명부를 확정한 뒤 SettlementManager가 누적 호감 9 이상(거절 아님) 손님의 방문에만 전리품을 담아 미처리 보고로 넘긴다.
 //              정산 결과가 이미 있으면 재사용해 금화·전리품을 두 번 지급하지 않는다.
 // 보고 도중에는 저장하지 않는다. 불러오면 일차 시작으로 돌아가 아침 보고를 처음부터 다시 받는다.
 // 자동 저장은 당일 정산 뒤 다음 일차 시작 상태로만 갱신한다 (2026-11-24 송예찬 확인, PR #29).
-// 🔴 수동 저장을 저장한 시점으로 할지 그 일차의 시작으로 할지는 기획 검토 중이다. 지금은 일차 시작이다.
+// 수동 저장은 누른 시점을 저장하기로 결정됐다(2026-11-25, F13). 구현은 아직 일차 시작이며 별도 작업으로 바꾼다.
 //   OnDisable — 구독을 풀고 응대·주방을 끈다.
 // =====================================================================
 using System;
@@ -88,7 +89,6 @@ namespace DOB.Manager
         // 마감한 순간의 서빙 인원. 명단은 식당 씬이 내려가면 비워지므로 따로 적어 둔다.
         private int servedToday;
         private BasementHud dayHud;
-        private FirstGuestDialogue dialogue;
         private readonly ServicePauseReasons pauses = new ServicePauseReasons();
 
         /// <summary>현재 일차. 1부터 시작한다.</summary>
@@ -130,7 +130,6 @@ namespace DOB.Manager
             startDay = start?.Day ?? 1;
 
             service.ConnectHud(hud.Guidance, hud.Dialogue, startDay);
-            dialogue = hud.Dialogue;
             dayHud = hud;
             kitchen.ConnectHud(hud);
             settleButton = hud.Settle;
@@ -213,11 +212,13 @@ namespace DOB.Manager
                 // 명단은 식당 씬이 내려갈 때 비워진다. 그 전에 한 번 확정하고, 저장 재시도는 보관한 값을 다시 받는다.
                 var (affinities, bonus) = relationship.SettleDay(guests.Roster?.Visits ?? Array.Empty<ServiceVisit>(), visits, guests.TodaysGuests);
                 var ledger = relationship.Guests;
+                // 전리품 자격은 그날 호감을 더한 누적 호감·거절로 정하므로 명부를 갱신한 뒤에 정한다.
+                var reports = settlement.SettledResults(relationship.FindGuest);
                 nextDaySeed = nextDaySeed ?? Guid.NewGuid().GetHashCode();
                 settledCheckpoint = newTimeline
-                    ? saves.SavePreparation(FirstServiceSaveSlot.Auto, checked(Day + 1), kitchen.Gold, kitchen.GarlicStock, materials, visits,
+                    ? saves.SavePreparation(FirstServiceSaveSlot.Auto, checked(Day + 1), kitchen.Gold, kitchen.GarlicStock, materials, reports,
                         affinities, bonus, ledger, nextDaySeed)
-                    : saves.SettleDay(Day, kitchen.Gold, kitchen.GarlicStock, materials, visits, affinities, bonus, ledger, nextDaySeed);
+                    : saves.SettleDay(Day, kitchen.Gold, kitchen.GarlicStock, materials, reports, affinities, bonus, ledger, nextDaySeed);
                 return true;
             }
             catch (Exception e) when (e is IOException || e is UnauthorizedAccessException)
@@ -257,18 +258,16 @@ namespace DOB.Manager
         {
             if (!IsReady)
                 return;
-            pauses.Set(ServicePauseReason.Dialogue, dialogue && dialogue.BlocksWorldInput);
-            pauses.Set(ServicePauseReason.Ingredients, kitchen.IsChoosingIngredients || UIManager.IsKitchenOpen);
             pauses.Set(ServicePauseReason.PauseMenu, BasementPauseMenu.IsPaused);
             pauses.Set(ServicePauseReason.Transition, BasementComposition.IsEntering || SceneLoadService.IsLoading);
-            bool paused = pauses.StopsCooking;
-            // 방명록 작성은 조리와 같은 시계다. 응대·재료 선택 중에도 흐르고 일시 정지·전환에만 멈춘다.
+            bool paused = pauses.IsStopped;
+            // 응대·수첩·재료 선택 중에도 입장·대기·조리·방명록 작성은 흐른다. 일시 정지·전환에만 모두 멈춘다 (F2 노션 확정).
             float clock = paused ? 0f : Time.deltaTime;
             relationship.Tick(clock);
             if (cycle.Phase == DayPhase.Service)
             {
                 kitchen.Tick(clock);
-                guests.Tick(pauses.StopsArrivalAndWait ? 0f : Time.deltaTime);
+                guests.Tick(clock);
             }
 
             // 마지막 방문이 끝난 순간 한 번 마감·정산한다.

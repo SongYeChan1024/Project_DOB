@@ -140,7 +140,7 @@ namespace DOB.Tests
         }
 
         [UnityTest]
-        public IEnumerator IngredientChoiceKeepsCookingButStopsArrivalAndWaitWhilePauseStopsAll()
+        public IEnumerator IngredientChoiceKeepsEveryClockRunningWhilePauseStopsAll()
         {
             TestGuestRoster.Use(guests: 2, arrivalSeconds: 100f);
             yield return StartFromTitle();
@@ -152,14 +152,14 @@ namespace DOB.Tests
             var book = (OrderBook)typeof(FirstGuestKitchen).GetField("book", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(s.Kitchen);
             var visit = s.Guests.Roster.Find(guest.VisitId);
 
-            // 재료 선택 사유만 켠다. 레시피 패널이 열려 있으면 GameManager가 재료 선택으로 본다.
+            // 레시피(재료 선택) 패널을 연다. 시간은 ESC에서만 멈추므로 조리·대기·입장 시계가 모두 흐른다 (F2).
             s.Hud.RecipePanel.SetActive(true);
             yield return null;
             float wait = visit.WaitSeconds, arrival = s.Guests.Roster.NextArrivalSeconds, cooking = book.Cooking.RemainingSeconds;
             yield return new WaitForSeconds(0.5f);
             Assert.That(book.Cooking.RemainingSeconds, Is.LessThan(cooking), "재료 선택 중에도 조리는 흐른다");
-            Assert.That(visit.WaitSeconds, Is.EqualTo(wait), "대기 시간은 그대로");
-            Assert.That(s.Guests.Roster.NextArrivalSeconds, Is.EqualTo(arrival), "입장 간격은 그대로");
+            Assert.That(visit.WaitSeconds, Is.GreaterThan(wait), "재료 선택 중에도 대기 시간은 흐른다");
+            Assert.That(s.Guests.Roster.NextArrivalSeconds, Is.LessThan(arrival), "재료 선택 중에도 입장 간격은 흐른다");
             s.Hud.RecipePanel.SetActive(false);
 
             yield return Press(Key.Escape);
@@ -255,7 +255,7 @@ namespace DOB.Tests
             yield return Until(() => ReadyDay(2), "2일차 로드");
             var relationship = Object.FindAnyObjectByType<RelationshipManager>();
             Assert.That(relationship.YesterdayAffinities.Count, Is.EqualTo(2), "돌려보낸 방문도 기록은 남는다");
-            Assert.That(relationship.YesterdayTally, Is.EqualTo((0, 0)), "💡 시험값: 돌려보낸 방문은 입소문에 넣지 않는다");
+            Assert.That(relationship.YesterdayTally, Is.EqualTo((-8, 2)), "돌려보낸 방문도 입소문 N에 1명·S에 −4로 한 번씩 들어간다 (2026-11-25 확정)");
             Assert.That(relationship.WordOfMouthBonus, Is.Zero);
             // 처음 온 손님을 돌려보내면 누적 −4로 영구 거절된다. 다시 오는 손님도 입소문 신규도 없으므로 💡 최소 인원(1명)만 온다.
             Assert.That(relationship.Guests.Select(g => (g.GuestId, g.Rejected)), Is.EquivalentTo(sentHome.Select(id => (id, true))));

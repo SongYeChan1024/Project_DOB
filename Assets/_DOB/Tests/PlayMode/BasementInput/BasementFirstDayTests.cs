@@ -197,10 +197,8 @@ namespace DOB.Tests
             // 보고 화면이 "막아냈다" 줄을 그릴 수 있게 그날의 실제 위험과 요리가 막은 칸도 함께 남는다.
             Assert.That(served.Risks, Is.EqualTo(ExpeditionJudge.PerAxis(visit.ActualRisk)));
             Assert.That(served.Protections, Is.EqualTo(ExpeditionJudge.PerAxis(axis => bread.Protection(axis, true))));
-            // 대성공이면 30% 확률로 희귀 재료(숲 송로)가 하나 더 붙으므로 일반 재료만 센다.
-            Assert.That(served.Loot.Count(material => material != "숲 송로"), Is.EqualTo(new[] { 3, 2, 1, 0 }[(int)served.Grade]));
-            Assert.That(served.Loot.Count(material => material == "숲 송로"),
-                Is.LessThanOrEqualTo(served.Grade == ExpeditionGrade.GreatSuccess ? 1 : 0));
+            // 전리품 자격은 그날 정산 뒤 누적 호감으로 정하므로 서빙 시점에는 비어 있다.
+            Assert.That(served.Loot, Is.Empty);
             Assert.That(UnityEngine.Object.FindAnyObjectByType<EconomyManager>().Materials.All(), Is.Empty, "전리품은 다음 아침에 받는다");
             Canvas.ForceUpdateCanvases();
             var receipt = hud.Receipt;
@@ -235,7 +233,7 @@ namespace DOB.Tests
             var report = settlement.Reports.Single();
             Assert.That(report.VisitId, Is.EqualTo(firstVisit));
             Assert.That(report.Grade, Is.EqualTo(served.Grade));
-            Assert.That(report.Loot, Is.EqualTo(served.Loot));
+            Assert.That(report.Loot, Is.Empty, "처음 온 손님은 누적 호감이 최대 6이라 9 미만이므로 전리품이 없다");
             Assert.That(report.Risks, Is.EqualTo(served.Risks), "위험 칸도 저장을 거쳐 다음 날 보고로 넘어온다");
             Assert.That(report.Loot.All(settlement.IsNewMaterial), Is.True, "빈 재고에서 처음 받는 재료는 모두 신규다");
             Assert.That(settlement.IsReportConfirmed(firstVisit), Is.False);
