@@ -1,0 +1,153 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a04f5ec4b620ae36b55f8cdfe50bf2d5, type: 3}
+  m_Name: SO_Kitchen
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.KitchenRules
+  cookSeconds: 6
+  startBurners: 1
+  maxBurners: 2
+  burnerPrice: 60
+  tools:
+  - 오븐
+  - 냄비
+  - 프라이팬
+  basicIngredients:
+  - 밀가루
+  - 감자
+  - 고기
+  recipes:
+  - id: Bread
+    name: 구운 빵
+    tool: 오븐
+    ingredients:
+    - id: 밀가루
+      count: 2
+    effects:
+    - effect: 활력
+      amount: 1
+    - effect: 감각
+      amount: 1
+    basePrice: 8
+    startUnlocked: 1
+    unlockBy: []
+  - id: PotatoStew
+    name: 감자 스튜
+    tool: 냄비
+    ingredients:
+    - id: 감자
+      count: 1
+    - id: 고기
+      count: 1
+    effects:
+    - effect: 활력
+      amount: 2
+    basePrice: 10
+    startUnlocked: 1
+    unlockBy: []
+  - id: GrilledMeat
+    name: 고기 구이
+    tool: 프라이팬
+    ingredients:
+    - id: 고기
+      count: 2
+    effects:
+    - effect: 활력
+      amount: 3
+    basePrice: 10
+    startUnlocked: 1
+    unlockBy: []
+  - id: HerbPie
+    name: 들풀 파이
+    tool: 오븐
+    ingredients:
+    - id: 들풀
+      count: 1
+    - id: 밀가루
+      count: 2
+    effects:
+    - effect: 감각
+      amount: 2
+    - effect: 활력
+      amount: 1
+    basePrice: 11
+    startUnlocked: 0
+    unlockBy:
+    - 들풀
+  - id: MushroomSoup
+    name: 숲버섯 수프
+    tool: 냄비
+    ingredients:
+    - id: 숲버섯
+      count: 2
+    - id: 감자
+      count: 1
+    effects:
+    - effect: 활력
+      amount: 2
+    - effect: 해독
+      amount: 1
+    basePrice: 16
+    startUnlocked: 0
+    unlockBy:
+    - 숲버섯
+  - id: CarrotCake
+    name: 당근 케이크
+    tool: 오븐
+    ingredients:
+    - id: 숲 당근
+      count: 2
+    - id: 밀가루
+      count: 1
+    effects:
+    - effect: 야광
+      amount: 2
+    - effect: 활력
+      amount: 1
+    basePrice: 16
+    startUnlocked: 0
+    unlockBy:
+    - 숲 당근
+  - id: SlimeSalad
+    name: 슬라임 젤리 샐러드
+    tool: 냄비
+    ingredients:
+    - id: 슬라임 젤리
+      count: 2
+    - id: 들풀
+      count: 1
+    effects:
+    - effect: 해독
+      amount: 2
+    - effect: 감각
+      amount: 1
+    basePrice: 21
+    startUnlocked: 0
+    unlockBy:
+    - 슬라임 젤리
+    - 들풀
+  - id: TruffleSoup
+    name: 숲 송로 수프
+    tool: 냄비
+    ingredients:
+    - id: 숲 송로
+      count: 1
+    - id: 숲버섯
+      count: 2
+    effects:
+    - effect: 해독
+      amount: 3
+    - effect: 활력
+      amount: 1
+    basePrice: 26
+    startUnlocked: 0
+    unlockBy:
+    - 숲 송로

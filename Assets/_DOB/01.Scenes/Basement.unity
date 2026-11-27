@@ -809,7 +809,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: DOB.Manager::DOB.Manager.FirstGuestKitchen
   service: {fileID: 993346891}
-  recipe: {fileID: 11400000, guid: b967443705f148f5a1c3f4612938d7fa, type: 2}
 --- !u!4 &2035097305
 Transform:
   m_ObjectHideFlags: 0

@@ -38,7 +38,8 @@ namespace DOB.Manager
         /// <summary>마감 정산을 자동 슬롯에 한 번 쓴다. 이미 썼으면 그 결과. 파일 오류는 그대로 던진다.</summary>
         public FirstServiceSaveData Settle(bool startsNewTimeline, int completedDay, int gold, IEnumerable<MaterialCount> spices,
             IEnumerable<MaterialCount> materials, IEnumerable<VisitResult> reports, IEnumerable<VisitAffinity> affinities,
-            int wordOfMouthBonus, IEnumerable<GuestRecord> guests, int? nextDaySeed, FloorProgressState floors)
+            int wordOfMouthBonus, IEnumerable<GuestRecord> guests, int? nextDaySeed, FloorProgressState floors,
+            IEnumerable<string> unlockedRecipes = null, int? burners = null)
         {
             if (Settled != null)
                 return Settled;
@@ -46,8 +47,8 @@ namespace DOB.Manager
                 throw new InvalidOperationException("Begin 전에는 정산할 수 없습니다.");
             Settled = startsNewTimeline
                 ? store.SavePreparation(FirstServiceSaveSlot.Auto, checked(completedDay + 1), gold, spices, materials, reports,
-                    affinities, wordOfMouthBonus, guests, nextDaySeed, null, floors)
-                : store.SettleDay(completedDay, gold, spices, materials, reports, affinities, wordOfMouthBonus, guests, nextDaySeed, floors);
+                    affinities, wordOfMouthBonus, guests, nextDaySeed, null, floors, unlockedRecipes, burners)
+                : store.SettleDay(completedDay, gold, spices, materials, reports, affinities, wordOfMouthBonus, guests, nextDaySeed, floors, unlockedRecipes, burners);
             return Settled;
         }
     }

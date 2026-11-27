@@ -80,8 +80,28 @@ namespace DOB.Manager
             return Market.TryBuy(Rules, wallet, Spices, cart);
         }
 
+        /// <summary>시설 구매 대금(화구 등). 준비 단계가 아니면 시장 닫힘, 모자라면 금화 부족이고 아무것도 바꾸지 않는다.</summary>
+        public PurchaseResult Spend(int gold)
+        {
+            if (wallet == null || MarketOpen?.Invoke() != true)
+                return PurchaseResult.MarketClosed;
+            if (gold <= 0)
+                return PurchaseResult.InvalidCount;
+            return wallet.TrySpend(gold) ? PurchaseResult.Purchased : PurchaseResult.NotEnoughGold;
+        }
+
         /// <summary>서빙 대금을 더한다. 하루를 열기 전이거나 음수면 false.</summary>
-        public bool Earn(int gold) => wallet != null && wallet.Earn(gold);
+        public bool Earn(int gold)
+        {
+            if (wallet == null || !wallet.Earn(gold))
+                return false;
+            if (gold > 0)
+                GoldEarned?.Invoke(gold);
+            return true;
+        }
+
+        /// <summary>금화를 실제로 벌었을 때 한 번 알린다(효과음). 불러오기 복원(Restore)은 알리지 않는다.</summary>
+        public event Action<int> GoldEarned;
 
         private IEnumerable<MaterialCount> StartSpices()
         {

@@ -128,7 +128,7 @@ namespace DOB.Editor
                 ("zoom", Asset<ScriptableObject>("08.Data/SO_GuestCloseUp.asset")));
             var kitchen = (Behaviour)ComponentOn(Child("CookingConnections", systems.transform),"FirstGuestKitchen");
             kitchen.enabled = false;
-            Wire(kitchen, ("service",service), ("recipe",Asset<ScriptableObject>("08.Data/SO_FirstService_Bread.asset")));
+            Wire(kitchen, ("service",service));
             var plate = ComponentOn(player,"FirstGuestPlateView");
             Wire(plate, ("kitchen", kitchen), ("carryAnchor",player.transform.Find("Anchors/PlatePoint")));
             var game = ComponentOn(systems,"GameManager");

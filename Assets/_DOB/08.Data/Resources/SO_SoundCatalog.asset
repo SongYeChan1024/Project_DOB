@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c92e0a5f1a11799ac151fe5db36d39c8, type: 3}
+  m_Name: SO_SoundCatalog
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.SoundCatalog
+  cues:
+  - cue: 0
+    clip: {fileID: 0}
+    volume: 1
+  - cue: 1
+    clip: {fileID: 0}
+    volume: 1
+  - cue: 2
+    clip: {fileID: 0}
+    volume: 1
+  - cue: 3
+    clip: {fileID: 0}
+    volume: 1
+  - cue: 4
+    clip: {fileID: 0}
+    volume: 1
+  tracks:
+  - id: Title
+    clip: {fileID: 0}
+    scenes:
+    - Title
+  - id: Service
+    clip: {fileID: 0}
+    scenes:
+    - Basement
+  pauseBgmScale: 0.4
