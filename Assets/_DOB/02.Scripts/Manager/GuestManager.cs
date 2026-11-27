@@ -54,6 +54,10 @@ namespace DOB.Manager
         public IReadOnlyList<GuestAgent> Agents => agents;
         /// <summary>입장 순서대로의 그날 손님 신원(재방문은 명부 기록, 신규는 그날 뽑은 신원). 마감 정산이 명부 등록에 쓴다.</summary>
         public IReadOnlyList<GuestRecord> TodaysGuests => todaysGuests;
+        /// <summary>서빙을 받지 못하고 기다릴 수 있는 한도(초). 말풍선의 남은 비율에 쓴다.</summary>
+        public float LeaveAfterSeconds => Settings.LeaveAfterSeconds;
+        /// <summary>서빙 직후 기쁨 표정을 보이는 시간(초).</summary>
+        public float ServedMoodSeconds => Settings.ServedMoodSeconds;
         /// <summary>입구 줄 간격(m).</summary>
         public float QueueSpacing => Settings.QueueSpacing;
         /// <summary>기준값·템플릿 연결 오류. 문제가 없으면 null.</summary>

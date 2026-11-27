@@ -17,6 +17,12 @@
 //   클로즈업 카메라는 응대 때만 켜고, 끄면 Brain이 전경 카메라로 되돌린다.
 //   씬 종료 시 좌석·카메라·화면·손님 오브젝트를 정리한다.
 // 단일 손님 조회(VisitId·CurrentVisit·IsSeated 등)는 아직 끝나지 않은 가장 먼저 입장한 손님 기준이다.
+// 화면 약속(켜질 때 UIManager에 연결, 꺼질 때 해제):
+//   IInteractionPrompt — E 처리(TryInteract)와 같은 순서·조건(좌석 안내 → 맞이 → 주방의 MealPrompt)으로 대상과 동작 이름을 낸다.
+//                        응대·줌·관찰·요리 화면·일시 정지·로딩 중이면 대상이 없다.
+//   IGuestMoods        — 손님 오브젝트마다: 대기 시간이 흐르는 단계(입구 대기·착석)면 기다림, 파견 직후 기준 시간 동안은 서빙 받음,
+//                        끝나 문·계단으로 걷는 중이면 떠남, 그 밖은 없음. 남은 비율 = 남은 대기 / 대기 한도, 대기 점수는 명단이 낸다.
+//                        떠날 때 표정은 그 방문의 입맛 점수(+ 좋음, 0·없음 보통, − 싫음), 돌려보냄·대기 이탈은 싫음(💡).
 using System;
 using DOB.Define;
 using DOB.Systems;
@@ -28,7 +34,7 @@ using UnityEngine.UI;
 namespace DOB.Manager
 {
     /// <summary>손님들의 공간 이동과 플레이어 입력을 담당한다. 방문 단계는 명단이, 손님 표시 데이터는 응대 Presenter가 소유한다.</summary>
-    public sealed class FirstGuestService : MonoBehaviour
+    public sealed class FirstGuestService : MonoBehaviour, IInteractionPrompt, IGuestMoods
     {
         [Header("Gameplay 씬 연결")]
         [SerializeField] private Transform player;
@@ -63,6 +69,8 @@ namespace DOB.Manager
         private string notice;
         private bool observing;
         private int serviceDay;
+        // 파견 직후 기쁨 표정을 보일 남은 시간(초). 방문 ID별.
+        private readonly System.Collections.Generic.Dictionary<string, float> servedMood = new System.Collections.Generic.Dictionary<string, float>();
 
         private bool CanSendHome => serviceDay > 1 || dialogue.FirstGuestCanSendHome;
         private ServiceRoster Roster => guests.Roster;
@@ -101,6 +109,10 @@ namespace DOB.Manager
         public Func<bool> MealInteraction { get; set; }
         /// <summary>현재 조리·서빙 단계에 맞는 안내 문구를 조회한다.</summary>
         public Func<string> MealGuidance { get; set; }
+        /// <summary>주방·서빙에서 지금 E의 대상과 동작 이름([E] 표시용). 주방 담당이 연결한다.</summary>
+        public Func<(Transform Target, string Action)> MealPrompt { get; set; }
+        /// <summary>지금 일차.</summary>
+        public int Day => serviceDay;
         /// <summary>주방 메뉴가 열려 있으면 플레이어와 손님 이동을 멈춘다.</summary>
         public Func<bool> KitchenIsOpen { get; set; }
 
@@ -157,10 +169,15 @@ namespace DOB.Manager
             SceneManager.sceneUnloaded += OnSceneUnloaded;
             if (!TryBindRestaurant(gameObject.scene))
                 TryBindRestaurant(SceneManager.GetSceneByName(BasementComposition.RestaurantScene));
+            UIManager.ConnectInteractionPrompt(this);
+            UIManager.ConnectGuestMoods(this);
         }
 
         private void OnDisable()
         {
+            UIManager.DisconnectInteractionPrompt(this);
+            UIManager.DisconnectGuestMoods(this);
+            servedMood.Clear();
             SceneManager.sceneLoaded -= OnSceneLoaded;
             SceneManager.sceneUnloaded -= OnSceneUnloaded;
             if (dialogue)
@@ -295,6 +312,9 @@ namespace DOB.Manager
 
         private void AdvanceGuests(float dt)
         {
+            if (servedMood.Count > 0)
+                foreach (string id in new System.Collections.Generic.List<string>(servedMood.Keys))
+                    if ((servedMood[id] -= dt) <= 0f) servedMood.Remove(id);
             int queueIndex = 0;
             foreach (var agent in guests.Agents)
             {
@@ -355,18 +375,79 @@ namespace DOB.Manager
             return index == 0 || back.sqrMagnitude < 0.0001f ? front : front + back.normalized * (guests.QueueSpacing * index);
         }
 
+        // E 입력과 [E] 표시가 함께 쓰는 「지금 상호작용할 수 있는가」.
+        private bool CanInteract => isActiveAndEnabled && layout && Time.timeScale > 0f && !SceneLoadService.IsLoading && !dialogue.BlocksWorldInput
+            && zoomTimer <= 0f && !observing && KitchenIsOpen?.Invoke() != true;
+
+        // 따라오는 손님을 앉힐 수 있는 빈 자리 번호. 없으면 -1.
+        private int FollowingSeat()
+        {
+            if (!following)
+                return -1;
+            int nearest = layout.FindNearbySeat(player.position, interactionRange);
+            var seat = layout.GetSeat(nearest);
+            return seat && !layout.IsOccupied(nearest) && Near(following.transform, seat, interactionRange + followDistance) ? nearest : -1;
+        }
+
+        // ---- IInteractionPrompt ----
+        Transform IInteractionPrompt.Target => Prompt().Target;
+        string IInteractionPrompt.Action => Prompt().Action;
+
+        private (Transform Target, string Action) Prompt()
+        {
+            if (!CanInteract || Roster == null)
+                return (null, null);
+            int seat = FollowingSeat();
+            if (seat >= 0)
+                return (layout.GetSeat(seat), $"{seat + 1}번 자리 안내");
+            if (NearestQueued() is GuestAgent waiting)
+                return (waiting.transform, "맞이하기");
+            return MealPrompt?.Invoke() ?? (null, null);
+        }
+
+        // ---- IGuestMoods ----
+        int IGuestMoods.Count => layout && Roster != null ? guests.Agents.Count : 0;
+        Transform IGuestMoods.GuestAt(int index) => MoodAgent(index) is GuestAgent agent && agent.gameObject.activeSelf ? agent.transform : null;
+        GuestMoodState IGuestMoods.StateAt(int index)
+        {
+            var agent = MoodAgent(index);
+            var visit = agent ? Roster.Find(agent.VisitId) : null;
+            if (visit == null || agent.Move == GuestAgent.Movement.Gone)
+                return GuestMoodState.None;
+            if (servedMood.ContainsKey(visit.VisitId))
+                return GuestMoodState.Served;
+            if (visit.Stage == ServiceVisitStage.AtEntrance || visit.Stage == ServiceVisitStage.Seated)
+                return GuestMoodState.Waiting;
+            return agent.Move == GuestAgent.Movement.ToExit || agent.Move == GuestAgent.Movement.ToStairs ? GuestMoodState.Leaving : GuestMoodState.None;
+        }
+        float IGuestMoods.PatienceLeftAt(int index) =>
+            MoodVisit(index) is ServiceVisit visit ? Mathf.Clamp01(Roster.PatienceLeft(visit) / guests.LeaveAfterSeconds) : 0f;
+        int IGuestMoods.WaitScoreAt(int index) => MoodVisit(index) is ServiceVisit visit ? Roster.WaitScoreNow(visit) : 0;
+        TasteReaction IGuestMoods.ReactionAt(int index)
+        {
+            var visit = MoodVisit(index);
+            if (visit == null || visit.End == ServiceVisitEnd.None)
+                return TasteReaction.Neutral;
+            if (visit.End != ServiceVisitEnd.Dispatched)
+                return TasteReaction.Dislike;
+            int taste = visit.TasteScore ?? 0;
+            return taste > 0 ? TasteReaction.Like : taste < 0 ? TasteReaction.Dislike : TasteReaction.Neutral;
+        }
+
+        private GuestAgent MoodAgent(int index) =>
+            layout && Roster != null && index >= 0 && index < guests.Agents.Count ? guests.Agents[index] : null;
+        private ServiceVisit MoodVisit(int index) => MoodAgent(index) is GuestAgent agent ? Roster.Find(agent.VisitId) : null;
+
         /// <summary>E와 같은 진입점. 좌석 안내·손님 맞이·주방 상호작용 중 하나가 성공하면 true.</summary>
         public bool TryInteract()
         {
-            if (!isActiveAndEnabled || !layout || Time.timeScale <= 0f || SceneLoadService.IsLoading || dialogue.BlocksWorldInput
-                || zoomTimer > 0f || observing || KitchenIsOpen?.Invoke() == true)
+            if (!CanInteract)
                 return false;
 
-            if (following)
+            int nearest = FollowingSeat();
+            if (nearest >= 0)
             {
-                int nearest = layout.FindNearbySeat(player.position, interactionRange);
-                var seat = layout.GetSeat(nearest);
-                if (seat && Near(following.transform, seat, interactionRange + followDistance) && layout.TryAssign(nearest, following.VisitId))
+                if (layout.TryAssign(nearest, following.VisitId))
                 {
                     following.SeatIndex = nearest;
                     following.Move = GuestAgent.Movement.ToSeat;
@@ -430,6 +511,7 @@ namespace DOB.Manager
                 : end == ServiceVisitEnd.SentHome ? "손님을 돌려보냈어요." : "기다리다 지친 손님이 떠났어요.";
             if (end == ServiceVisitEnd.Dispatched)
             {
+                servedMood[visitId] = guests.ServedMoodSeconds;
                 TryDepartForDungeon(visitId);
                 return;
             }

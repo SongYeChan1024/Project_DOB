@@ -10,16 +10,24 @@
 //   E(접시를 든 채 손님 자리 근처): 가장 가까운 착석 손님에게 서빙을 요청한다. 접시 주인이 아니면 장부가 거절한다.
 //   서빙이 성공하면 축별 부족을 한 번 계산해 출발 한마디를 고르고, 같은 값을 Served로 알려
 //   GameManager가 방명록 글 등록·방문 결과 확정·명단의 파견 종료를 요청하게 한다.
+//   화면 약속(켜질 때 UIManager에 연결, 꺼질 때 해제): IServiceStatus(영업 HUD), IKitchenBurners(화구 표시), IKitchenOrders(요리 화면).
+//     값은 모두 OrderBook·명단에서 읽기만 한다. 주문표는 착석해 연 주문부터 서빙 전까지(취소 제외), 들고 있는 접시는 완성으로 보인다.
+//     요리 화면이 다룰 주문은 완성 > 조리 중 > 대기 순의 첫 주문이다.
+//     조리 시작 요청은 주문 없음 → 착석 안 함 → 주방에서 멂 → 일시 정지 → 화구 사용 중 → 재료 틀림 순으로 거절하고, 통과하면 OrderBook에 맡긴다.
+//     접시 들기 요청은 이미 들고 있음 → 주방에서 멂 → 안 익음 순으로 거절한다. 거절이면 상태를 바꾸지 않는다.
+//   E(주방, 재료 확인): 요리 화면이 등록돼 있으면 그 화면을 열고, 없으면 옛 재료 패널을 연다. 어느 쪽이든 열린 동안 이동·E를 막는다.
+//   MealPrompt — E 처리(Interact)와 같은 조건으로 지금 E의 대상과 동작 이름을 돌려준다([E] 표시용).
 using System.Collections.Generic;
 using DOB.Define;
 using DOB.Systems;
+using DOB.UI;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace DOB.Manager
 {
     /// <summary>그날 손님들의 주문을 주방 버튼, 식당 상호작용 및 영업 중 지갑에 연결한다.</summary>
-    public sealed class FirstGuestKitchen : MonoBehaviour
+    public sealed class FirstGuestKitchen : MonoBehaviour, IServiceStatus, IKitchenBurners, IKitchenOrders
     {
         [SerializeField] private FirstGuestService service;
         [SerializeField] private FirstServiceRecipe recipe;
@@ -89,6 +97,131 @@ namespace DOB.Manager
         // 양념이 부족하면 무료 기본 재료로 굽는다 (첫 플레이 E11). 재고는 주문 사이에서 공유한다.
         private int GarlicForBread => GarlicStock >= recipe.GarlicRequired ? recipe.GarlicRequired : 0;
 
+        private bool ScreenOpen => recipePanel.activeSelf || UIManager.IsKitchenOpen;
+        private bool HasRoster => book != null && service.Guests && service.Guests.Roster != null;
+
+        // ---- IServiceStatus: 영업 HUD ----
+        int IServiceStatus.Day => service.Day;
+        int IServiceStatus.GuestsArrived => HasRoster ? service.Guests.Roster.Entered : 0;
+        int IServiceStatus.OrderCount
+        {
+            get
+            {
+                int count = 0;
+                if (HasRoster)
+                    foreach (var order in book.Orders)
+                        if (IsTicket(order)) count++;
+                return count;
+            }
+        }
+        string IServiceStatus.OrderIdAt(int index) => TicketAt(index)?.VisitId;
+        string IServiceStatus.GuestNameAt(int index) => TicketAt(index) is FirstGuestOrder order ? NameOf(order.VisitId) : null;
+        // 손님 초상 id 데이터가 아직 없다 (홍준우 인계).
+        string IServiceStatus.PortraitIdAt(int index) => null;
+        string IServiceStatus.DishIdAt(int index) => TicketAt(index) != null ? recipe.DishId : null;
+        OrderTicketState IServiceStatus.StateAt(int index)
+        {
+            switch (TicketAt(index)?.State)
+            {
+                case FirstGuestOrderState.Cooking: return OrderTicketState.Cooking;
+                case FirstGuestOrderState.Ready:
+                case FirstGuestOrderState.Carrying: return OrderTicketState.Ready;
+                default: return OrderTicketState.Waiting;
+            }
+        }
+        string IServiceStatus.HeldDishId => HasRoster && book.Carried != null ? recipe.DishId : null;
+        string IServiceStatus.HeldOrderId => HasRoster ? book.Carried?.VisitId : null;
+
+        private static bool IsTicket(FirstGuestOrder order) =>
+            order.State != FirstGuestOrderState.Served && order.State != FirstGuestOrderState.Cancelled;
+
+        // 주문표 순서 = 착석해 주문을 연 순서. 목록을 새로 만들지 않고 센다.
+        private FirstGuestOrder TicketAt(int index)
+        {
+            if (!HasRoster || index < 0)
+                return null;
+            foreach (var order in book.Orders)
+                if (IsTicket(order) && index-- == 0)
+                    return order;
+            return null;
+        }
+
+        // ---- IKitchenBurners: 화구 표시 ----
+        // shortcut: 조리 칸이 하나라 화구도 하나다. 두 화구(F6)가 들어오면 칸마다 나눈다.
+        int IKitchenBurners.Count => HasRoster && service.Kitchen ? 1 : 0;
+        Transform IKitchenBurners.BurnerAt(int index) => index == 0 ? service.Kitchen : null;
+        BurnerState IKitchenBurners.StateAt(int index) => BurnerStateAt(index);
+        string IKitchenBurners.DishIdAt(int index) => BurnerStateAt(index) == BurnerState.Empty ? null : recipe.DishId;
+        float IKitchenBurners.RemainingSecondsAt(int index) => HasRoster && index == 0 ? book.Cooking?.RemainingSeconds ?? 0f : 0f;
+        float IKitchenBurners.CookSecondsAt(int index) => recipe.CookSeconds;
+
+        private BurnerState BurnerStateAt(int index) =>
+            !HasRoster || index != 0 ? BurnerState.Empty : book.Cooking != null ? BurnerState.Cooking
+            : book.NextReady != null ? BurnerState.Done : BurnerState.Empty;
+
+        // ---- IKitchenOrders: 요리 화면 ----
+        private FirstGuestOrder ScreenOrder => !HasRoster ? null : book.NextReady ?? book.Cooking ?? book.NextWaiting;
+        string IKitchenOrders.GuestName => ScreenOrder is FirstGuestOrder order ? NameOf(order.VisitId) : null;
+        string IKitchenOrders.OrderId => ScreenOrder?.VisitId;
+        FirstGuestOrderState? IKitchenOrders.State => ScreenOrder?.State;
+        float IKitchenOrders.CookSeconds => recipe.CookSeconds;
+        float IKitchenOrders.RemainingSeconds => ScreenOrder?.RemainingSeconds ?? 0f;
+        int IKitchenOrders.FlourRequired => recipe.FlourRequired;
+        int IKitchenOrders.GarlicRequired => GarlicForBread;
+        int IKitchenOrders.GarlicStock => GarlicStock;
+        int IKitchenOrders.Protection(string axis, bool garlic) => recipe.Protection(axis, garlic);
+        // 장부의 대금(기본가 + 넣은 마늘 수)과 같은 식이다.
+        int IKitchenOrders.Price(bool garlic) => recipe.BreadBasePrice + (garlic ? recipe.GarlicRequired : 0);
+        int? IKitchenOrders.KnownRisk(string axis) => ScreenOrder is FirstGuestOrder order ? VisitOf(order.VisitId)?.NotebookRisk(axis) : null;
+
+        /// <summary>요리 화면의 조리 시작 요청. 거절이면 재고·주문을 바꾸지 않는다.</summary>
+        public CookStartResult TryStartCooking(string orderId, int flour, int garlic)
+        {
+            var order = HasRoster ? book.Find(orderId) : null;
+            if (order == null || order.State == FirstGuestOrderState.Cancelled || order.State == FirstGuestOrderState.Served)
+                return CookStartResult.NoOrder;
+            if (!service.SeatOf(orderId))
+                return CookStartResult.NotSeated;
+            if (!service.IsNearPlayer(service.Kitchen))
+                return CookStartResult.NotNearKitchen;
+            if (Time.timeScale <= 0f)
+                return CookStartResult.Paused;
+            if (book.Cooking != null)
+                return CookStartResult.BurnerBusy;
+            if (order.State != FirstGuestOrderState.Waiting)
+                return CookStartResult.NoOrder;
+            if (flour != recipe.FlourRequired || garlic != GarlicForBread || !book.TryStart(orderId, flour, garlic))
+                return CookStartResult.WrongIngredients;
+            ClosePanel();
+            return CookStartResult.Started;
+        }
+
+        /// <summary>요리 화면의 접시 들기 요청. 거절이면 든 접시를 바꾸지 않는다.</summary>
+        public PickUpResult TryPickUp(string orderId)
+        {
+            if (HasRoster && book.Carried != null)
+                return PickUpResult.AlreadyHolding;
+            if (!service.IsNearPlayer(service.Kitchen))
+                return PickUpResult.NotNearKitchen;
+            var order = HasRoster ? book.Find(orderId) : null;
+            return order != null && order.State == FirstGuestOrderState.Ready && book.TryPickUp(orderId)
+                ? PickUpResult.PickedUp : PickUpResult.NotCooked;
+        }
+
+        /// <summary>지금 E를 누르면 주방·서빙에서 처리될 대상과 동작 이름. Interact와 같은 조건이다. 없으면 (null, null).</summary>
+        public (Transform Target, string Action) MealPrompt()
+        {
+            if (book == null || ScreenOpen)
+                return (null, null);
+            if (book.Carried is FirstGuestOrder carried)
+                return service.NearestSeatedVisit() == carried.VisitId ? (service.SeatOf(carried.VisitId), "서빙") : (null, null);
+            if (!service.IsNearPlayer(service.Kitchen))
+                return (null, null);
+            if (book.NextReady != null)
+                return (service.Kitchen, "접시 들기");
+            return book.NextWaiting != null && book.Cooking == null ? (service.Kitchen, "재료 확인") : (null, null);
+        }
+
         private GuestDialogueVisit VisitOf(string visitId) => service.Guests.Find(visitId)?.Visit;
         private string NameOf(string visitId) => VisitOf(visitId)?.GuestName ?? "손님";
 
@@ -135,7 +268,11 @@ namespace DOB.Manager
             service.Guests.VisitEnded += CancelOrder;
             service.MealInteraction = Interact;
             service.MealGuidance = GetGuidance;
-            service.KitchenIsOpen = () => recipePanel.activeSelf;
+            service.KitchenIsOpen = () => ScreenOpen;
+            service.MealPrompt = MealPrompt;
+            UIManager.ConnectServiceStatus(this);
+            UIManager.ConnectKitchenBurners(this);
+            UIManager.ConnectKitchenOrders(this);
             confirm.onClick.AddListener(Confirm);
             cancel.onClick.AddListener(ClosePanel);
         }
@@ -147,6 +284,11 @@ namespace DOB.Manager
             service.MealInteraction = null;
             service.MealGuidance = null;
             service.KitchenIsOpen = null;
+            service.MealPrompt = null;
+            UIManager.DisconnectServiceStatus(this);
+            UIManager.DisconnectKitchenBurners(this);
+            UIManager.DisconnectKitchenOrders(this);
+            UIManager.CloseKitchen();
             if (confirm) confirm.onClick.RemoveListener(Confirm);
             if (cancel) cancel.onClick.RemoveListener(ClosePanel);
             if (recipePanel) ClosePanel();
@@ -178,7 +320,7 @@ namespace DOB.Manager
 
         private bool Interact()
         {
-            if (book == null || recipePanel.activeSelf)
+            if (book == null || ScreenOpen)
                 return false;
 
             if (book.Carried != null)
@@ -198,6 +340,8 @@ namespace DOB.Manager
             var next = book.NextWaiting;
             if (next == null || book.Cooking != null)
                 return false;
+            if (UIManager.HasKitchenScreen)
+                return UIManager.OpenKitchen(0);
             panelVisit = next.VisitId;
             string seasoning = GarlicForBread > 0 ? $"  +  마늘 {GarlicForBread}개" : "  ·  양념 없이 굽기";
             ingredients.text = $"{NameOf(panelVisit)}의 구운 빵\n밀가루 {recipe.FlourRequired}개{seasoning}\n마늘 재고 {GarlicStock}개    ·    조리 {recipe.CookSeconds:0.#}초";

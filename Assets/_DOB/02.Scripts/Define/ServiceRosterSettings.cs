@@ -32,6 +32,8 @@ namespace DOB.Define
         [SerializeField] private float leaveAfterSeconds = 30f;
         /// <summary>입구 줄에서 손님 사이의 간격(m). 배치 값이라 규칙에는 쓰지 않는다.</summary>
         [SerializeField, Min(0.1f)] private float queueSpacing = 0.9f;
+        /// <summary>서빙 직후 손님 말풍선에 기쁨을 보이는 시간(초). 💡 표시용 값이며 규칙에는 쓰지 않는다.</summary>
+        [SerializeField, Min(0f)] private float servedMoodSeconds = 1.5f;
 
         public int BaseGuests => baseGuests;
         public int MinGuests => minGuests;
@@ -43,6 +45,7 @@ namespace DOB.Define
         public float ScoreStepSeconds => scoreStepSeconds;
         public float LeaveAfterSeconds => leaveAfterSeconds;
         public float QueueSpacing => queueSpacing;
+        public float ServedMoodSeconds => servedMoodSeconds;
 
         /// <summary>규칙에 쓰는 값을 검사한다. 문제가 없으면 null, 있으면 첫 오류 설명.</summary>
         public string Validate()
