@@ -65,14 +65,15 @@ namespace DOB.UI
         private System.Collections.IEnumerator Upgraded(int oldLevel)
         {
             var card = transform;
+            var home = card.localScale; // 카드가 줄여 배치돼 있어도(가게 개량 4칸 0.8배) 그 크기를 기준으로 뒤집는다
             const float half = 0.12f;
             for (float t = 0f; t < half * 2f; t += Step())
             {
                 float k = t < half ? t / half : 1f - (t - half) / half;
-                card.localScale = new Vector3(Mathf.Lerp(1f, 0.1f, k * k), 1f, 1f);
+                card.localScale = new Vector3(home.x * Mathf.Lerp(1f, 0.1f, k * k), home.y, home.z);
                 yield return null;
             }
-            card.localScale = Vector3.one;
+            card.localScale = home;
 
             var stamp = Instantiate(nameText, transform);
             stamp.text = "완료";

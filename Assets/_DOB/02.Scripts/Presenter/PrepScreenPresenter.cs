@@ -5,7 +5,8 @@
 //          화면의 결제 · 개량 · 문 열기 입력을 요청으로 옮긴다.
 // 호출자 : UIManager (Open, Close, IsOpen) ← 식당 물건 상호작용(E) · Tab 입력 쪽에서 UIManager.OpenPrepScreen 호출
 // 호출   : PrepScreensView, UIManager (등록 · 해제 · 영업 시작 알림)
-// 상태   : 더미 단계에서는 금화 · 보유 양념 · 재료 · 개량 단계를 임시로 가진다. 계약 후 백엔드 결과로 바꾼다.
+// 상태   : 금화 · 양념 · 시장은 EconomyManager(UIManager.Economy)가 연결돼 있으면 그 값을 읽고 구매를 요청한다 (#64 프론트 1번).
+//          연결이 없으면(테스트 씬) 더미 금화 · 보유 양념을 쓴다. 재료 · 개량 단계는 아직 더미다.
 // 비고   : TODO(계약) 표시된 곳이 백엔드 호출로 바뀔 자리 (Docs/개발/FeatureManagerMap.md 💡 구성안 기준).
 //          금화 · 재고 · 시장 · 개량 → EconomyManager (Wallet · Inventory · UpgradeState)
 //          층 개방 · 기록된 위험 → SettlementManager (FloorProgress) / 수첩 기록 → RelationshipManager (NotebookRecords)
@@ -16,13 +17,15 @@
 // [켜질 때]   화면 이벤트를 구독하고 UIManager에 등록한다
 // [꺼질 때]   구독을 풀고 등록을 해제한다
 // [열기]      표시 데이터를 만들어 화면을 연다
-// [결제]      (양념 id → 개수)를 받아 구매 요청 → 성공이면 새 데이터로 다시 그림, 실패면 사유 안내
+// [결제]      (양념 id → 개수)를 받아 EconomyManager.Buy 요청 → 성공이면 새 데이터로 다시 그림, 거절이면 사유 안내
+//             (금화 부족 · 시장 닫힘 · 팔지 않는 물건 · 없는 양념 · 빈 장바구니). 연결이 없으면 더미로 계산
 // [개량]      개량 id로 요청 → 다시 그림
 // [문 열기]   화면을 닫고 UIManager에 영업 시작을 알린다
 // =====================================================================
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DOB.Systems;
 using DOB.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -38,6 +41,8 @@ namespace DOB.Manager
         [Header("그림"), SerializeField] private Sprite[] spiceIcons = new Sprite[6];
         /// <summary>개량 그림 (좌석 · 화덕 · 양념 선반 순서).</summary>
         [SerializeField] private Sprite[] upgradePictures = new Sprite[3];
+        /// <summary>화구 추가 카드 그림 (T_UI_UpgradeBurner). 비우면 화덕 그림을 쓴다.</summary>
+        [SerializeField] private Sprite burnerPicture;
         /// <summary>재료 · 요리 그림 (07.UI/Sprites/Items). 파일 이름으로 찾는다 (예: T_UI_IngFlour, T_UI_DishBread).</summary>
         [SerializeField] private Sprite[] itemIcons = Array.Empty<Sprite>();
 
@@ -49,7 +54,7 @@ namespace DOB.Manager
         private static readonly Dictionary<string, int> ownedIngredients = new Dictionary<string, int>
             { ["SlimeJelly"] = 2, ["ForestMushroom"] = 1, ["WaterMoss"] = 1, ["BatWing"] = 3 };
         private static readonly Dictionary<string, int> upgradeLevels = new Dictionary<string, int>
-            { ["seat"] = 0, ["hearth"] = 0, ["shelf"] = 0 };
+            { ["burner"] = 0, ["seat"] = 0, ["hearth"] = 0, ["shelf"] = 0 };
 
         /// <summary>준비 화면이 열려 있는지.</summary>
         public bool IsOpen => view && view.IsOpen;
@@ -111,7 +116,15 @@ namespace DOB.Manager
 
         private void OnPurchase(IReadOnlyDictionary<string, int> cart)
         {
-            // TODO(계약): EconomyManager 구매 요청(itemId, 수량). 지금은 더미로 금화를 빼고 보유를 늘린다.
+            // 실제 게임: 장바구니를 EconomyManager에 그대로 요청하고, 거절이면 사유만 보여 준다 (금화 · 재고는 바뀌지 않음)
+            if (UIManager.Economy is EconomyManager economy)
+            {
+                var outcome = economy.Buy(cart);
+                if (outcome.Result == PurchaseResult.Purchased) view.Refresh(BuildData());
+                else view.Market.ShowNotice(PurchaseLine(outcome.Result));
+                return;
+            }
+            // 더미: 금화를 빼고 보유를 늘린다 (테스트 씬)
             var spices = BuildSpices();
             int cost = cart.Sum(pair => pair.Value * Array.Find(spices, s => s.id == pair.Key).price);
             if (cost > gold)
@@ -125,9 +138,31 @@ namespace DOB.Manager
             view.Refresh(BuildData());
         }
 
+        // 시장 거절 사유 → 안내 문구
+        private static string PurchaseLine(PurchaseResult result)
+        {
+            switch (result)
+            {
+                case PurchaseResult.NotEnoughGold: return "금화가 모자라요.";
+                case PurchaseResult.MarketClosed: return "지금은 시장이 닫혀 있어요.";
+                case PurchaseResult.NotForSale: return "시장에서 팔지 않는 물건이에요.";
+                case PurchaseResult.UnknownItem: return "시장에 없는 양념이에요.";
+                case PurchaseResult.InvalidCount: return "살 양념을 골라 주세요.";
+                default: return "살 수 없어요.";
+            }
+        }
+
         private void OnUpgrade(string upgradeId)
         {
-            // TODO(계약): EconomyManager 개량 요청(upgradeId). 가게 개량은 첫 플레이 이후 범위(F8).
+            // 실제 게임: 화구 추가만 있다 (KitchenManager가 금화를 받고 화구를 늘림). 다른 개량은 F8 후속이라 카드가 잠겨 있어 오지 않는다
+            if (UIManager.Economy is EconomyManager economy)
+            {
+                if (upgradeId == Burner && UIManager.KitchenRules is KitchenManager kitchen
+                    && kitchen.TryBuyBurner(economy) == PurchaseResult.Purchased)
+                    view.Refresh(BuildData());
+                return;
+            }
+            // 더미: 금화를 빼고 단계를 올린다 (테스트 씬)
             var upgrade = Array.Find(BuildUpgrades(), u => u.id == upgradeId);
             if (upgrade == null || !upgrade.canBuy)
                 return;
@@ -154,7 +189,7 @@ namespace DOB.Manager
                 recipe.picture = Icon("Dish" + recipe.id);
             return new PrepViewData
             {
-                gold = gold,
+                gold = Gold,
                 news = "2층 곰팡이 동굴에 박쥐 떼가 늘었대요",
                 spices = spices,
                 recipes = Recipes,
@@ -174,7 +209,7 @@ namespace DOB.Manager
                 {
                     new DoorStatData { label = "오늘 손님", value = "6명" },
                     new DoorStatData { label = "좌석", value = $"{3 + upgradeLevels["seat"]}석" },
-                    new DoorStatData { label = "화구", value = "2개" },
+                    new DoorStatData { label = "화구", value = $"{Burners}개" },
                 },
                 doorSpices = spices.Where(sp => sp.owned > 0)
                     .Select(sp => new StockItemData
@@ -267,8 +302,23 @@ namespace DOB.Manager
             ("pepper", "후추", "감각", "알싸", 2),
         };
 
+        // 지금 금화: 실제 게임이면 EconomyManager, 아니면 더미
+        private static int Gold => UIManager.Economy is EconomyManager economy ? economy.Gold : gold;
+
         private SpiceItemData[] BuildSpices()
         {
+            // 실제 게임: 양념 표 · 가격은 SO_Market, 보유는 EconomyManager에서 읽는다. 그림은 SpiceTable 순서에서 id로 찾는다
+            if (UIManager.Economy is EconomyManager economy)
+                return economy.Rules.Spices.Select(s =>
+                {
+                    int index = Array.FindIndex(SpiceTable, t => t.id == s.id);
+                    return new SpiceItemData
+                    {
+                        id = s.id, name = s.name, effect = s.effect, flavor = s.flavor, price = s.price,
+                        owned = economy.SpiceCount(s.id),
+                        icon = index >= 0 && index < spiceIcons.Length ? spiceIcons[index] : null,
+                    };
+                }).ToArray();
             var table = SpiceTable;
             var result = new SpiceItemData[table.Length];
             for (int i = 0; i < table.Length; i++)
@@ -284,7 +334,40 @@ namespace DOB.Manager
             return result;
         }
 
-        // 기획 9장 가게 개량 표
+        private const string Burner = "burner";
+
+        // 지금 화구 수: 실제 게임이면 KitchenManager, 아니면 더미 (시작 1개 + 산 만큼)
+        private static int Burners => UIManager.KitchenRules is KitchenManager kitchen ? kitchen.OwnedBurners : 1 + upgradeLevels[Burner];
+
+        // 화구 추가 카드: 시작 1개에서 가게 개량으로 하나 더 (값 · 최대는 SO_Kitchen, 더미는 60금 · 1번)
+        private UpgradeItemData BuildBurnerCard()
+        {
+            int level, maxLevel, price;
+            bool canBuy;
+            if (UIManager.KitchenRules is KitchenManager kitchen && kitchen.Rules)
+            {
+                level = kitchen.OwnedBurners - kitchen.Rules.StartBurners;
+                maxLevel = kitchen.Rules.MaxBurners - kitchen.Rules.StartBurners;
+                price = kitchen.NextBurnerPrice ?? 0;
+                canBuy = kitchen.NextBurnerPrice.HasValue && price <= Gold;
+            }
+            else
+            {
+                level = upgradeLevels[Burner];
+                maxLevel = 1;
+                price = level < maxLevel ? 60 : 0;
+                canBuy = !UIManager.Economy && level < maxLevel && price <= gold;
+            }
+            return new UpgradeItemData
+            {
+                id = Burner, name = "화구 추가", effect = "동시에 요리 +1",
+                detail = level < maxLevel ? $"{Burners}개 → {Burners + 1}개" : null,
+                level = level, maxLevel = maxLevel, price = price, canBuy = canBuy,
+                picture = burnerPicture ? burnerPicture : upgradePictures.Length > 1 ? upgradePictures[1] : null,
+            };
+        }
+
+        // 기획 9장 가게 개량 표 (맨 앞은 화구 추가)
         private UpgradeItemData[] BuildUpgrades()
         {
             (string id, string name, string effect, int[] prices)[] table =
@@ -293,18 +376,20 @@ namespace DOB.Manager
                 ("hearth", "화덕 개량", "가장 강한 효과 +1", new[] { 80, 160 }),
                 ("shelf", "양념 선반", "양념 두 칸", new[] { 150 }),
             };
-            var result = new UpgradeItemData[table.Length];
+            var result = new UpgradeItemData[table.Length + 1];
+            result[0] = BuildBurnerCard();
             for (int i = 0; i < table.Length; i++)
             {
                 var t = table[i];
                 int level = upgradeLevels[t.id];
                 int price = level < t.prices.Length ? t.prices[level] : 0;
-                result[i] = new UpgradeItemData
+                result[i + 1] = new UpgradeItemData
                 {
                     id = t.id, name = t.name, effect = t.effect,
                     detail = t.id == "seat" && level < t.prices.Length ? $"{3 + level}석 → {4 + level}석" : null,
                     level = level, maxLevel = t.prices.Length, price = price,
-                    canBuy = level < t.prices.Length && price <= gold,
+                    // 실제 게임에는 가게 개량이 아직 없어 잠가 둔다 (실제 금화를 쓰지 않게)
+                    canBuy = !UIManager.Economy && level < t.prices.Length && price <= gold,
                     picture = i < upgradePictures.Length ? upgradePictures[i] : null,
                 };
             }

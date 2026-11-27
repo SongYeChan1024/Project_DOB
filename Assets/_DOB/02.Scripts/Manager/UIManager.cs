@@ -90,6 +90,12 @@ namespace DOB.Manager
         // 실제 주방 주문 (FirstGuestKitchen). 없으면 요리 화면은 더미로 그린다
         private IKitchenOrders kitchenOrders;
         internal static IKitchenOrders KitchenOrders => instance ? instance.kitchenOrders : null;
+        private EconomyManager economy;
+        private KitchenManager kitchenRules;
+        /// <summary>실제 금화 · 양념 · 시장. 연결 전(테스트 씬 등)이면 null이고 준비 화면은 더미 값을 쓴다.</summary>
+        internal static EconomyManager Economy => instance ? instance.economy : null;
+        /// <summary>실제 화구 수 · 화구 구매. Economy와 함께 연결된다. 없으면 null.</summary>
+        internal static KitchenManager KitchenRules => instance ? instance.kitchenRules : null;
 
         // 지금 상호작용할 대상 (FirstGuestService 💡). 없으면 상호작용 표시를 숨긴다
         private IInteractionPrompt interactionPrompt;
@@ -273,6 +279,22 @@ namespace DOB.Manager
         {
             if (instance && instance.kitchenOrders == orders)
                 instance.kitchenOrders = null;
+        }
+
+        /// <summary>실제 금화 · 양념 · 시장과 화구 구매를 준비 화면에 잇는다 (하루를 열 때, 예: GameManager가 두 Manager를 준비한 뒤).</summary>
+        internal static void ConnectEconomy(EconomyManager economy, KitchenManager kitchen = null)
+        {
+            if (!economy) return;
+            Instance.economy = economy;
+            Instance.kitchenRules = kitchen;
+        }
+
+        /// <summary>연결을 푼다 (꺼질 때). 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        internal static void DisconnectEconomy(EconomyManager economy)
+        {
+            if (!instance || instance.economy != economy) return;
+            instance.economy = null;
+            instance.kitchenRules = null;
         }
 
         /// <summary>화구 하나(0부터)의 요리 화면을 연다. 등록된 화면이 없으면 경고하고 false.</summary>
