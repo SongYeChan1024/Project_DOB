@@ -89,6 +89,8 @@ GameObject:
   - component: {fileID: 4201778025047140103}
   - component: {fileID: 6607758082018495414}
   - component: {fileID: 2293281122182726117}
+  - component: {fileID: 1925917181758734987}
+  - component: {fileID: 6551609542105306990}
   m_Layer: 0
   m_Name: PF_PauseMenu
   m_TagString: Untagged
@@ -199,6 +201,31 @@ MonoBehaviour:
   labelTemplate: {fileID: 3798736177458068102}
   settings: {fileID: 4476990902214403103}
   subColor: {r: 0.88235295, g: 0.8039216, b: 0.6666667, a: 1}
+--- !u!225 &1925917181758734987
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 831754314630781508}
+  m_Enabled: 1
+  m_Alpha: 1
+  m_Interactable: 1
+  m_BlocksRaycasts: 1
+  m_IgnoreParentGroups: 0
+--- !u!114 &6551609542105306990
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 831754314630781508}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8f3c9f8c711338146a9b1759c6f34e00, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.ScreenFadeIn
+  seconds: 0.2
 --- !u!1 &1496245861033730201
 GameObject:
   m_ObjectHideFlags: 0
@@ -349,6 +376,7 @@ GameObject:
   - component: {fileID: 380790062968181216}
   - component: {fileID: 1108360501631950155}
   - component: {fileID: 4460798482778087000}
+  - component: {fileID: 5135350198411273482}
   m_Layer: 0
   m_Name: Menu
   m_TagString: Untagged
@@ -456,6 +484,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.ContentSizeFitter
   m_HorizontalFit: 0
   m_VerticalFit: 2
+--- !u!114 &5135350198411273482
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2242538275294701495}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d67927921fae3f49a537cb1ece278d8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.ScreenRise
+  drop: -24
+  startScale: 0.96
 --- !u!1 &2744190695750138314
 GameObject:
   m_ObjectHideFlags: 0
@@ -469,6 +511,7 @@ GameObject:
   - component: {fileID: 3829705079289519773}
   - component: {fileID: 5687600161475879286}
   - component: {fileID: 7693416053117714832}
+  - component: {fileID: 8206301916669383498}
   m_Layer: 0
   m_Name: ButtonTemplate
   m_TagString: Untagged
@@ -576,10 +619,10 @@ MonoBehaviour:
   m_Transition: 1
   m_Colors:
     m_NormalColor: {r: 1, g: 1, b: 1, a: 1}
-    m_HighlightedColor: {r: 1.1, g: 1.05, b: 0.95, a: 1}
-    m_PressedColor: {r: 0.8, g: 0.75, b: 0.7, a: 1}
-    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}
-    m_DisabledColor: {r: 0.45, g: 0.42, b: 0.4, a: 1}
+    m_HighlightedColor: {r: 1.12, g: 1.12, b: 1.12, a: 1}
+    m_PressedColor: {r: 0.82, g: 0.82, b: 0.82, a: 1}
+    m_SelectedColor: {r: 1, g: 1, b: 1, a: 1}
+    m_DisabledColor: {r: 0.55, g: 0.55, b: 0.55, a: 0.6}
     m_ColorMultiplier: 1
     m_FadeDuration: 0.1
   m_SpriteState:
@@ -598,6 +641,23 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &8206301916669383498
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2744190695750138314}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1888c6ca8912b764db98d03c2633bded, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
+  hoverScale: 1.06
+  pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
+  speed: 24
 --- !u!1 &3917275257401249915
 GameObject:
   m_ObjectHideFlags: 0

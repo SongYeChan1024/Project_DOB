@@ -10,6 +10,8 @@
 // [열기]    화면을 켜고 서서히 나타남 → Show로 전체 그림
 // [Show]    주문서 · 재료 상자 · 양념 상자 · 냄비 접시 · 결과 카드 · 단추를 새 데이터로 다시 그림
 //           조리 중 · 완성이면 재료 상자를 흐리게 하고 못 누르게 한다
+// [넣기]    (시안 16 ①) 누른 재료가 실제로 냄비에 들어가면(다음 Show에서 냄비 칸 수가 늘면) 그 그림이 곡선으로 냄비에 톡 떨어지고
+//           냄비가 출렁 + 김 한 번 + 그 냄비 칸이 톡. 거절돼 칸 수가 그대로면 아무 연출도 없다
 // [시계]    SetTimer로 남은 시간만 자주 갱신 (전체를 다시 그리지 않음)
 // [닫기]    입력을 바로 막고 서서히 사라짐 (닫히는 중 두 번 눌림 방지)
 // [자리]    모든 부품은 프리팹 안에서 손으로 옮길 수 있다. 코드는 위치를 바꾸지 않는다 (뚜껑만 표시 자리 사이를 움직임)
@@ -17,6 +19,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -95,6 +98,19 @@ namespace DOB.UI
         private static readonly float[] InsideTilt = { -8f, 6f, -4f, 9f };
 
         public bool IsOpen { get; private set; }
+
+        [Header("재료 넣기 손맛 (시안 16 ①)")]
+        /// <summary>냄비 위로 피어오르는 김 그림. 비워 두면 김 없이 출렁이기만.</summary>
+        [SerializeField] private Sprite steamSprite;
+        [SerializeField] private float dropSeconds = 0.3f;
+        [SerializeField] private float wobbleSeconds = 0.45f;
+        /// <summary>출렁일 때 처음 기울기 (도).</summary>
+        [SerializeField] private float wobbleDegrees = 3f;
+
+        private bool dropPending, hadSpice;
+        private Sprite dropSprite;
+        private Vector3 dropFrom;
+        private int lastPotCount;
 
         // ---------------- 입력 알림 ----------------
         public event Action<string> OrderClicked;
@@ -184,7 +200,95 @@ namespace DOB.UI
 
             pot.SetState(data.state, instant);
             SetTimer(data.state == BurnerState.Empty ? data.cookSeconds : data.remainingSeconds, data.cookSeconds, data.state);
+
+            // 방금 누른 재료 · 양념이 실제로 냄비에 들어갔으면 날아 들어가는 연출 (시안 16 ①)
+            int potCount = data.potIngredients.Count(p => p != null) + (data.potSpice != null ? 1 : 0);
+            bool spiceAdded = data.potSpice != null && !hadSpice;
+            if (dropPending && editing && potCount > lastPotCount && isActiveAndEnabled)
+                StartCoroutine(DropIn(dropSprite, dropFrom, spiceAdded ? spiceSlot : LastFilledSlot(data)));
+            dropPending = false;
+            lastPotCount = potCount;
+            hadSpice = data.potSpice != null;
         }
+
+        // =================================================================
+        // 재료 넣기 손맛 (시안 16 ①)
+        // =================================================================
+
+        // 누른 칸의 그림 · 자리를 기억한다. 넣기가 받아들여졌는지는 다음 Show에서 냄비 칸 수로 판단한다
+        private void MarkDrop(Image icon)
+        {
+            dropPending = true;
+            dropSprite = icon.sprite;
+            dropFrom = icon.rectTransform.position;
+        }
+
+        private Button LastFilledSlot(KitchenViewData data)
+        {
+            for (int i = Mathf.Min(potSlots.Length, data.potIngredients.Length) - 1; i >= 0; i--)
+                if (data.potIngredients[i] != null) return potSlots[i];
+            return null;
+        }
+
+        // 의사코드: 맨 위 캔버스에 그림 복사본을 띄워 누른 칸에서 냄비 안까지 곡선으로 날림
+        //   → 도착하면 냄비 묶음(PotArea)이 좌우로 출렁, 김이 한 번 피어오름, 그 재료가 들어간 냄비 칸이 톡
+        //   도중에 화면이 다시 그려져 칸이 사라져도 오류 없이 끝낸다
+        private System.Collections.IEnumerator DropIn(Sprite sprite, Vector3 from, Button slot)
+        {
+            var canvas = GetComponentInParent<Canvas>().rootCanvas;
+            var ghost = new GameObject("DropGhost", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            ghost.transform.SetParent(canvas.transform, false);
+            var gi = ghost.GetComponent<Image>();
+            gi.sprite = sprite; gi.preserveAspect = true; gi.raycastTarget = false;
+            var gr = (RectTransform)ghost.transform;
+            gr.sizeDelta = new Vector2(96f, 96f);
+            gr.SetAsLastSibling();
+            Vector3 to = potInside.position;
+            Vector3 mid = (from + to) * 0.5f + canvas.transform.up * (Vector3.Distance(from, to) * 0.35f);
+            for (float t = 0f; t < dropSeconds; t += Step())
+            {
+                float k = t / dropSeconds;
+                float e = k * k; // 떨어지듯 점점 빠르게
+                gr.position = Vector3.Lerp(Vector3.Lerp(from, mid, e), Vector3.Lerp(mid, to, e), e);
+                gr.localScale = Vector3.one * Mathf.Lerp(1f, 0.6f, e);
+                yield return null;
+            }
+            Destroy(ghost);
+
+            // 김: 냄비 위에서 피어오르며 흐려진다
+            Image steam = null;
+            if (steamSprite)
+            {
+                var go = new GameObject("DropSteam", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+                go.transform.SetParent(potInside.parent, false);
+                steam = go.GetComponent<Image>();
+                steam.sprite = steamSprite; steam.raycastTarget = false;
+                ((RectTransform)go.transform).sizeDelta = new Vector2(220f, 160f);
+                go.transform.position = potInside.position;
+            }
+            var area = pot.transform;
+            var st = slot ? slot.transform : null;
+            Vector3 steamFrom = steam ? steam.transform.localPosition : Vector3.zero;
+            for (float t = 0f; t < wobbleSeconds; t += Step())
+            {
+                float k = t / wobbleSeconds;
+                if (area) area.localRotation = Quaternion.Euler(0f, 0f, wobbleDegrees * (1f - k) * Mathf.Sin(t * 40f));
+                if (st) st.localScale = Vector3.one * (1f + 0.2f * Mathf.Sin(Mathf.PI * Mathf.Min(1f, k * 1.4f)));
+                if (steam)
+                {
+                    steam.transform.localPosition = steamFrom + new Vector3(0f, 90f * k, 0f);
+                    steam.transform.localScale = Vector3.one * Mathf.Lerp(0.8f, 1.4f, k);
+                    steam.color = new Color(1f, 1f, 1f, 0.8f * (1f - k));
+                }
+                yield return null;
+            }
+            if (area) area.localRotation = Quaternion.identity;
+            if (st) st.localScale = Vector3.one;
+            if (steam) Destroy(steam.gameObject);
+        }
+
+        // 일시 정지와 무관하게, 멈칫한 프레임에 연출이 통째로 건너뛰지 않게
+        private static float Step() => Mathf.Min(Time.unscaledDeltaTime, 0.05f);
 
         /// <summary>시계만 갱신한다. 남은 시간이 줄어드는 띠와 초 글자.</summary>
         public void SetTimer(float remaining, float total, BurnerState state)
@@ -236,7 +340,7 @@ namespace DOB.UI
                 var button = tile.GetComponent<Button>();
                 button.interactable = item.infinite || item.count > 0;
                 string id = item.id;
-                button.onClick.AddListener(() => clicked?.Invoke(id));
+                button.onClick.AddListener(() => { MarkDrop(icon); clicked?.Invoke(id); });
                 var hover = tile.GetComponent<HoverInfo>();
                 if (hover) hover.Set(item.name, item.description);
             }

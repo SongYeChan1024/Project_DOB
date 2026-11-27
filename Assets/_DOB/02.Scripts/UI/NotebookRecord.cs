@@ -47,6 +47,8 @@ namespace DOB.UI
         /// <summary>위험 이름 (독 · 열 · 냉기 · 어둠 · 체력 · 함정). 모르면 비어 있음.</summary>
         public string risk;
         public int delta;
+        /// <summary>원인ID. 앞서 찾은 단서와 같으면 위험 칸이 다시 오르지 않으므로 수첩에서 그 아래에 묶는다.</summary>
+        public string cause;
         public string RiskLabel => delta == 0 ? risk : $"{risk} {delta:+0;-0}";
         public ClueSource source;
         public ClueRecordTarget recordTo;

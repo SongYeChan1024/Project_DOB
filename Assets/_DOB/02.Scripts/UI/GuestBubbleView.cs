@@ -4,7 +4,13 @@
 //          기다림 원은 남은 비율만큼 12시부터 채워, 시간이 갈수록 반시계 방향으로 줄어든다.
 //          남은 비율 · 점수 구간 · 표정 종류는 받은 값만 그린다. 문구는 💡 가안 (기획 원고 오면 교체).
 // 호출자 : GuestBubblePresenter (ShowWaiting, ShowServed, ShowLeaving, Hide)
-// 상태   : 없음
+// 움직임 : 처음 뜰 때 작게 → 톡 커졌다 제자리 (시안 17 ③). 기다림 구간이 나빠지는 순간 좌우로 흔들림
+// 상태   : 등장 · 흔들림 시간, 지난 기다림 구간
+//
+// 의사코드
+// [자리 잡기]  꺼져 있다가 켜지면 등장 시간을 0부터 → 크기 0.35 → 1.15 → 1
+// [기다림]     구간이 지난번보다 나빠지면 흔들림 시간을 0부터 → 좌우 각도가 줄어들며 멈춤
+// [숨기기]     지난 구간을 잊는다 (다음에 뜰 때 처음부터)
 // =====================================================================
 using TMPro;
 using UnityEngine;
@@ -41,13 +47,23 @@ namespace DOB.UI
         [SerializeField] private Color[] faceColors = { new Color32(220, 130, 40, 255), new Color32(70, 45, 25, 255), new Color32(210, 70, 50, 255) };
         [SerializeField] private Color inkColor = new Color32(70, 45, 25, 255);
 
+        [Header("움직임")]
+        [SerializeField] private float popSeconds = 0.25f;
+        [SerializeField] private float shakeSeconds = 0.35f;
+        /// <summary>흔들림 처음 각도 (도).</summary>
+        [SerializeField] private float shakeDegrees = 7f;
+
         private RectTransform rect;
         private RectTransform Rect => rect ? rect : rect = (RectTransform)transform;
+        private float popT = -1f, shakeT = -1f;
+        private int lastStage = -1; // -1: 이번에 뜬 뒤 아직 기다림 구간 없음
 
         /// <summary>기다림: 남은 비율(1→0)의 원과, 점수 구간(2 · 1 · 0)에 맞는 색 · 불평 문구.</summary>
         public void ShowWaiting(Vector2 canvasPoint, float patienceLeft, int waitScore)
         {
             int stage = Mathf.Clamp(2 - waitScore, 0, 2); // 2점 = 0번 칸
+            if (lastStage >= 0 && stage > lastStage) shakeT = 0f;
+            lastStage = stage;
             pie.SetActive(true);
             pieFill.fillAmount = Mathf.Clamp01(patienceLeft);
             pieFill.color = Pick(stageColors, stage, Color.white);
@@ -77,12 +93,37 @@ namespace DOB.UI
         public void Hide()
         {
             if (gameObject.activeSelf) gameObject.SetActive(false);
+            lastStage = -1;
         }
 
         private void Place(Vector2 canvasPoint)
         {
             Rect.anchoredPosition = canvasPoint;
-            if (!gameObject.activeSelf) gameObject.SetActive(true);
+            if (gameObject.activeSelf) return;
+            gameObject.SetActive(true);
+            popT = 0f;
+            Pose();
+        }
+
+        private void Update()
+        {
+            float dt = Mathf.Min(Time.unscaledDeltaTime, 0.05f); // 멈칫한 프레임에 짧은 연출이 통째로 건너뛰지 않게
+            if (popT >= 0f) { popT += dt; if (popT >= popSeconds) popT = -1f; }
+            if (shakeT >= 0f) { shakeT += dt; if (shakeT >= shakeSeconds) shakeT = -1f; }
+            Pose();
+        }
+
+        private void Pose()
+        {
+            float s = 1f;
+            if (popT >= 0f)
+            {
+                float k = popT / popSeconds;
+                s = k < 0.6f ? Mathf.Lerp(0.35f, 1.15f, k / 0.6f) : Mathf.Lerp(1.15f, 1f, (k - 0.6f) / 0.4f);
+            }
+            float angle = shakeT >= 0f ? shakeDegrees * (1f - shakeT / shakeSeconds) * Mathf.Sin(shakeT * 45f) : 0f;
+            Rect.localScale = Vector3.one * s;
+            Rect.localRotation = Quaternion.Euler(0f, 0f, angle);
         }
 
         // 글이 없으면 칸을 꺼서 레이아웃이 너비를 줄이게 한다

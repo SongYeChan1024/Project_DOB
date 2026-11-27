@@ -29,8 +29,8 @@ namespace DOB.Define
         [SerializeField] private int visitMaxPoints = 6;
         /// <summary>입소문 문턱(하루 최대 대비 %). 1~100, 엄격한 오름차순. 도달한 문턱 하나당 다음 영업 1명 추가.</summary>
         [SerializeField] private int[] thresholdPercents = { 60, 75, 85, 100 };
-        /// <summary>돌려보낸 방문을 입소문의 손님 수·합계에 넣는지. 🔴 기획 답변 대기.</summary>
-        [SerializeField] private bool countSentHome;
+        /// <summary>돌려보낸 방문을 입소문의 손님 수·합계에 넣는지. 넣으면 N에 1명, S에 감점을 방문당 한 번 더한다 (2026-11-25 확정).</summary>
+        [SerializeField] private bool countSentHome = true;
         /// <summary>손님 한 명의 누적 호감 상한(점). 1 이상. 넘는 값은 이 값으로 맞춘다.</summary>
         [SerializeField] private int affinityCap = 36;
         /// <summary>탐험 대실패(부상) 뒤 오지 않는 영업 일수(일). 0 이상. 2이면 D+1·D+2에 쉬고 D+3에 돌아온다.</summary>

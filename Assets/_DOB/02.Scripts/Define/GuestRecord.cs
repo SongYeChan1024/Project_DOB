@@ -1,6 +1,8 @@
 // 손님 명부의 한 줄. 손님 ID에 고정된 신원과 날을 넘겨 보관하는 누적 호감·영구 거절·복귀 일차를 담는다.
 // GuestLedger가 마감 정산에서 만들고 바꾸며, 저장(FirstServiceSaveData)과 그날 명단 구성(DailyRoster)이 같은 데이터를 읽는다.
 // 만든 뒤에는 값을 바꾸지 않는다. 바뀌면 GuestLedger가 새 줄로 갈아 끼운다.
+// 입맛 태그는 신원과 함께 한 번 정해 고정한다(TasteDraw). 스키마 4 이전 저장에는 없어서 GuestLedger가 처음 읽을 때 채운다.
+using System.Collections.Generic;
 using System.Runtime.Serialization;
 
 namespace DOB.Define
@@ -23,9 +25,14 @@ namespace DOB.Define
         [DataMember(Name = "rejected")] public bool Rejected { get; private set; }
         /// <summary>다시 올 수 있는 첫 일차. 1 이상.</summary>
         [DataMember(Name = "returnDay")] public int ReturnDay { get; private set; }
+        // 이전 스키마 저장에는 없어서 null로 읽힌다.
+        [DataMember(Name = "tastes")] private string[] tastes;
+
+        /// <summary>입맛 태그 두 개(맛 표현). 아직 정하지 않았으면 빈 목록.</summary>
+        public IReadOnlyList<string> Tastes => tastes ?? System.Array.Empty<string>();
 
         public GuestRecord(string guestId, string name, string race, string job, string weakness,
-            int affinity = 0, bool rejected = false, int returnDay = 1)
+            int affinity = 0, bool rejected = false, int returnDay = 1, string[] tastes = null)
         {
             GuestId = guestId;
             Name = name;
@@ -35,7 +42,16 @@ namespace DOB.Define
             Affinity = affinity;
             Rejected = rejected;
             ReturnDay = returnDay;
+            this.tastes = tastes;
         }
+
+        /// <summary>장기 상태만 바꾼 사본. 신원과 입맛은 그대로 둔다.</summary>
+        public GuestRecord WithState(int affinity, bool rejected, int returnDay) =>
+            new GuestRecord(GuestId, Name, Race, Job, Weakness, affinity, rejected, returnDay, tastes);
+
+        /// <summary>입맛 태그만 바꾼 사본.</summary>
+        public GuestRecord WithTastes(string[] newTastes) =>
+            new GuestRecord(GuestId, Name, Race, Job, Weakness, Affinity, Rejected, ReturnDay, newTastes);
 
         /// <summary>그 일차에 올 수 있는지. 영구 거절이 아니고 복귀 일차가 됐으면 참.</summary>
         public bool CanVisitOn(int day) => !Rejected && ReturnDay <= day;

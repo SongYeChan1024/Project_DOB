@@ -41,6 +41,7 @@
 // [실제 주문] 주방(FirstGuestKitchen)이 ConnectKitchenOrders로 IKitchenOrders를 붙이면 요리 화면이 그 주문을 읽는다. 없으면 더미
 // [손님 말풍선] 손님 쪽이 ConnectGuestMoods로 IGuestMoods를 붙이면 손님 머리 위에 기다림 원 · 불평 · 기쁨 · 퇴장 표정이 뜬다
 // [화구 표시] 주방이 ConnectKitchenBurners로 IKitchenBurners를 붙이면 조리 중인 화구 위에 요리 그림 · 남은 초가 뜬다
+// [영업 HUD] 영업 쪽이 ConnectServiceStatus로 IServiceStatus를 붙이면 일차 · 금화 · 손님 수 · 주문서 · 든 접시가 뜬다
 // [상호작용 표시] 상호작용하는 쪽이 ConnectInteractionPrompt로 IInteractionPrompt를 붙이면 대상 위에 [E] 동작 표시가 뜬다
 // [Esc 순서] IsScreenOpen: 준비 · 요리 · 방명록 화면이 열려 있으면 Esc는 그 화면을 닫는 데 쓰고 ESC 메뉴는 열지 않는다 (BasementPauseInput)
 // =====================================================================
@@ -142,6 +143,24 @@ namespace DOB.Manager
         {
             if (instance && instance.kitchenBurners == burners)
                 instance.kitchenBurners = null;
+        }
+
+        // 영업 HUD 상태 (💡 FirstGuestService · FirstGuestKitchen). 없으면 HUD를 숨긴다
+        private IServiceStatus serviceStatus;
+        internal static IServiceStatus ServiceStatus => instance ? instance.serviceStatus : null;
+
+        /// <summary>영업 HUD 상태를 알려 줄 곳을 잇는다 (영업 쪽이 켜질 때).</summary>
+        public static void ConnectServiceStatus(IServiceStatus status)
+        {
+            if (status != null)
+                Instance.serviceStatus = status;
+        }
+
+        /// <summary>영업 쪽이 꺼질 때 연결을 푼다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        public static void DisconnectServiceStatus(IServiceStatus status)
+        {
+            if (instance && instance.serviceStatus == status)
+                instance.serviceStatus = null;
         }
 
         /// <summary>Esc로 닫히는 화면(준비 · 요리 · 방명록)이 열려 있는지. 열려 있으면 Esc는 그 화면만 닫고 ESC 메뉴를 열지 않는다.</summary>

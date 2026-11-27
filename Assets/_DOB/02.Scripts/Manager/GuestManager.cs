@@ -54,12 +54,30 @@ namespace DOB.Manager
         public IReadOnlyList<GuestAgent> Agents => agents;
         /// <summary>입장 순서대로의 그날 손님 신원(재방문은 명부 기록, 신규는 그날 뽑은 신원). 마감 정산이 명부 등록에 쓴다.</summary>
         public IReadOnlyList<GuestRecord> TodaysGuests => todaysGuests;
+        /// <summary>서빙을 받지 못하고 기다릴 수 있는 한도(초). 말풍선의 남은 비율에 쓴다.</summary>
+        public float LeaveAfterSeconds => Settings.LeaveAfterSeconds;
+        /// <summary>서빙 직후 기쁨 표정을 보이는 시간(초).</summary>
+        public float ServedMoodSeconds => Settings.ServedMoodSeconds;
         /// <summary>입구 줄 간격(m).</summary>
         public float QueueSpacing => Settings.QueueSpacing;
         /// <summary>기준값·템플릿 연결 오류. 문제가 없으면 null.</summary>
         public string SetupError => !template ? "손님 템플릿이 없습니다." : !Settings ? "영업 손님 기준값이 없습니다." : Settings.Validate();
         /// <summary>방문 ID, 종료 방식. 명단이 방문을 끝낸 순간 한 번 알린다.</summary>
         public event Action<string, ServiceVisitEnd> VisitEnded;
+
+        /// <summary>오늘 손님의 입맛 태그. 오늘 손님이 아니거나 입맛 기준이 없어 정하지 못했으면 빈 목록.</summary>
+        public IReadOnlyList<string> TastesOf(string guestId) =>
+            todaysGuests.Find(g => g.GuestId == guestId)?.Tastes ?? (IReadOnlyList<string>)Array.Empty<string>();
+
+        /// <summary>서빙한 접시로 그 손님의 입맛 점수(−2·0·+2)를 낸다. 입맛 기준이나 손님 입맛이 없으면 null.</summary>
+        public int? TasteScoreFor(string guestId, string dish, IEnumerable<string> seasonings)
+        {
+            var rules = Resources.Load<TasteRules>(TasteRules.ResourceName);
+            var tastes = TastesOf(guestId);
+            if (!rules || tastes.Count == 0)
+                return null;
+            return TasteJudge.Score(tastes, TasteJudge.DishFlavors(rules, dish, seasonings));
+        }
 
         /// <summary>그 방문의 손님 오브젝트. 없으면 null.</summary>
         public GuestAgent Find(string visitId) => agents.Find(a => a.VisitId == visitId);
@@ -95,7 +113,7 @@ namespace DOB.Manager
             // 준비된 입력이 없으면(씬만 따로 실행) 재방문 없이 새 시드로 연다.
             random = new System.Random(prepared ? daySeed : Guid.NewGuid().GetHashCode());
             todaysGuests = DailyRoster.Compose(Settings, pool, day, prepared ? returning : null, prepared ? takenNames : null,
-                prepared ? wordOfMouthBonus : 0, random);
+                prepared ? wordOfMouthBonus : 0, random, Resources.Load<TasteRules>(TasteRules.ResourceName));
             Roster = new ServiceRoster(Settings, random, todaysGuests.Count);
             Roster.VisitEnded += OnVisitEnded;
             template.gameObject.SetActive(false);
@@ -115,13 +133,47 @@ namespace DOB.Manager
                 var visit = CreateVisit(guest);
                 if (visit == null || !Roster.Admit(visit.VisitId, visit.GuestId))
                     return;
-                var body = agents.Count == 0 ? template : Instantiate(template, template.parent);
-                if (agents.Count > 0) body.name = template.name + "_" + (agents.Count + 1);
-                // 캐릭터 프리팹을 고치지 않도록 이동 컴포넌트는 실행 중에 붙인다.
-                var agent = body.TryGetComponent<GuestAgent>(out var found) ? found : body.gameObject.AddComponent<GuestAgent>();
-                agent.Begin(visit, entrance);
-                agents.Add(agent);
+                Spawn(visit);
             }
+        }
+
+        /// <summary>수동 저장을 불러올 때 저장된 입장 수만큼 같은 난수 순서로 방문을 다시 만들고 단계·대기·점수를 덮어쓴다.
+        /// 끝난 방문은 손님 오브젝트를 두지 않는다. 방문 ID가 저장과 다르면 false(그때까지 만든 방문은 남는다).</summary>
+        public bool RestoreProgress(RosterProgress saved)
+        {
+            if (Roster == null || saved == null || saved.Visits.Count > todaysGuests.Count || Roster.Entered > saved.Visits.Count)
+                return false;
+            var created = new List<GuestDialogueVisit>();
+            // 첫 입장 대기가 0이면 BeginService가 이미 앞 손님을 들였으므로 그 다음부터 만든다.
+            for (int i = Roster.Entered; i < saved.Visits.Count; i++)
+            {
+                var visit = CreateVisit(todaysGuests[i]);
+                if (visit == null || visit.VisitId != saved.Visits[i].VisitId || !Roster.AdmitRestored(visit.VisitId, visit.GuestId))
+                    return false;
+                created.Add(visit);
+            }
+            if (!Roster.Restore(saved))
+                return false;
+            foreach (var agent in agents)
+                if (Roster.Find(agent.VisitId).Stage == ServiceVisitStage.Ended)
+                {
+                    agent.Move = GuestAgent.Movement.Gone;
+                    agent.gameObject.SetActive(false);
+                }
+            foreach (var visit in created)
+                if (Roster.Find(visit.VisitId).Stage != ServiceVisitStage.Ended)
+                    Spawn(visit);
+            return true;
+        }
+
+        private void Spawn(GuestDialogueVisit visit)
+        {
+            var body = agents.Count == 0 ? template : Instantiate(template, template.parent);
+            if (agents.Count > 0) body.name = template.name + "_" + (agents.Count + 1);
+            // 캐릭터 프리팹을 고치지 않도록 이동 컴포넌트는 실행 중에 붙인다.
+            var agent = body.TryGetComponent<GuestAgent>(out var found) ? found : body.gameObject.AddComponent<GuestAgent>();
+            agent.Begin(visit, entrance);
+            agents.Add(agent);
         }
 
         /// <summary>영업이 끝나거나 식당이 내려가면 손님 오브젝트를 정리한다.</summary>

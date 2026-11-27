@@ -67,32 +67,26 @@ namespace DOB.Tests
         public void OverlappingReasonsKeepTheClockStoppedUntilAllAreOff()
         {
             var pauses = new ServicePauseReasons();
-            pauses.Set(ServicePauseReason.Dialogue, true);
-            pauses.Set(ServicePauseReason.Dialogue, true);
-            pauses.Set(ServicePauseReason.Ingredients, true);
-            pauses.Set(ServicePauseReason.Dialogue, false);
-            Assert.That(pauses.StopsArrivalAndWait, Is.True, "재료 선택이 남아 있다");
-            Assert.That(pauses.StopsCooking, Is.False, "재료 선택은 조리를 멈추지 않는다");
-            pauses.Set(ServicePauseReason.Ingredients, false);
-            Assert.That(pauses.StopsArrivalAndWait, Is.False);
-            Assert.That(pauses.StopsCooking, Is.False);
+            pauses.Set(ServicePauseReason.PauseMenu, true);
+            pauses.Set(ServicePauseReason.PauseMenu, true);
+            pauses.Set(ServicePauseReason.Transition, true);
+            pauses.Set(ServicePauseReason.PauseMenu, false);
+            Assert.That(pauses.IsStopped, Is.True, "전환이 남아 있다");
+            pauses.Set(ServicePauseReason.Transition, false);
+            Assert.That(pauses.IsStopped, Is.False);
         }
 
         [Test]
-        public void PauseMenuAndTransitionStopEverything()
+        public void OnlyPauseMenuAndTransitionStopTheClock()
         {
+            // 응대·수첩·재료 선택은 시간을 멈추지 않는다 (F2 노션 확정: ESC만 정지). 사유로 남은 것은 둘뿐이다.
+            CollectionAssert.AreEquivalent(new[] { ServicePauseReason.PauseMenu, ServicePauseReason.Transition },
+                (ServicePauseReason[])System.Enum.GetValues(typeof(ServicePauseReason)));
             foreach (var reason in new[] { ServicePauseReason.PauseMenu, ServicePauseReason.Transition })
             {
                 var pauses = new ServicePauseReasons();
                 pauses.Set(reason, true);
-                Assert.That(pauses.StopsArrivalAndWait && pauses.StopsCooking, Is.True, reason.ToString());
-            }
-            foreach (var reason in new[] { ServicePauseReason.Dialogue, ServicePauseReason.Notebook, ServicePauseReason.Ingredients })
-            {
-                var pauses = new ServicePauseReasons();
-                pauses.Set(reason, true);
-                Assert.That(pauses.StopsArrivalAndWait, Is.True, reason.ToString());
-                Assert.That(pauses.StopsCooking, Is.False, reason.ToString());
+                Assert.That(pauses.IsStopped, Is.True, reason.ToString());
             }
         }
 

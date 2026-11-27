@@ -102,8 +102,8 @@ namespace DOB.Manager
                            : ""),
                 keywords = new[]
                 {
-                    new ClueKeywordData { phrase = "슬라임 점액", risk = "독",   recordTo = ClueRecordTarget.Floor },
-                    new ClueKeywordData { phrase = "따끔",        risk = "독",   recordTo = ClueRecordTarget.None },
+                    new ClueKeywordData { phrase = "슬라임 점액", risk = "독",   delta = 1, cause = "floor1_slime", recordTo = ClueRecordTarget.Floor },
+                    new ClueKeywordData { phrase = "따끔",        risk = "독",   delta = 1, cause = "floor1_slime", recordTo = ClueRecordTarget.None },
                     new ClueKeywordData { phrase = "길도 멀고",   risk = "체력", recordTo = ClueRecordTarget.Floor },
                 },
 

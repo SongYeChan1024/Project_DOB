@@ -5,13 +5,17 @@
 //          값은 계산하지 않고 받은 그대로 그린다. 손님 사이 넘기기만 화면이 직접 한다.
 // 호출자 : DayFlowPresenter (Show(MorningReportData), Hide, Confirmed 구독) — BasementHud 「하루 진행 화면」 칸
 //          ReturnReportPresenter (Opened 구독 → ShowReport로 손님 보고 채움)
-// 호출   : HoverInfo (가져온 재료에 마우스를 올리면 이름)
+// 호출   : HoverInfo (가져온 재료에 마우스를 올리면 이름), StampPressView (손님 보고를 그릴 때마다 도장 「쾅」)
+// 비고   : 어제 호감 비율은 받지 않으므로 「단골까지 N」의 N과 오늘 비율 · 증가량으로 거꾸로 계산한다 (Reveal 참고)
 // 상태   : 받은 보고, 지금 보는 손님 번호, 이미 본 손님 표시, 복사해 만든 칸 목록
 //
 // 의사코드
 // [열기]      일차 제목을 쓰고 화면을 켠 뒤 Opened(일차)를 알린다 → Presenter가 ShowReport로 보고를 채운다
 // [보고 받기] 첫 손님을 고르고 꼬리표 · 일러스트 · 보고 한 장을 그린다
 // [넘기기]    꼬리표 · ◀ 이전 · 다음 ▶ 으로 손님을 바꾼다. 본 손님은 꼬리표의 빨간 점이 사라진다
+//             보고 한 장을 그릴 때마다 결과 도장을 그 색으로 「쾅」 찍는다 (간신히 · 부상은 더 크게 흔들림)
+//             다른 손님으로 넘기면 종이가 왼쪽으로 밀려나고 새 종이가 오른쪽에서 들어온다 (시안 19 ⑧)
+//             도장 다음 순서로 「신규」 뱃지가 톡 튀어나오고, 호감 숫자가 +0부터 오르며 게이지가 어제 위치에서 차오른다 (시안 13)
 // [준비하러 가기] 안 본 보고가 남아도 바로 확인을 알린다 (보상은 백엔드가 이미 한 번씩 반영)
 // [닫기]      DayFlowPresenter가 Hide를 부른다
 // 비고   : [준비하러 가기] 단추 이름은 ConfirmMorningReport (BasementFirstDayTests가 이 이름으로 누른다).
@@ -49,13 +53,12 @@ namespace DOB.UI
         [Header("보고 한 장")]
         [SerializeField] private GameObject paperContent;
         [SerializeField] private GameObject emptyText;
-        [SerializeField] private Image face;
-        [Tooltip("얼굴 그림이 없을 때 보이는 빈 칸 표시")]
-        [SerializeField] private GameObject faceEmpty;
         [SerializeField] private TMP_Text nameText;
         [SerializeField] private TMP_Text whoText;
         [SerializeField] private Image stampRing;
         [SerializeField] private TMP_Text stampText;
+        /// <summary>손님을 넘길 때마다 도장을 「쾅」 찍는 연출. 비워 두면 연출 없이 바로 보인다.</summary>
+        [SerializeField] private StampPressView stampPress;
         [SerializeField] private TMP_Text lineText;
 
         [Header("위험 막기")]
@@ -86,6 +89,17 @@ namespace DOB.UI
         [Tooltip("채움 막대. 오른쪽 끝(anchorMax.x)을 비율로 맞춘다")]
         [SerializeField] private RectTransform affectionFill;
 
+        [Header("드러내기 순서 (초)")]
+        /// <summary>도장이 찍힌 뒤 「신규」 뱃지가 튀어나오기까지.</summary>
+        [SerializeField] private float badgeDelay = 0.45f;
+        [SerializeField] private float badgeSeconds = 0.3f;
+        /// <summary>뱃지 다음 호감이 오르기 시작하기까지.</summary>
+        [SerializeField] private float affectionDelay = 0.15f;
+        [SerializeField] private float affectionSeconds = 0.8f;
+        /// <summary>손님을 넘길 때 지금 종이가 밀려나는 시간 · 새 종이가 들어오는 시간 (시안 19 ⑧).</summary>
+        [SerializeField] private float turnOutSeconds = 0.12f;
+        [SerializeField] private float turnInSeconds = 0.13f;
+
         [Header("단추")]
         [SerializeField] private Button prevButton;
         [SerializeField] private Button nextButton;
@@ -97,6 +111,11 @@ namespace DOB.UI
         private ReturnReportViewData report = new ReturnReportViewData();
         private bool[] seen = Array.Empty<bool>();
         private int index;
+        private Coroutine reveal;
+        private int drawnIndex = -1;  // 지금 종이에 그려진 손님 (-1: 아직 없음)
+        private Coroutine pageTurn;
+        private CanvasGroup paperGroup;
+        private Vector2 paperHome;
 
         /// <summary>화면이 열렸다 (일차). Presenter가 그날 보고를 ShowReport로 채운다.</summary>
         public event Action<int> Opened;
@@ -135,6 +154,7 @@ namespace DOB.UI
         {
             report = data ?? new ReturnReportViewData();
             seen = new bool[report.guests.Length];
+            drawnIndex = -1; // 새 보고는 넘김 없이 바로 그린다
             DrawIllustration();
             DrawChips();
             Select(0);
@@ -154,7 +174,49 @@ namespace DOB.UI
             prevButton.interactable = index > 0;
             nextButton.interactable = index < report.guests.Length - 1;
             RefreshChips();
-            DrawGuest(report.guests[index]);
+
+            // 다른 손님으로 넘길 때만 종이를 넘긴다 (처음 열 때 · 같은 손님은 바로 그림)
+            bool turn = drawnIndex >= 0 && drawnIndex != index && isActiveAndEnabled;
+            drawnIndex = index;
+            if (pageTurn != null) { StopCoroutine(pageTurn); pageTurn = null; }
+            if (turn) pageTurn = StartCoroutine(TurnPage(report.guests[index]));
+            else { PosePaper(0f, 0f, 1f); DrawGuest(report.guests[index]); }
+        }
+
+        // 의사코드 (시안 19 ⑧): 지금 종이가 왼쪽으로 밀려나며 기울고 흐려짐 → 새 손님으로 다시 그림(도장 「쾅」 시작)
+        //   → 새 종이가 오른쪽에서 들어와 제자리. 넘기는 중에 또 넘기면 앞 넘김을 멈추고 새로 시작한다
+        private System.Collections.IEnumerator TurnPage(ReturnGuestData next)
+        {
+            for (float t = 0f; t < turnOutSeconds; t += Step())
+            {
+                float e = t / turnOutSeconds;
+                PosePaper(-60f * e, -4f * e, 1f - e);
+                yield return null;
+            }
+            DrawGuest(next);
+            for (float t = 0f; t < turnInSeconds; t += Step())
+            {
+                float e = 1f - t / turnInSeconds;
+                e = e * e; // 끝에서 부드럽게 멈추게
+                PosePaper(40f * e, 2f * e, 1f - e);
+                yield return null;
+            }
+            PosePaper(0f, 0f, 1f);
+            pageTurn = null;
+        }
+
+        private void PosePaper(float x, float degrees, float alpha)
+        {
+            var rect = (RectTransform)paperContent.transform;
+            if (!paperGroup)
+            {
+                paperHome = rect.anchoredPosition;
+                paperGroup = paperContent.GetComponent<CanvasGroup>();
+                if (!paperGroup) paperGroup = paperContent.AddComponent<CanvasGroup>();
+            }
+            rect.anchoredPosition = paperHome + new Vector2(x, 0f);
+            rect.localRotation = Quaternion.Euler(0f, 0f, degrees);
+            paperGroup.alpha = alpha;
         }
 
         private void DrawIllustration()
@@ -204,21 +266,20 @@ namespace DOB.UI
             foreach (var go in spawned) Destroy(go);
             spawned.Clear();
 
-            face.sprite = g.face;
-            face.enabled = g.face;
-            faceEmpty.SetActive(!g.face);
             nameText.text = g.name;
             whoText.text = string.IsNullOrEmpty(g.trip) ? g.raceJob : $"{g.raceJob}  ·  {g.trip}";
             var color = ResultColor(g.result);
             stampRing.color = color;
             stampText.color = color;
             stampText.text = ResultWord(g.result);
+            if (stampPress) stampPress.Press(color, g.result == ReturnResult.Failure || g.result == ReturnResult.GreatFailure);
             lineText.text = string.IsNullOrEmpty(g.line) ? string.Empty : $"“{g.line}”";
 
             // 위험 막기
             foreach (var axis in g.axes) DrawAxis(axis);
             if (axisScroll) axisScroll.verticalNormalizedPosition = 1f;
 
+            var badges = new List<Transform>();
             // 가져온 재료
             foreach (var item in g.loot)
             {
@@ -227,6 +288,7 @@ namespace DOB.UI
                 icon.sprite = item.icon;
                 icon.enabled = item.icon;
                 go.transform.Find("New").gameObject.SetActive(item.isNew);
+                if (item.isNew) badges.Add(go.transform.Find("New"));
                 var hover = go.GetComponent<HoverInfo>();
                 if (hover) hover.Set(item.name, item.isNew ? "신규 재료" : null);
             }
@@ -255,6 +317,78 @@ namespace DOB.UI
             var max = affectionFill.anchorMax;
             max.x = Mathf.Clamp01(g.affectionRatio);
             affectionFill.anchorMax = max;
+
+            if (reveal != null) StopCoroutine(reveal);
+            reveal = isActiveAndEnabled ? StartCoroutine(Reveal(badges, g, hasAffection)) : null;
+        }
+
+        // 도장 → 「신규」 뱃지 톡 → 호감 숫자 · 게이지 차오름. 끝나면 DrawGuest가 그린 최종 값과 같다
+        private System.Collections.IEnumerator Reveal(List<Transform> badges, ReturnGuestData g, bool hasAffection)
+        {
+            float to = Mathf.Clamp01(g.affectionRatio);
+            float from = YesterdayRatio(g);
+            foreach (var b in badges) b.localScale = Vector3.zero;
+            if (hasAffection) affectionDelta.text = "+0";
+            SetFill(from);
+
+            yield return Wait(badgeDelay);
+            for (float t = 0f; t < badgeSeconds; t += Step())
+            {
+                float k = t / badgeSeconds;
+                // 0 → 1.3 → 1 로 톡 튀고, 기울었다 제자리로
+                float s = k < 0.6f ? Mathf.Lerp(0f, 1.3f, k / 0.6f) : Mathf.Lerp(1.3f, 1f, (k - 0.6f) / 0.4f);
+                foreach (var b in badges) { b.localScale = Vector3.one * s; b.localRotation = Quaternion.Euler(0f, 0f, -8f * (1f - k)); }
+                yield return null;
+            }
+            foreach (var b in badges) { b.localScale = Vector3.one; b.localRotation = Quaternion.identity; }
+
+            yield return Wait(affectionDelay);
+            for (float t = 0f; t < affectionSeconds; t += Step())
+            {
+                float k = t / affectionSeconds;
+                float e = 1f - (1f - k) * (1f - k);
+                if (hasAffection && g.affectionDelta > 0) affectionDelta.text = "+" + Mathf.RoundToInt(g.affectionDelta * e);
+                SetFill(Mathf.Lerp(from, to, e));
+                yield return null;
+            }
+            SetFill(to);
+            if (hasAffection) affectionDelta.text = g.affectionDelta >= 0 ? "+" + g.affectionDelta : g.affectionDelta.ToString();
+
+            // 끝 숫자를 한 번 크게 했다가 돌려놓는다
+            var r = affectionDelta.rectTransform;
+            for (float t = 0f; t < 0.2f; t += Step())
+            {
+                r.localScale = Vector3.one * (1f + 0.3f * Mathf.Sin(Mathf.PI * t / 0.2f));
+                yield return null;
+            }
+            r.localScale = Vector3.one;
+            reveal = null;
+        }
+
+        // shortcut: 어제 비율을 「단골까지 N」 글자에서 거꾸로 구한다 (전체 = N ÷ (1 − 오늘 비율)).
+        //           백엔드가 어제 비율(또는 전체 칸 수)을 보고 데이터에 주면 그 값으로 바꾼다
+        private static float YesterdayRatio(ReturnGuestData g)
+        {
+            float to = Mathf.Clamp01(g.affectionRatio);
+            var m = System.Text.RegularExpressions.Regex.Match(g.affectionNext ?? "", @"\d+");
+            if (!m.Success || to >= 1f || g.affectionDelta <= 0) return to;
+            float total = int.Parse(m.Value) / (1f - to);
+            return total > 0f ? Mathf.Clamp01(to - g.affectionDelta / total) : to;
+        }
+
+        private void SetFill(float ratio)
+        {
+            var max = affectionFill.anchorMax;
+            max.x = ratio;
+            affectionFill.anchorMax = max;
+        }
+
+        // 일시 정지와 무관하게, 멈칫한 프레임에 연출이 통째로 건너뛰지 않게
+        private static float Step() => Mathf.Min(Time.unscaledDeltaTime, 0.05f);
+
+        private static System.Collections.IEnumerator Wait(float seconds)
+        {
+            for (float t = 0f; t < seconds; t += Step()) yield return null;
         }
 
         private void DrawAxis(AxisResultData axis)

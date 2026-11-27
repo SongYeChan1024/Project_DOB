@@ -75,6 +75,14 @@ namespace DOB.Systems
         }
 
         /// <summary>서빙 전이면 취소한다. 넣은 양념은 돌려주지 않는다.</summary>
+        /// <summary>저장 복원용. 저장된 상태·남은 시간·넣은 양념을 그대로 둔다.</summary>
+        internal void Restore(FirstGuestOrderState state, float remainingSeconds, int usedGarlic)
+        {
+            State = state;
+            RemainingSeconds = remainingSeconds;
+            UsedGarlic = usedGarlic;
+        }
+
         internal bool TryCancel()
         {
             if (State == FirstGuestOrderState.Served || State == FirstGuestOrderState.Cancelled)

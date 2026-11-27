@@ -12,6 +12,7 @@
 //               (fadeThroughBlack 켬) 검은 화면 → 데이터 표시 → 밝아짐
 //               이름판에는 이름만 (종족 · 직업은 숨김 — 미리 보이면 정답 힌트가 됨)
 // [대사]        [[ ]] 키워드는 숨겨 둔다 (밑줄 없음, 마우스를 올려도 티 안 남)
+//               (시안 20 ①) 새 손님 · 다음 쪽 대사는 한 글자씩 나온다. 클릭하면 바로 다 보인다 (키워드를 누르면 다 보이면서 찾음)
 //               맞는 키워드를 누르면 → 그 말에 밑줄 + 수첩에 기록. 틀린 곳은 무반응
 // [초상화]      숨은 단서 자리를 누르면 → 동그라미 표시 + 수첩에 기록. 틀린 곳은 무반응
 // [수첩에 기록] · 위험 쪽: 빈 줄 6개 중 위에서부터 위험 이름이 적힘
@@ -19,6 +20,9 @@
 //               · 단서 사전: '대사 단서' / '초상화 단서' 줄에 [단서](위험) 태그
 //               · 도감: 단서가 가리키는 종족 · 직업 · 층 줄에 태그 (처음엔 ???)
 //               기록하면 수첩을 첫 면(위험 + 단서 사전)으로 펼쳐 보여 준다
+//               (시안 11 ①) 누른 자리에서 태그 카드가 떠올라 곡선으로 단서 사전 자리까지 날아가 '착' 붙고,
+//               같은 위험 줄이 한 번 톡 커진다. 날아가는 동안 진짜 태그는 투명하게 기다린다
+//               (시안 15 A안) 같은 원인을 가리키는 다른 표현은 첫 표현 아래에 「같은 원인」으로 묶고, 위험 줄은 톡 커지지 않는다
 // [수첩]        탭을 누르면 옆으로 미끄러져 열리고 닫힌다. 쪽 넘기기는 NotebookPager가 맡는다
 // [긴 대사]     넘치면 쪽으로 나누고 [다음]으로 넘긴다
 // [버튼]        따라오세요 · 닫기 · 돌려보내기(확인창) → 이벤트로 알리기만 한다
@@ -113,6 +117,16 @@ namespace DOB.UI
         [SerializeField] private float notebookSlideDistance = 530f;
         [SerializeField] private float notebookSlideSeconds = 0.25f;
 
+        [Header("단서 찾기 손맛 (시안 11 ①)")]
+        [SerializeField] private float tagFlySeconds = 0.35f;
+        /// <summary>날아갈 때 곡선이 위로 부푸는 정도 (거리 대비 비율).</summary>
+        [SerializeField] private float tagFlyArc = 0.3f;
+        [SerializeField] private float tagLandSeconds = 0.25f;
+
+        [Header("대사 타이핑 (시안 20 ①)")]
+        /// <summary>대사가 나오는 빠르기 (초당 글자 수).</summary>
+        [SerializeField] private float typeCharsPerSecond = 30f;
+
         [Header("버튼"), SerializeField] private Button followButton;
         [SerializeField] private Button closeButton;
         [SerializeField] private Button sendHomeButton;
@@ -133,6 +147,12 @@ namespace DOB.UI
         private GuestDialogueData current;   // 지금 응대 중인 손님
         private NotebookRecord record;       // 수첩 기록 (손님이 바뀌어도 이어짐)
         private readonly List<GameObject> spawned = new List<GameObject>(); // 복사해서 만든 태그 · 줄 (다시 그릴 때 지움)
+        private string flyKey, flyRisk;      // 방금 찾은 단서 (다시 그릴 때 그 태그 · 위험 줄을 기억)
+        private ClueTagView flyTag;
+        private RiskSlotView flySlot;
+        private bool typing;                // 대사가 아직 써지는 중
+        private float typed;
+        private int typeFrom, typeTo;
 
         public bool IsOpen { get; private set; }
 
@@ -168,7 +188,7 @@ namespace DOB.UI
             });
             confirmNoButton.onClick.AddListener(() => sendHomeConfirm.SetActive(false));
             expandTab.onClick.AddListener(() => { if (CanAcceptInput()) SetNotebookOpen(!isNotebookOpen, true); });
-            nextPageButton.onClick.AddListener(() => { if (CanAcceptInput()) ShowDialoguePage(dialogueText.pageToDisplay + 1); });
+            nextPageButton.onClick.AddListener(() => { if (CanAcceptInput()) { ShowDialoguePage(dialogueText.pageToDisplay + 1); StartTyping(); } });
 
             // 숨은 단서
             dialogueLinks.LinkClicked += OnKeywordClicked;
@@ -319,6 +339,7 @@ namespace DOB.UI
         {
             if (!CanAcceptInput())
                 return;
+            FinishTyping(); // 써지는 중에 키워드를 누르면 대사를 다 보이고, 그 키워드도 찾은 것으로 친다
 
             var keyword = FindKeyword(phrase);
             if (keyword != null)
@@ -326,6 +347,7 @@ namespace DOB.UI
                 Discover(new FoundClue
                 {
                     key = FirstNonEmpty(keyword.key, LineKey(phrase)),
+                    cause = keyword.cause,
                     tag = phrase,
                     risk = keyword.risk,
                     delta = keyword.delta,
@@ -348,6 +370,7 @@ namespace DOB.UI
             Discover(new FoundClue
             {
                 key = MarkerKey(index),
+                cause = clue.cause,
                 tag = string.IsNullOrEmpty(clue.tagName) ? clue.description : clue.tagName,
                 risk = clue.risk,
                 delta = clue.delta,
@@ -355,6 +378,7 @@ namespace DOB.UI
                 recordTo = clue.recordTo,
             });
             clueMarkers[index].SetFound(true);
+            clueMarkers[index].PlayFound();
         }
 
         // 새 단서를 수첩에 적고, 화면을 다시 그리고, 수첩을 펼쳐 보여 준다.
@@ -363,13 +387,20 @@ namespace DOB.UI
             string race = FirstNonEmpty(current.race, SplitRaceJob(current.raceJob, 0));
             string job = FirstNonEmpty(current.job, SplitRaceJob(current.raceJob, 1));
 
+            // 같은 원인을 이미 찾았으면 위험 칸은 그대로다 → 날아간 뒤 위험 줄을 톡 키우지 않는다
+            bool sameCause = !string.IsNullOrEmpty(clue.cause) && record.CluesOf(current.guestId).Any(c => c.cause == clue.cause);
             current.discover?.Invoke(clue.key);
             if (!record.Add(current.guestId, clue, race, job, current.destinationLabel))
                 return; // 이미 찾은 단서
 
             RefreshDialogueText(keepPage: true);
+            flyKey = clue.key; flyRisk = sameCause ? null : clue.risk;
             RefreshNotebook();
-            ShowNotebookFirstSpread();
+            flyKey = flyRisk = null;
+            // 초상화 단서는 수첩을 저절로 펼치지 않는다 (초상화를 계속 살필 수 있게). 태그는 「펼치기」 탭으로 날아간다
+            if (clue.source == ClueSource.Portrait) pager.ShowSpread(0, true);
+            else ShowNotebookFirstSpread();
+            if (flyTag && isActiveAndEnabled) StartCoroutine(FlyTagIn(flyTag, flySlot, PointerPosition()));
             ClueFound?.Invoke(clue);
         }
 
@@ -383,6 +414,54 @@ namespace DOB.UI
             int page = dialogueText.pageToDisplay;
             dialogueText.text = ToLinkMarkup(current.line);
             ShowDialoguePage(keepPage ? page : 1);
+            if (!keepPage) StartTyping(); // 새 손님 대사만 써 나간다 (단서를 찾아 다시 그릴 때는 그대로)
+        }
+
+        // =================================================================
+        // 대사 타이핑 (시안 20 ①)
+        // =================================================================
+
+        // 의사코드: 지금 쪽의 첫 글자 ~ 끝 글자를 정하고, 보이는 글자 수를 첫 글자부터 초당 typeCharsPerSecond씩 늘린다
+        //   어디든 클릭하면 바로 다 보인다. 써지는 중에 키워드를 누르면 다 보이면서 그 키워드도 찾는다 (OnKeywordClicked)
+        // 화면이 막 켜지는 중이면 글자 배치가 아직 없으므로, 쪽 범위는 실제로 보일 때(Update) 잰다
+        private void StartTyping()
+        {
+            typed = 0f;
+            typing = !string.IsNullOrEmpty(dialogueText.text);
+            typeTo = -1; // 아직 안 잼
+            dialogueText.maxVisibleCharacters = typing ? 0 : 99999;
+        }
+
+        // 지금 쪽의 첫 글자 ~ 끝 글자. 배치가 아직 없으면 false
+        private bool MeasurePage()
+        {
+            if (!dialogueText.gameObject.activeInHierarchy) return false;
+            dialogueText.ForceMeshUpdate();
+            var info = dialogueText.textInfo;
+            if (info.characterCount == 0) return false;
+            int page = Mathf.Clamp(dialogueText.pageToDisplay - 1, 0, Mathf.Max(0, info.pageCount - 1));
+            typeFrom = info.pageCount > 0 ? info.pageInfo[page].firstCharacterIndex : 0;
+            typeTo = info.pageCount > 0 ? info.pageInfo[page].lastCharacterIndex + 1 : info.characterCount;
+            return true;
+        }
+
+        private void FinishTyping()
+        {
+            if (!typing) return;
+            typing = false;
+            dialogueText.maxVisibleCharacters = 99999;
+        }
+
+        private void Update()
+        {
+            if (!typing) return;
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            if (mouse != null && mouse.leftButton.wasPressedThisFrame) { FinishTyping(); return; }
+            if (typeTo < 0 && !MeasurePage()) return;
+            typed += Mathf.Min(Time.unscaledDeltaTime, 0.05f) * typeCharsPerSecond;
+            int shown = typeFrom + Mathf.FloorToInt(typed);
+            if (shown >= typeTo) FinishTyping();
+            else dialogueText.maxVisibleCharacters = shown;
         }
 
         private string ToLinkMarkup(string line)
@@ -424,6 +503,7 @@ namespace DOB.UI
                 Destroy(go);
             }
             spawned.Clear();
+            flyTag = null; flySlot = null;
 
             var clues = record.CluesOf(current.guestId);
             DrawRiskSlots(clues);
@@ -450,25 +530,33 @@ namespace DOB.UI
                     continue;
                 }
                 string riskName = risks[i].Key;
-                int count = current.notebookRisk != null ? current.notebookRisk(riskName).GetValueOrDefault() : risks[i].Count();
+                // 백엔드 값이 없으면 원인별로 한 번씩 센다 (같은 원인의 다른 표현은 한 칸)
+                int count = current.notebookRisk != null ? current.notebookRisk(riskName).GetValueOrDefault()
+                    : risks[i].Select(c => string.IsNullOrEmpty(c.cause) ? c.key : c.cause).Distinct().Count();
                 var kind = FindRiskKind(riskName);
                 string label = current.notebookRisk == null ? riskName : $"{riskName} {count}";
                 riskSlots[i].Show(label, kind?.icon, kind?.color ?? Color.gray, count);
+                if (riskName == flyRisk) flySlot = riskSlots[i];
             }
         }
 
         // 단서 사전 쪽: '대사 단서' / '초상화 단서' 줄에 태그를 쌓는다.
         private void DrawDictionary(IReadOnlyList<FoundClue> clues)
         {
-            int lineCount = 0, portraitCount = 0;
-            foreach (var clue in clues)
+            var line = clues.Where(c => c.source == ClueSource.Line).ToList();
+            var portrait = clues.Where(c => c.source != ClueSource.Line).ToList();
+            foreach (var (clue, same) in GroupByCause(line, clues))
             {
-                bool fromLine = clue.source == ClueSource.Line;
-                SpawnTag(fromLine ? lineTagList : portraitTagList, clue);
-                if (fromLine) lineCount++; else portraitCount++;
+                var tag = SpawnTag(lineTagList, clue, same);
+                if (clue.key == flyKey) flyTag = tag;
             }
-            lineTagEmpty.SetActive(lineCount == 0);
-            portraitTagEmpty.SetActive(portraitCount == 0);
+            foreach (var (clue, same) in GroupByCause(portrait, clues))
+            {
+                var tag = SpawnTag(portraitTagList, clue, same);
+                if (clue.key == flyKey) flyTag = tag;
+            }
+            lineTagEmpty.SetActive(line.Count == 0);
+            portraitTagEmpty.SetActive(portrait.Count == 0);
             lineTagEmpty.transform.SetAsLastSibling();
             portraitTagEmpty.transform.SetAsLastSibling();
         }
@@ -482,21 +570,120 @@ namespace DOB.UI
                 row.gameObject.SetActive(true);
                 row.SetName(entry.Name);
                 spawned.Add(row.gameObject);
-                foreach (var clue in entry.Clues)
-                    SpawnTag(row.TagList, clue);
+                foreach (var (clue, same) in GroupByCause(entry.Clues, entry.Clues))
+                    SpawnTag(row.TagList, clue, same);
             }
             unknown.SetActive(true);
             unknown.transform.SetAsLastSibling();
         }
 
-        private void SpawnTag(RectTransform parent, FoundClue clue)
+        // sameCause면 앞서 찾은 같은 원인 단서 아래에 매다는 작은 태그로 그린다 (위험 수치 없음)
+        private ClueTagView SpawnTag(RectTransform parent, FoundClue clue, bool sameCause = false)
         {
             var tagView = Instantiate(tagTemplate, parent);
             tagView.gameObject.SetActive(true);
             var kind = FindRiskKind(clue.risk);
             Color color = kind.HasValue ? Color.Lerp(kind.Value.color, Color.black, 0.3f) : new Color(0.45f, 0.35f, 0.25f);
-            tagView.Set(clue.tag, clue.RiskLabel, color);
+            if (sameCause) tagView.SetSameCause(clue.tag, color);
+            else tagView.Set(clue.tag, clue.RiskLabel, color, kind?.icon);
             spawned.Add(tagView.gameObject);
+            return tagView;
+        }
+
+        // 의사코드 (시안 15 A안): 원인마다 처음 찾은 단서를 정하고, section을 찾은 순서대로 돌며
+        //   · 처음 찾은 단서 → 그대로 내보내고, 같은 section의 같은 원인 단서를 바로 뒤에 「같은 원인」으로 붙인다
+        //   · 같은 원인인데 처음 것이 다른 section(대사 ↔ 초상화)에 있으면 제자리에서 「같은 원인」으로 내보낸다
+        //   · 원인ID가 없으면 묶지 않는다
+        private static List<(FoundClue clue, bool same)> GroupByCause(IReadOnlyList<FoundClue> section, IEnumerable<FoundClue> all)
+        {
+            var first = new Dictionary<string, string>();
+            foreach (var c in all)
+                if (!string.IsNullOrEmpty(c.cause) && !first.ContainsKey(c.cause)) first[c.cause] = c.key;
+            bool Same(FoundClue c) => !string.IsNullOrEmpty(c.cause) && first[c.cause] != c.key;
+
+            var result = new List<(FoundClue, bool)>();
+            var done = new HashSet<FoundClue>();
+            foreach (var c in section)
+            {
+                if (done.Contains(c)) continue;
+                if (Same(c) && section.Any(p => p.key == first[c.cause])) continue; // 처음 것이 이 section에서 끌어온다
+                done.Add(c);
+                result.Add((c, Same(c)));
+                if (Same(c) || string.IsNullOrEmpty(c.cause)) continue;
+                foreach (var d in section)
+                    if (!done.Contains(d) && d.cause == c.cause) { done.Add(d); result.Add((d, true)); }
+            }
+            return result;
+        }
+
+        // =================================================================
+        // 단서 찾기 손맛 (시안 11 ①)
+        // =================================================================
+
+        // 마우스 자리 (마우스가 없으면 null → 대사창 가운데에서 출발)
+        private static Vector2? PointerPosition()
+        {
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            return mouse != null ? mouse.position.ReadValue() : (Vector2?)null;
+        }
+
+        // 의사코드: 진짜 태그를 투명하게 → 한 프레임 기다려 배치가 끝난 자리를 얻음 → 맨 위 캔버스에 복사본을 띄워
+        //           누른 자리에서 진짜 태그 자리까지 곡선으로 날림 (수첩이 미끄러져도 매 프레임 따라감)
+        //           → 복사본을 지우고 진짜 태그를 보이며 톡 눌렸다 커짐, 같은 위험 줄도 함께 톡
+        //           도중에 다시 그려져 태그가 사라지면 복사본만 지우고 끝낸다
+        private IEnumerator FlyTagIn(ClueTagView target, RiskSlotView slot, Vector2? screenFrom)
+        {
+            var group = target.GetComponent<CanvasGroup>();
+            if (!group) group = target.gameObject.AddComponent<CanvasGroup>();
+            group.alpha = 0f;
+            yield return null;
+            if (!target) yield break;
+
+            var canvas = GetComponentInParent<Canvas>().rootCanvas;
+            var tr = (RectTransform)target.transform;
+            var ghost = Instantiate(target.gameObject, canvas.transform);
+            var gr = (RectTransform)ghost.transform;
+            gr.anchorMin = gr.anchorMax = new Vector2(0.5f, 0.5f);
+            gr.pivot = tr.pivot;
+            gr.sizeDelta = tr.rect.size;
+            gr.SetAsLastSibling();
+            var ghostGroup = ghost.GetComponent<CanvasGroup>();
+            ghostGroup.alpha = 1f;
+            ghostGroup.blocksRaycasts = false;
+
+            Vector3 from = dialogueText.rectTransform.position;
+            var cam = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
+            if (screenFrom.HasValue)
+                RectTransformUtility.ScreenPointToWorldPointInRectangle((RectTransform)canvas.transform, screenFrom.Value, cam, out from);
+
+            for (float t = 0f; t < tagFlySeconds && target; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                float k = t / tagFlySeconds;
+                float e = k * k * (3f - 2f * k);
+                Vector3 to = isNotebookOpen ? tr.position : expandTab.transform.position; // 접혀 있으면 탭으로
+                Vector3 mid = (from + to) * 0.5f + canvas.transform.up * (Vector3.Distance(from, to) * tagFlyArc);
+                gr.position = Vector3.Lerp(Vector3.Lerp(from, mid, e), Vector3.Lerp(mid, to, e), e);
+                gr.localScale = Vector3.one * Mathf.Lerp(1.3f, 1f, e);
+                gr.localRotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(-6f, 0f, e));
+                yield return null;
+            }
+            Destroy(ghost);
+            if (!target) yield break;
+            group.alpha = 1f;
+
+            // 착 붙기: 살짝 눌렸다(0.9) 커졌다(1.12) 제자리
+            Transform land = isNotebookOpen ? tr : expandTab.transform; // 접혀 있으면 탭이 톡
+            var st = slot && isNotebookOpen ? slot.transform : null;
+            for (float t = 0f; t < tagLandSeconds && target; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                float k = t / tagLandSeconds;
+                float s = k < 0.3f ? Mathf.Lerp(1f, 0.9f, k / 0.3f) : 1f + 0.12f * Mathf.Sin(Mathf.PI * (k - 0.3f) / 0.7f);
+                land.localScale = Vector3.one * s;
+                if (st) st.localScale = Vector3.one * (1f + 0.08f * Mathf.Sin(Mathf.PI * k));
+                yield return null;
+            }
+            if (land) land.localScale = Vector3.one;
+            if (st) st.localScale = Vector3.one;
         }
 
         // =================================================================
