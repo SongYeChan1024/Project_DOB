@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &4721234146412296454
+--- !u!1 &2013765735718054394
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,7 +8,7 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3486548098682816796}
+  - component: {fileID: 8559368322091982244}
   m_Layer: 0
   m_Name: Gear_Crossbow
   m_TagString: Untagged
@@ -16,20 +16,20 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3486548098682816796
+--- !u!4 &8559368322091982244
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4721234146412296454}
+  m_GameObject: {fileID: 2013765735718054394}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.7350813, y: 0.19092156, z: -0.18286419, w: 0.6243118}
-  m_LocalPosition: {x: -0.006454931, y: 0.27351314, z: 0.011921327}
-  m_LocalScale: {x: 0.78124994, y: 0.7812499, z: 0.78125006}
+  m_LocalRotation: {x: 0.7343213, y: 0.19114384, z: -0.18263178, w: 0.6252055}
+  m_LocalPosition: {x: -0.006516123, y: 0.27368054, z: 0.011834937}
+  m_LocalScale: {x: 0.78125006, y: 0.78125006, z: 0.7812501}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 8227557278299677027}
+  - {fileID: 5339602847582719662}
   m_Father: {fileID: 3908900852357584432}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1792243048091997745
@@ -170,7 +170,7 @@ PrefabInstance:
     m_AddedGameObjects:
     - targetCorrespondingSourceObject: {fileID: 1910827311501751223, guid: 1894b9ab65b96e9479762031f58143a6, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 3486548098682816796}
+      addedObject: {fileID: 8559368322091982244}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 1894b9ab65b96e9479762031f58143a6, type: 3}
 --- !u!4 &3112289367992730220 stripped
@@ -183,13 +183,13 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 1910827311501751223, guid: 1894b9ab65b96e9479762031f58143a6, type: 3}
   m_PrefabInstance: {fileID: 3223358858354484615}
   m_PrefabAsset: {fileID: 0}
---- !u!1001 &8477074936165697160
+--- !u!1001 &5589157364443408709
 PrefabInstance:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Modification:
     serializedVersion: 3
-    m_TransformParent: {fileID: 3486548098682816796}
+    m_TransformParent: {fileID: 8559368322091982244}
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: 0ff1167f3e21dcb4ba3ac35d8c03e398, type: 3}
       propertyPath: m_LocalPosition.x
@@ -244,8 +244,8 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0ff1167f3e21dcb4ba3ac35d8c03e398, type: 3}
---- !u!4 &8227557278299677027 stripped
+--- !u!4 &5339602847582719662 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -8679921383154817045, guid: 0ff1167f3e21dcb4ba3ac35d8c03e398, type: 3}
-  m_PrefabInstance: {fileID: 8477074936165697160}
+  m_PrefabInstance: {fileID: 5589157364443408709}
   m_PrefabAsset: {fileID: 0}
