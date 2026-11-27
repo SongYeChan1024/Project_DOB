@@ -8,6 +8,7 @@ using System.Reflection;
 using DOB.Define;
 using DOB.Manager;
 using DOB.Systems;
+using DOB.UI;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -454,6 +455,89 @@ namespace DOB.Tests
             yield return CookAndServe(s, s.Guests.Agents[0]);
             yield return Until(() => s.Hud.Settle.IsInteractable(), "마감");
             yield return Click("SettleDay");
+        }
+
+        [UnityTest]
+        public IEnumerator ServiceScreenFeedsReadTheRealOrdersBurnerMoodsAndPrompt()
+        {
+            // service-presentation-feeds 명세: 화면 Presenter 없이 UIManager에 연결된 제공자 값을 직접 읽는다.
+            TestGuestRoster.Use(guests: 2);
+            yield return StartFromTitle();
+            var s = FindScene();
+            var status = UIManager.ServiceStatus;
+            var burners = UIManager.KitchenBurners;
+            var orders = UIManager.KitchenOrders;
+            var moods = UIManager.GuestMoods;
+            var prompt = UIManager.InteractionPrompt;
+            Assert.That(new object[] { status, burners, orders, moods, prompt }, Has.All.Not.Null, "영업 중 다섯 제공자 연결");
+            Assert.That(status.Day, Is.EqualTo(1));
+            yield return Until(() => s.Guests.Agents.Count == 2 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "두 손님 입장");
+            var first = s.Guests.Agents[0];
+            var second = s.Guests.Agents[1];
+            Assert.That(status.GuestsArrived, Is.EqualTo(2));
+            Assert.That(moods.StateAt(0), Is.EqualTo(GuestMoodState.Waiting));
+            Assert.That(moods.PatienceLeftAt(0), Is.InRange(0.01f, 1f));
+            Assert.That(moods.WaitScoreAt(0), Is.EqualTo(s.Guests.Roster.WaitScoreNow(s.Guests.Roster.Find(first.VisitId))));
+
+            yield return GreetAndSeat(s, first, 0);
+            yield return GreetAndSeat(s, second, 2);
+            Assert.That(status.OrderCount, Is.EqualTo(2));
+            Assert.That((status.OrderIdAt(0), status.OrderIdAt(1)), Is.EqualTo((first.VisitId, second.VisitId)), "착석 순서");
+            Place(s.Player, s.Layout.Kitchen.position);
+            Assert.That((prompt.Target, prompt.Action), Is.EqualTo((s.Layout.Kitchen, "재료 확인")));
+
+            yield return StartCooking(s);
+            Assert.That((status.StateAt(0), status.StateAt(1)), Is.EqualTo((OrderTicketState.Cooking, OrderTicketState.Waiting)));
+            Assert.That((burners.Count, burners.StateAt(0), burners.DishIdAt(0), burners.CookSecondsAt(0)), Is.EqualTo((1, BurnerState.Cooking, "Bread", 6f)));
+            Assert.That(orders.OrderId, Is.EqualTo(first.VisitId), "조리 중이 대기보다 먼저");
+            int garlic = orders.GarlicStock;
+            Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired, orders.GarlicRequired), Is.EqualTo(CookStartResult.BurnerBusy));
+            Assert.That(orders.TryPickUp(first.VisitId), Is.EqualTo(PickUpResult.NotCooked));
+            Assert.That((orders.GarlicStock, status.HeldOrderId), Is.EqualTo((garlic, (string)null)), "거절이면 그대로");
+
+            yield return Until(() => burners.StateAt(0) == BurnerState.Done, "완성");
+            Assert.That((orders.OrderId, orders.State), Is.EqualTo((first.VisitId, (FirstGuestOrderState?)FirstGuestOrderState.Ready)));
+            Assert.That(prompt.Action, Is.EqualTo("접시 들기"));
+            Assert.That(orders.TryPickUp(first.VisitId), Is.EqualTo(PickUpResult.PickedUp));
+            Assert.That((status.HeldOrderId, status.HeldDishId), Is.EqualTo((first.VisitId, "Bread")));
+            Assert.That(orders.TryPickUp(first.VisitId), Is.EqualTo(PickUpResult.AlreadyHolding));
+            Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired - 1, orders.GarlicRequired), Is.EqualTo(CookStartResult.WrongIngredients));
+            Assert.That(s.Kitchen.Orders.Single(o => o.VisitId == second.VisitId).State, Is.EqualTo(FirstGuestOrderState.Waiting));
+            Assert.That(orders.TryStartCooking(second.VisitId, orders.FlourRequired, orders.GarlicRequired), Is.EqualTo(CookStartResult.Started));
+
+            int gold = status.Gold;
+            int price = orders.Price(true);
+            var seat = s.Service.SeatOf(first.VisitId);
+            Place(s.Player, seat.position);
+            Assert.That((prompt.Target, prompt.Action), Is.EqualTo((seat, "서빙")));
+            Assert.That(s.Service.TryInteract(), Is.True, "[E] 표시와 같은 판정으로 실제 서빙");
+            Assert.That(status.Gold, Is.EqualTo(gold + price));
+            Assert.That((status.OrderCount, status.OrderIdAt(0), status.HeldOrderId), Is.EqualTo((1, second.VisitId, (string)null)));
+            Assert.That(moods.StateAt(0), Is.EqualTo(GuestMoodState.Served));
+            yield return Until(() => moods.StateAt(0) != GuestMoodState.Served, "기쁨 표정 시간이 지남");
+            Assert.That(moods.StateAt(0), Is.EqualTo(GuestMoodState.Leaving).Or.EqualTo(GuestMoodState.None));
+            int taste = s.Guests.Roster.Find(first.VisitId).TasteScore ?? 0;
+            Assert.That(moods.ReactionAt(0), Is.EqualTo(taste > 0 ? TasteReaction.Like : taste < 0 ? TasteReaction.Dislike : TasteReaction.Neutral));
+
+            yield return LoadTitle();
+            Assert.That(new object[] { UIManager.ServiceStatus, UIManager.KitchenBurners, UIManager.KitchenOrders, UIManager.GuestMoods, UIManager.InteractionPrompt },
+                Has.All.Null, "영업이 꺼지면 모두 해제");
+        }
+
+        [UnityTest]
+        public IEnumerator ASentHomeGuestLeavesDispleased()
+        {
+            TestGuestRoster.Use(guests: 2);
+            yield return StartFromTitle();
+            var s = FindScene();
+            yield return Until(() => s.Guests.Agents.Count == 2 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "두 손님 입장");
+            // 1일차 첫 손님은 돌려보낼 수 없으므로 둘째 손님을 돌려보낸다.
+            yield return Greet(s, s.Guests.Agents[1]);
+            Assert.That(UIManager.InteractionPrompt.Target, Is.Null, "대화 중에는 대상이 없다");
+            yield return Click("SendHomeButton");
+            yield return Click("YesButton");
+            var moods = UIManager.GuestMoods;
+            Assert.That((moods.StateAt(1), moods.ReactionAt(1)), Is.EqualTo((GuestMoodState.Leaving, TasteReaction.Dislike)));
         }
 
         // 부수 효과가 있는 요청은 성공할 때까지 프레임마다 한 번씩만 보낸다.

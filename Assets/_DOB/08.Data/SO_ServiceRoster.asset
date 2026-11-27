@@ -22,3 +22,4 @@ MonoBehaviour:
   scoreStepSeconds: 10
   leaveAfterSeconds: 30
   queueSpacing: 0.9
+  servedMoodSeconds: 1.5

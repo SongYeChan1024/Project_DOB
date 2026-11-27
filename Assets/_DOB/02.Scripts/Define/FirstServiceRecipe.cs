@@ -8,6 +8,8 @@ namespace DOB.Define
     [CreateAssetMenu(menuName = "DOB/첫 영업 레시피", fileName = "SO_FirstService_")]
     public sealed class FirstServiceRecipe : ScriptableObject
     {
+        /// <summary>화면 그림의 요리 id(T_UI_Dish{id}). 💡 화면 그림 이름과 맞춘 값.</summary>
+        [SerializeField] private string dishId = "Bread";
         [SerializeField, Min(0f)] private float cookSeconds;
         [SerializeField, Min(0)] private int startGarlic;
         [SerializeField, Min(1)] private int flourRequired;
@@ -18,6 +20,7 @@ namespace DOB.Define
         [SerializeField, Min(0)] private int breadTrap;
         [SerializeField, Min(0)] private int garlicPoison;
 
+        public string DishId => dishId;
         public float CookSeconds => cookSeconds;
         public int StartGarlic => startGarlic;
         public int FlourRequired => flourRequired;

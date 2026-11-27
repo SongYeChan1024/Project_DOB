@@ -12,6 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3231b17a951247c1873c62d38f4ed433, type: 3}
   m_Name: SO_FirstService_Bread
   m_EditorClassIdentifier: DOB.Define::DOB.Define.FirstServiceRecipe
+  dishId: Bread
   cookSeconds: 6
   startGarlic: 2
   flourRequired: 2
