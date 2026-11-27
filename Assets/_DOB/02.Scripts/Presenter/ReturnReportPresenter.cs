@@ -40,6 +40,8 @@ namespace DOB.Manager
         [SerializeField] private ReturnReportView view;
         /// <summary>재료 그림 (07.UI/Sprites/Items). 파일 이름으로 찾는다 (예: T_UI_IngSlimeJelly).</summary>
         [SerializeField] private Sprite[] itemIcons = Array.Empty<Sprite>();
+        /// <summary>정산 창 호감 막대의 방문 최대 점수 · 입소문 눈금 (SO_AffinityRules). 비우면 막대를 숨긴다.</summary>
+        [SerializeField] private AffinityRules affinityRules;
 
         private void OnEnable()
         {
@@ -72,23 +74,69 @@ namespace DOB.Manager
             // 연결되지 않은 단독 테스트 씬에서는 시안과 같은 더미 손님을 보여 준다.
             if (readReports == null)
             {
+                var dummy = new[] { Haru(), Bori(), Sol() };
+                var dummySettle = Settle(day - 1, dummy);
+                // 더미: 아직 화면으로 오지 않는 값(층 개방 · 입소문 · 어제 번 금화)도 시안처럼 채워 본다
+                dummySettle.news = new[] { "<color=#2F7A3A>2층 곰팡이 동굴</color>에 갈 수 있게 됐어요!" }.Concat(dummySettle.news).ToArray();
+                dummySettle.newGuests = "+0명";
+                dummySettle.goldEarned = "+31";
+                dummySettle.goldNow = "81";
                 view.ShowReport(new ReturnReportViewData
                 {
                     illustrationTier = 2, // TODO(계약) 그날 총합 점수 등급 1~5
-                    guests = new[] { Haru(), Bori(), Sol() },
+                    guests = dummy,
+                    settlement = dummySettle,
                 });
                 return;
             }
 
             // 실제 게임: 전날 파견한 손님별 확정 결과를 그대로 옮긴다. 판정은 다시 계산하지 않는다.
             var affinities = readAffinities?.Invoke() ?? Array.Empty<VisitAffinity>();
+            var guests = (readReports() ?? Array.Empty<VisitResult>())
+                .Select(visit => WithAffinity(ToGuest(visit), affinities.FirstOrDefault(a => a != null && a.VisitId == visit.VisitId)))
+                .ToArray();
+            var settle = Settle(day - 1, guests);
+            if (UIManager.Economy is EconomyManager economy) settle.goldNow = economy.Gold.ToString();
             view.ShowReport(new ReturnReportViewData
             {
                 illustrationTier = 0, // 🔴 그날 총합 점수 계산식이 정해지기 전에는 일러스트를 비운다
-                guests = (readReports() ?? Array.Empty<VisitResult>())
-                    .Select(visit => WithAffinity(ToGuest(visit), affinities.FirstOrDefault(a => a != null && a.VisitId == visit.VisitId)))
-                    .ToArray(),
+                guests = guests,
+                settlement = settle,
             });
+        }
+
+        // ---------------- 전날 정산 창 (시안 27 · 28) ----------------
+        // 의사코드: 손님 보고에 이미 있는 값만 모아 글자로 옮긴다 (등급별 수 · 가져온 재료 합 · 호감 합 · 수첩 기록 · 단골 · 쉬는 손님).
+        //           호감 막대의 최대 · 눈금은 SO_AffinityRules에서 읽는다. 층 개방 · 입소문 인원 · 어제 번 금화는 아직 화면으로 오는 값이 없어 숨긴다
+        //           (TODO(계약) SettlementManager.FloorOutcomeOf · RelationshipManager.WordOfMouthBonus · 전날 수입).
+        private DaySettlementData Settle(int day, IReadOnlyList<ReturnGuestData> guests)
+        {
+            var grades = new int[4];
+            foreach (var g in guests) grades[(int)g.result]++;
+            var loot = guests.SelectMany(g => g.loot).GroupBy(l => l.name)
+                .Select(group => $"{group.Key} ×{group.Count()}");
+            var news = new List<string>();
+            foreach (var floor in guests.Where(g => !string.IsNullOrEmpty(g.noteFloor) && g.noteAxes.Length > 0).GroupBy(g => g.noteFloor))
+                news.Add($"{floor.Key} 위험 · {string.Join(" · ", floor.SelectMany(g => g.noteAxes).Select(n => n.risk).Distinct())} 수첩에 적었어요");
+            // 단골 · 쉬는 손님은 한 줄씩으로 묶어 칸이 넘치지 않게 한다 (예: 단골까지 · 하루 6 · 솔 1)
+            var regular = guests.Where(g => !string.IsNullOrEmpty(g.affectionNext))
+                .Select(g => $"{g.name} {g.affectionNext.Replace("단골까지", "").Trim()}").ToArray();
+            if (regular.Length > 0) news.Add("단골까지 · " + string.Join(" · ", regular));
+            var resting = guests.Where(g => g.result == ReturnResult.GreatFailure).Select(g => g.name).ToArray();
+            if (resting.Length > 0)
+                news.Add($"<size=85%><color=#8A7055>{string.Join(" · ", resting)}{Topic(resting[resting.Length - 1])} 다쳐서 며칠 쉬어요</color></size>");
+            int perVisit = affinityRules ? affinityRules.VisitMaxPoints : 0;
+            return new DaySettlementData
+            {
+                day = Mathf.Max(1, day),
+                summary = guests.Count > 0 ? $"어제 하루를 정리했어요 · 손님 {guests.Count}명이 다녀갔어요" : "어제는 던전에 간 손님이 없었어요",
+                grades = grades,
+                loot = string.Join(" · ", loot),
+                affectionSum = guests.Sum(g => g.affectionDelta),
+                affectionMax = perVisit * guests.Count,
+                affectionSteps = affinityRules ? affinityRules.ThresholdPercents.Select(p => p / 100f).ToArray() : Array.Empty<float>(),
+                news = news.ToArray(),
+            };
         }
 
         // 같은 방문의 호감 합계와 내역만 옮긴다. 기록이 없으면 호감 칸을 비운다 ("+0"으로 보이지 않게)
@@ -101,6 +149,13 @@ namespace DOB.Manager
         }
 
         private static string Signed(int value) => value > 0 ? "+" + value : value.ToString();
+
+        // 이름 끝 글자에 받침이 있으면 「은」, 없으면 「는」 (보리는 · 솔은)
+        private static string Topic(string name)
+        {
+            char last = string.IsNullOrEmpty(name) ? 'a' : name[name.Length - 1];
+            return last >= '가' && last <= '힣' && (last - '가') % 28 != 0 ? "은" : "는";
+        }
 
         // ---------------- 실제 보고 (SettlementManager.Reports의 VisitResult → 화면 데이터) ----------------
 

@@ -281,7 +281,7 @@ namespace DOB.Tests
         // 아침 보고를 넘기고 영업을 시작해 명단이 열리면 예정 방문 수를 확인한다.
         private IEnumerator OpenServiceAndExpectPlanned(int planned)
         {
-            yield return Click("ConfirmMorningReport");
+            yield return ConfirmMorningReport();
             yield return Click("StartService");
             var guests = Object.FindAnyObjectByType<GuestManager>();
             yield return Until(() => guests.Roster != null, "영업 명단 열림");
@@ -406,7 +406,7 @@ namespace DOB.Tests
             Assert.That(BasementComposition.Current.Game.Phase, Is.EqualTo(DayPhase.MorningReport));
             Assert.That((settlement.IsReportConfirmed("visit-a"), settlement.IsReportConfirmed("visit-b")), Is.EqualTo((true, false)));
             Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 0)), "A만 받은 재고");
-            yield return Click("ConfirmMorningReport");
+            yield return ConfirmMorningReport();
             Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 1)), "B는 한 번만 더해진다");
             // 층 진행도 보고마다 한 번씩: 1층 성공 A·B 두 번으로 2층이 열리고, A가 1층의 미확인 축(독·체력)을 공개했다.
             Assert.That(settlement.OpenFloors, Is.EqualTo(2), "다시 불러와도 A를 두 번 세지 않는다");
@@ -436,7 +436,7 @@ namespace DOB.Tests
             var economy = Object.FindAnyObjectByType<EconomyManager>();
             var salt = new System.Collections.Generic.Dictionary<string, int> { ["salt"] = 2 };
             Assert.That(economy.Buy(salt).Result, Is.EqualTo(PurchaseResult.MarketClosed), "아침 보고 중에는 시장이 닫혀 있다");
-            yield return Click("ConfirmMorningReport");
+            yield return ConfirmMorningReport();
             var bought = economy.Buy(salt);
             Assert.That((bought.Result, bought.Gold, economy.SpiceCount("salt")), Is.EqualTo((PurchaseResult.Purchased, 55, 2)));
             Assert.That(FindScene().Kitchen.Gold, Is.EqualTo(55), "주방은 경제의 금화를 그대로 본다");
@@ -598,7 +598,7 @@ namespace DOB.Tests
             var economy = Object.FindAnyObjectByType<EconomyManager>();
             Assert.That((game.OwnedBurners, game.NextBurnerPrice), Is.EqualTo((1, (int?)60)));
             Assert.That(game.TryBuyBurner(), Is.EqualTo(PurchaseResult.MarketClosed), "아침 보고 중에는 살 수 없다");
-            yield return Click("ConfirmMorningReport");
+            yield return ConfirmMorningReport();
             Assert.That(game.Phase, Is.EqualTo(DayPhase.Preparation));
             Assert.That(game.TryBuyBurner(), Is.EqualTo(PurchaseResult.Purchased));
             Assert.That((game.OwnedBurners, economy.Gold, game.NextBurnerPrice), Is.EqualTo((2, 10, (int?)null)));

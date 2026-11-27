@@ -16,9 +16,10 @@
 //             보고 한 장을 그릴 때마다 결과 도장을 그 색으로 「쾅」 찍는다 (간신히 · 부상은 더 크게 흔들림)
 //             다른 손님으로 넘기면 종이가 왼쪽으로 밀려나고 새 종이가 오른쪽에서 들어온다 (시안 19 ⑧)
 //             도장 다음 순서로 「신규」 뱃지가 톡 튀어나오고, 호감 숫자가 +0부터 오르며 게이지가 어제 위치에서 차오른다 (시안 13)
-// [준비하러 가기] 안 본 보고가 남아도 바로 확인을 알린다 (보상은 백엔드가 이미 한 번씩 반영)
-// [닫기]      DayFlowPresenter가 Hide를 부른다
-// 비고   : [준비하러 가기] 단추 이름은 ConfirmMorningReport (BasementFirstDayTests가 이 이름으로 누른다).
+// [최종 정산] 전날 정산 창을 띄운다 (시안 27). 결재란을 누르면 도장이 찍히고 확인을 알린다 (시안 28)
+//             안 본 보고가 남아도 확인할 수 있다 (보상은 백엔드가 이미 한 번씩 반영). 아래 「전날 정산 창」 의사코드 참고
+// [닫기]      DayFlowPresenter가 Hide를 부른다. 도장 연출 중이면 연출이 끝난 뒤 닫는다
+// 비고   : [최종 정산] 단추 이름은 OpenSettlement, 결재란 단추 이름은 ConfirmMorningReport (팀 테스트가 이 순서로 누른다).
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -103,8 +104,35 @@ namespace DOB.UI
         [Header("단추")]
         [SerializeField] private Button prevButton;
         [SerializeField] private Button nextButton;
-        [Tooltip("이름은 ConfirmMorningReport 로 둔다 (테스트가 이름으로 누름)")]
+        /// <summary>[최종 정산] 단추 (이름 OpenSettlement). 정산 창을 연다. 정산 데이터가 없으면 바로 확인한다.</summary>
         [SerializeField] private Button confirmButton;
+
+        [Header("전날 정산 창 (시안 27 · 28)")]
+        [SerializeField] private GameObject settlementRoot;
+        [SerializeField] private RectTransform settlementPaper;
+        [SerializeField] private TMP_Text settleTitle;
+        [SerializeField] private TMP_Text settleSummary;
+        /// <summary>대성공 · 성공 · 간신히 · 부상 손님 수 글자.</summary>
+        [SerializeField] private TMP_Text[] settleGrades = new TMP_Text[4];
+        [SerializeField] private TMP_Text settleLoot;
+        [SerializeField] private TMP_Text settleAffection;
+        [SerializeField] private TMP_Text settleAffectionMax;
+        /// <summary>호감 막대 바탕 · 채움 · 눈금 견본 (견본을 복사해 눈금마다 놓는다).</summary>
+        [SerializeField] private RectTransform settleBar;
+        [SerializeField] private RectTransform settleBarFill;
+        [SerializeField] private RectTransform settleTickTemplate;
+        [SerializeField] private TMP_Text settleNewGuests;
+        [SerializeField] private TMP_Text settleNews;
+        [SerializeField] private GameObject settleGoldBox;
+        [SerializeField] private TMP_Text settleGoldEarned;
+        [SerializeField] private TMP_Text settleGoldNow;
+        /// <summary>결재란 단추. 이름은 ConfirmMorningReport (팀 테스트가 이 이름으로 누른다) — 누르면 보고 확인을 알린다.</summary>
+        [SerializeField] private Button stampButton;
+        [SerializeField] private GameObject stampGuide;
+        [SerializeField] private Image stampSeal;
+        [SerializeField] private float sealSlamSeconds = 0.12f;
+        [SerializeField] private float closeDelay = 0.4f;
+        [SerializeField] private float closeSeconds = 0.35f;
 
         private readonly List<GameObject> chips = new List<GameObject>();
         private readonly List<GameObject> spawned = new List<GameObject>();
@@ -126,7 +154,154 @@ namespace DOB.UI
                 t.SetActive(false);
             prevButton.onClick.AddListener(() => Select(index - 1));
             nextButton.onClick.AddListener(() => Select(index + 1));
-            confirmButton.onClick.AddListener(RaiseConfirmed);
+            confirmButton.onClick.AddListener(OpenSettlement);
+            if (stampButton) stampButton.onClick.AddListener(OnStamp);
+            if (settleTickTemplate) settleTickTemplate.gameObject.SetActive(false);
+            if (settlementPaper) settlementHome = settlementPaper.anchoredPosition;
+            CloseSettlement();
+        }
+
+        // =================================================================
+        // 전날 정산 창 (시안 27 · 28)
+        // 의사코드
+        // [최종 정산]  정산 데이터가 없으면 바로 확인. 있으면 창을 채우고 아래에서 떠오르며 연다 (결재란은 「이곳을 눌러 날인」)
+        // [결재란]     한 번만: 도장 자국이 1.3배로 쾅 나타나 0.12초에 제자리 크기, 종이가 살짝 흔들림 (기울기 −8~−14°)
+        //              누르는 즉시 보고 확인을 알린다 (준비 단계로 넘어가는 판정은 바로) — 화면은 연출을 마저 하고 닫힌다
+        //              0.4초 뒤 종이가 위로 걷히며 사라지고, 그사이 Hide가 왔으면 연출이 끝난 뒤 보고 화면을 끈다
+        // =================================================================
+
+        private Vector2 settlementHome;
+        private Coroutine stamping;
+        private bool hidePending;
+        private readonly List<GameObject> ticks = new List<GameObject>();
+
+        private void OpenSettlement()
+        {
+            var s = report.settlement;
+            if (s == null || !settlementRoot) { RaiseConfirmed(); return; }
+            settleTitle.text = $"{s.day}일차 영업 정산";
+            settleSummary.text = s.summary;
+            for (int i = 0; i < settleGrades.Length && i < s.grades.Length; i++) settleGrades[i].text = s.grades[i].ToString();
+            settleLoot.text = string.IsNullOrEmpty(s.loot) ? "가져온 재료가 없어요" : "가져온 재료  " + s.loot;
+            settleAffection.text = (s.affectionSum > 0 ? "+" : "") + s.affectionSum;
+            settleAffectionMax.text = s.affectionMax > 0 ? $"/ {s.affectionMax}점" : "점";
+            settleBar.gameObject.SetActive(s.affectionMax > 0);
+            if (s.affectionMax > 0) DrawBar(Mathf.Clamp01((float)s.affectionSum / s.affectionMax), s.affectionSteps);
+            settleNewGuests.gameObject.SetActive(!string.IsNullOrEmpty(s.newGuests));
+            settleNewGuests.text = $"오늘 새 손님 <color=#2F7A3A>{s.newGuests}</color>";
+            settleNews.text = s.news.Length > 0 ? string.Join("\n", s.news) : "<color=#8A7055>새로 알게 된 것이 없어요</color>";
+            settleGoldBox.SetActive(s.goldEarned != null || s.goldNow != null);
+            settleGoldEarned.transform.parent.gameObject.SetActive(s.goldEarned != null);
+            settleGoldEarned.text = s.goldEarned;
+            settleGoldNow.transform.parent.gameObject.SetActive(s.goldNow != null);
+            settleGoldNow.text = s.goldNow;
+
+            stampGuide.SetActive(true);
+            stampSeal.gameObject.SetActive(false);
+            stampButton.interactable = true;
+            settlementRoot.SetActive(true);
+            settlementRoot.transform.SetAsLastSibling();
+            if (isActiveAndEnabled) StartCoroutine(RiseIn());
+        }
+
+        // 막대: 채움 비율 + 눈금마다 견본 복사 (눈금을 넘었으면 빨갛게)
+        private void DrawBar(float ratio, float[] steps)
+        {
+            settleBarFill.anchorMax = new Vector2(ratio, 1f);
+            foreach (var t in ticks) Destroy(t);
+            ticks.Clear();
+            foreach (float step in steps)
+            {
+                var tick = Instantiate(settleTickTemplate, settleBar);
+                tick.gameObject.SetActive(true);
+                tick.anchorMin = tick.anchorMax = new Vector2(Mathf.Clamp01(step), 0.5f);
+                var label = tick.GetComponentInChildren<TMP_Text>(true);
+                if (label) label.text = Mathf.RoundToInt(step * 100) + "%";
+                ticks.Add(tick.gameObject);
+            }
+        }
+
+        private System.Collections.IEnumerator RiseIn()
+        {
+            var group = Group(settlementRoot);
+            for (float t = 0f; t < 0.2f; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                float e = 1f - (1f - t / 0.2f) * (1f - t / 0.2f);
+                group.alpha = e;
+                settlementPaper.anchoredPosition = settlementHome + Vector2.down * (24f * (1f - e));
+                settlementPaper.localScale = Vector3.one * Mathf.Lerp(0.96f, 1f, e);
+                yield return null;
+            }
+            group.alpha = 1f;
+            settlementPaper.anchoredPosition = settlementHome;
+            settlementPaper.localScale = Vector3.one;
+        }
+
+        private void OnStamp()
+        {
+            if (stamping != null) return;
+            stampButton.interactable = false;
+            stamping = StartCoroutine(Stamp());
+            RaiseConfirmed(); // 판정은 바로 (준비 단계로). 화면은 연출을 마치고 닫힌다 (Hide 참고)
+        }
+
+        private System.Collections.IEnumerator Stamp()
+        {
+            stampGuide.SetActive(false);
+            var seal = stampSeal.rectTransform;
+            stampSeal.gameObject.SetActive(true);
+            seal.localRotation = Quaternion.Euler(0f, 0f, -UnityEngine.Random.Range(8f, 14f));
+            // 쾅: 1.3배 · 연하게 → 제자리 크기 · 진하게, 종이는 잠깐 흔들림
+            for (float t = 0f; t < sealSlamSeconds; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                float k = t / sealSlamSeconds;
+                seal.localScale = Vector3.one * Mathf.Lerp(1.3f, 1f, k * k);
+                stampSeal.color = new Color(1f, 1f, 1f, Mathf.Lerp(0.6f, 1f, k));
+                yield return null;
+            }
+            seal.localScale = Vector3.one;
+            stampSeal.color = Color.white;
+            for (float t = 0f; t < 0.15f; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                settlementPaper.anchoredPosition = settlementHome + new Vector2(UnityEngine.Random.Range(-5f, 5f), UnityEngine.Random.Range(-4f, 4f)) * (1f - t / 0.15f);
+                yield return null;
+            }
+            settlementPaper.anchoredPosition = settlementHome;
+
+            for (float t = 0f; t < closeDelay; t += Time.unscaledDeltaTime) yield return null;
+
+            // 종이가 위로 걷히며 사라짐
+            var group = Group(settlementRoot);
+            for (float t = 0f; t < closeSeconds; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                float k = t / closeSeconds, e = k * k;
+                settlementPaper.anchoredPosition = settlementHome + Vector2.up * (700f * e);
+                settlementPaper.localRotation = Quaternion.Euler(0f, 0f, -3f * e);
+                group.alpha = 1f - e;
+                yield return null;
+            }
+            stamping = null;
+            CloseSettlement();
+            if (hidePending) { hidePending = false; if (content) content.SetActive(false); }
+        }
+
+        private void CloseSettlement()
+        {
+            if (!settlementRoot) return;
+            settlementRoot.SetActive(false);
+            if (settlementPaper)
+            {
+                settlementPaper.anchoredPosition = settlementHome;
+                settlementPaper.localRotation = Quaternion.identity;
+                settlementPaper.localScale = Vector3.one;
+            }
+            Group(settlementRoot).alpha = 1f;
+        }
+
+        private static CanvasGroup Group(GameObject go)
+        {
+            var group = go.GetComponent<CanvasGroup>();
+            return group ? group : go.AddComponent<CanvasGroup>();
         }
 
         // =================================================================
@@ -136,6 +311,9 @@ namespace DOB.UI
         public override void Show(MorningReportData data)
         {
             titleText.text = $"{data.Day}일차 아침 · 귀환 보고";
+            if (stamping != null) { StopCoroutine(stamping); stamping = null; }
+            hidePending = false;
+            CloseSettlement();
             content.SetActive(true);
             ShowReport(new ReturnReportViewData()); // 보고가 오기 전엔 빈 상태
             Opened?.Invoke(data.Day);
@@ -143,6 +321,9 @@ namespace DOB.UI
 
         public override void Hide()
         {
+            // 도장을 찍고 창이 걷히는 중이면 연출이 끝난 뒤 끈다 (Stamp 끝에서)
+            if (stamping != null) { hidePending = true; return; }
+            CloseSettlement();
             if (content) content.SetActive(false);
         }
 
