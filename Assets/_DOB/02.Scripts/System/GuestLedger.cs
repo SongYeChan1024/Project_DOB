@@ -3,7 +3,7 @@
 // 호출자 : RelationshipManager (일차 시작 때 저장된 명부로 생성, 마감 정산 때 SettleDay, 조회 전달)
 // 상태   : 등록 순서의 손님 기록(신원·누적 호감·영구 거절·복귀 일차), 마지막으로 정산한 일차
 // 의사코드:
-//   생성       — 저장된 기록을 받는다. 손님 ID가 비었거나 겹치면 예외.
+//   생성       — 저장된 기록을 받는다. 손님 ID가 비었거나 겹치면 예외. 입맛 기준이 있으면 입맛이 없는 기록을 TasteDraw로 채운다.
 //   Find       — 손님 ID로 기록을 찾는다. 없으면 null. 상태를 바꾸지 않는다.
 //   EligibleOn — 그 일차에 올 수 있는 손님(영구 거절 아님 + 복귀 일차 ≤ 일차)을 등록 순서로 돌려준다. 상태를 바꾸지 않는다.
 //   SettleDay  — 그 일차를 이미 정산했으면 아무것도 바꾸지 않고 false.
@@ -14,7 +14,7 @@
 //                ④ 누적을 0 이상 상한 이하로 맞춘다.
 //                ⑤ 복귀 일차 = 일차 + 1. 그 방문의 탐험이 대실패면 휴식 일수를 더한다.
 //                그날 오지 않은 손님과 호감 기록이 없는 방문(결과 없는 파견)은 그대로 둔다.
-// 💡 누적 0인 손님도 다음 날 다시 온다 (0 미만만 거절). 기획 🔴 미정이라 임시 규칙이며 송예찬 확인 전이다.
+// 누적 0인 손님도 다음 날 다시 온다 (0 미만만 거절). 2026-11-25 사용자 검토 답변으로 확정 (FeatureManagerMap 「다음 영업에 오는 손님」).
 // 영구 거절된 손님도 명부에 남긴다. 방문 호감 기록·귀환 보고의 손님 ID가 가리키는 대상을 유지한다.
 // =====================================================================
 using System;
@@ -30,7 +30,8 @@ namespace DOB.Systems
         private int settledDay;
 
         /// <summary>저장된 명부로 연다. 손님 ID가 비었거나 겹치면 ArgumentException.</summary>
-        public GuestLedger(IEnumerable<GuestRecord> saved = null)
+        /// <param name="tasteRules">입맛 기준. 있으면 입맛이 없는 이전 저장의 손님에게 입맛 태그를 정해 둔다.</param>
+        public GuestLedger(IEnumerable<GuestRecord> saved = null, TasteRules tasteRules = null)
         {
             if (saved == null)
                 return;
@@ -38,7 +39,7 @@ namespace DOB.Systems
             {
                 if (record == null || string.IsNullOrEmpty(record.GuestId) || Find(record.GuestId) != null)
                     throw new ArgumentException("명부의 손님 ID가 비었거나 겹칩니다.", nameof(saved));
-                records.Add(record);
+                records.Add(tasteRules ? TasteDraw.Fill(tasteRules, record) : record);
             }
         }
 
@@ -90,8 +91,7 @@ namespace DOB.Systems
                     bool rejected = known.Rejected || sum < 0;
                     int affinity = Math.Min(Math.Max(sum, 0), rules.AffinityCap);
                     int returnDay = day + 1 + (injuredVisits.Contains(visit.VisitId) ? rules.InjuryRestDays : 0);
-                    var updated = new GuestRecord(known.GuestId, known.Name, known.Race, known.Job, known.Weakness,
-                        affinity, rejected, returnDay);
+                    var updated = known.WithState(affinity, rejected, returnDay);
                     if (index >= 0) records[index] = updated;
                     else records.Add(updated);
                 }

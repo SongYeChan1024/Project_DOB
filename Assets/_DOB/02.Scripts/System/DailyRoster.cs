@@ -25,8 +25,10 @@ namespace DOB.Systems
         /// <param name="eligible">그 일차에 올 수 있는 명부의 손님.</param>
         /// <param name="takenNames">신규 이름에서 뺄 이름(영구 거절되지 않은 명부 손님). 재방문 손님의 이름은 따로 넣지 않아도 된다.</param>
         /// <param name="wordOfMouthBonus">오늘의 입소문 신규 인원(명). 0 이상.</param>
+        /// <param name="tasteRules">입맛 기준. 있으면 입맛이 없는 손님(신규·이전 저장)에게 입맛 태그를 정해 준다.</param>
         public static List<GuestRecord> Compose(ServiceRosterSettings settings, GuestArrivalPool pool, int day,
-            IReadOnlyList<GuestRecord> eligible, IEnumerable<string> takenNames, int wordOfMouthBonus, Random random)
+            IReadOnlyList<GuestRecord> eligible, IEnumerable<string> takenNames, int wordOfMouthBonus, Random random,
+            TasteRules tasteRules = null)
         {
             if (!settings) throw new ArgumentNullException(nameof(settings));
             if (!pool) throw new ArgumentNullException(nameof(pool));
@@ -45,7 +47,7 @@ namespace DOB.Systems
                     // 같은 손님은 한 번만 센다.
                     if (guest != null && ids.Add(guest.GuestId))
                     {
-                        roster.Add(guest);
+                        roster.Add(tasteRules ? TasteDraw.Fill(tasteRules, guest) : guest);
                         names.Add(guest.Name);
                     }
 
@@ -57,7 +59,8 @@ namespace DOB.Systems
                 while (!ids.Add(id))
                     id = NewId(random);
                 var guest = pool.DrawIdentity(id, day, random, names);
-                roster.Add(guest);
+                // 입맛은 손님 ID로 정해 신원과 함께 고정한다. 그날 난수를 쓰지 않아 다른 추첨 순서에 영향을 주지 않는다.
+                roster.Add(tasteRules ? TasteDraw.Fill(tasteRules, guest) : guest);
                 names.Add(guest.Name);
             }
 

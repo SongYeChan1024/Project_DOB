@@ -7,6 +7,6 @@ namespace DOB.Define
     /// <summary>방문이 끝난 방식. 끝나기 전에는 None이다.</summary>
     public enum ServiceVisitEnd { None, Dispatched, SentHome, WaitedOut }
 
-    /// <summary>영업 시계를 멈추는 이유. 응대·수첩·재료 선택은 입장·대기만, 일시 정지·전환은 조리까지 멈춘다.</summary>
-    public enum ServicePauseReason { Dialogue, Notebook, Ingredients, PauseMenu, Transition }
+    /// <summary>영업 시계를 멈추는 이유. 둘 다 입장·대기·조리를 함께 멈춘다. 응대·수첩·재료 선택은 시간을 멈추지 않는다 (F2).</summary>
+    public enum ServicePauseReason { PauseMenu, Transition }
 }

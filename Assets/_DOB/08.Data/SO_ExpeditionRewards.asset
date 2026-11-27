@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2537c6a8cc497934d88146a5a4856437, type: 3}
   m_Name: SO_ExpeditionRewards
   m_EditorClassIdentifier: DOB.Define::DOB.Define.ExpeditionRewards
-  lootByGrade: 03000000020000000100000000000000
-  rareLootChance: 0.3
+  giftAffinityMin: 9
+  giftCount: 1
   floors:
   - floor: 1
     materials:

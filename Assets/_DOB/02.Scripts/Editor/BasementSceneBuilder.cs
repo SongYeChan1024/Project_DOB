@@ -366,7 +366,8 @@ namespace DOB.Editor
             Debug.Log("DOB_BASEMENT_SETTLEMENT_READY");
         }
 
-        // 💡 시험값: 등급별 전리품 3·2·1·0, 1층 일반 재료 4종, 대성공 때 희귀 재료(숲 송로) 30% (FeatureManagerMap F9, FirstPlayEconomy). 에셋이 이미 있으면 값을 건드리지 않는다.
+        // 전리품 자격 누적 호감 9(확정)·💡 희귀 재료 1개는 ExpeditionRewards의 기본값이다. 1층 일반 재료 4종과 희귀 재료(숲 송로)를 넣는다
+        // (FeatureManagerMap F9). 에셋이 이미 있으면 값을 건드리지 않는다.
         private static ScriptableObject ExpeditionRewards()
         {
             var rewards = Asset<ScriptableObject>(ExpeditionRewardsPath);
@@ -374,11 +375,6 @@ namespace DOB.Editor
                 return rewards;
             rewards = ScriptableObject.CreateInstance<DOB.Define.ExpeditionRewards>();
             var data = new SerializedObject(rewards);
-            var counts = data.FindProperty("lootByGrade");
-            int[] byGrade = { 3, 2, 1, 0 };
-            counts.arraySize = byGrade.Length;
-            for (int i = 0; i < byGrade.Length; i++)
-                counts.GetArrayElementAtIndex(i).intValue = byGrade[i];
             var floors = data.FindProperty("floors");
             floors.arraySize = 1;
             var first = floors.GetArrayElementAtIndex(0);
@@ -389,7 +385,6 @@ namespace DOB.Editor
             for (int i = 0; i < forest.Length; i++)
                 materials.GetArrayElementAtIndex(i).stringValue = forest[i];
             first.FindPropertyRelative("rareMaterial").stringValue = "숲 송로";
-            data.FindProperty("rareLootChance").floatValue = 0.3f;
             data.ApplyModifiedPropertiesWithoutUndo();
             AssetDatabase.CreateAsset(rewards, Root + ExpeditionRewardsPath);
             return rewards;
@@ -432,7 +427,7 @@ namespace DOB.Editor
             Debug.Log("DOB_BASEMENT_AFFINITY_RULES_READY");
         }
 
-        // 💡 시험값: 대성공 +2·성공 +1·실패 −1·대실패 −2, 돌려보냄·대기 이탈 −4, 방문 최대 6, 문턱 60·75·85·100%, 돌려보낸 방문 제외
+        // 💡 시험값: 대성공 +2·성공 +1·실패 −1·대실패 −2, 돌려보냄·대기 이탈 −4, 방문 최대 6, 문턱 60·75·85·100%, 돌려보낸 방문 입소문 포함(2026-11-25 확정)
         // (FeatureManagerMap F10, 송예찬 확인 전). 값은 AffinityRules의 기본값이다. 에셋이 이미 있으면 값을 건드리지 않는다.
         private static ScriptableObject AffinityRules()
         {

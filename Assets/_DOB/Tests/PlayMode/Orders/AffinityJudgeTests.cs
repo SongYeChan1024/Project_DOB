@@ -49,9 +49,9 @@ namespace DOB.Tests
             return roster;
         }
 
-        private static void Dispatch(ServiceRoster roster, string visit)
+        private static void Dispatch(ServiceRoster roster, string visit, int? taste = null)
         {
-            Assert.That(roster.TryBeginGreeting(visit) && roster.TryGuide(visit) && roster.TrySeat(visit) && roster.TryServe(visit), Is.True);
+            Assert.That(roster.TryBeginGreeting(visit) && roster.TryGuide(visit) && roster.TrySeat(visit) && roster.TryServe(visit, taste), Is.True);
             Assert.That(roster.TryEnd(visit, ServiceVisitEnd.Dispatched), Is.True);
         }
 
@@ -102,7 +102,7 @@ namespace DOB.Tests
             // v4는 아직 입구에 있다.
             var results = new[] { Result("v1", ExpeditionGrade.Success), Result("v1", ExpeditionGrade.GreatFailure) };
 
-            var records = AffinityJudge.SettleDay(Rules(), roster.Visits.Concat(roster.Visits), results, 0, out string error);
+            var records = AffinityJudge.SettleDay(Rules(), roster.Visits.Concat(roster.Visits), results, out string error);
             Assert.That(error, Is.Null);
             Assert.That(records.Select(r => r.VisitId), Is.EqualTo(new[] { "v1", "v2", "v3" }), "중복 입력·끝나지 않은 방문은 기록하지 않는다");
             Assert.That(records[0].GuestId, Is.EqualTo("g1"));
@@ -116,18 +116,31 @@ namespace DOB.Tests
             var roster = Roster(2);
             Dispatch(roster, "v1");
             Dispatch(roster, "v2");
-            var records = AffinityJudge.SettleDay(Rules(), roster.Visits, new[] { Result("v2", ExpeditionGrade.GreatSuccess) }, 0, out string error);
+            var records = AffinityJudge.SettleDay(Rules(), roster.Visits, new[] { Result("v2", ExpeditionGrade.GreatSuccess) }, out string error);
             Assert.That(records.Single().VisitId, Is.EqualTo("v2"));
             Assert.That(error, Does.Contain("v1"));
         }
 
         [Test]
-        public void TasteScoreIsPassedByTheCaller()
+        public void SettlementUsesEachVisitsRecordedTasteScore()
+        {
+            var roster = Roster(3);
+            Dispatch(roster, "v1", 2);
+            Dispatch(roster, "v2", -2);
+            SendHome(roster, "v3");
+            var results = new[] { Result("v1", ExpeditionGrade.GreatSuccess), Result("v2", ExpeditionGrade.Success) };
+            var records = AffinityJudge.SettleDay(Rules(), roster.Visits, results, out _);
+            Assert.That(records.Select(r => (r.Taste, r.Total)), Is.EqualTo(new[] { (2, 6), (-2, 1), (0, -4) }),
+                "대기 2 + 입맛 + 탐험, 돌려보냄은 입맛 없이 감점");
+        }
+
+        [Test]
+        public void ASecondServeIsRefusedAndKeepsTheFirstTasteScore()
         {
             var roster = Roster(1);
-            Dispatch(roster, "v1");
-            var record = AffinityJudge.SettleDay(Rules(), roster.Visits, new[] { Result("v1", ExpeditionGrade.Success) }, 2, out _).Single();
-            Assert.That((record.Taste, record.Total), Is.EqualTo((2, 5)));
+            Dispatch(roster, "v1", 2);
+            Assert.That(roster.TryServe("v1", -2), Is.False);
+            Assert.That(roster.Find("v1").TasteScore, Is.EqualTo(2));
         }
 
         // ── 2.3 집계와 추가 인원 ──
@@ -156,8 +169,8 @@ namespace DOB.Tests
             Assert.That(AffinityJudge.Tally(Rules(), dispatched.Append(Record(ServiceVisitEnd.WaitedOut, -4))), Is.EqualTo((14, 4)));
 
             var withSentHome = dispatched.Append(Record(ServiceVisitEnd.SentHome, -4)).ToList();
-            Assert.That(AffinityJudge.Tally(Rules(), withSentHome), Is.EqualTo((18, 3)), "시험값: 돌려보낸 방문은 뺀다");
-            Assert.That(AffinityJudge.Tally(Rules("{\"countSentHome\":true}"), withSentHome), Is.EqualTo((14, 4)));
+            Assert.That(AffinityJudge.Tally(Rules(), withSentHome), Is.EqualTo((14, 4)), "기본: 돌려보낸 방문도 N에 1명·S에 −4로 넣는다 (2026-11-25 확정)");
+            Assert.That(AffinityJudge.Tally(Rules("{\"countSentHome\":false}"), withSentHome), Is.EqualTo((18, 3)), "끄면 뺀다");
         }
 
         // ── 2.4 기준값 검사 ──

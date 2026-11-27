@@ -14,7 +14,7 @@ namespace DOB.Define
         [DataMember(Name = "end")] private int end;
         /// <summary>서빙 때의 대기 점수(점).</summary>
         [DataMember(Name = "wait")] public int Wait { get; private set; }
-        /// <summary>입맛 점수(점). 💡 입맛 채점 전까지 항상 0.</summary>
+        /// <summary>입맛 점수(점). 서빙 때 확정한 −2·0·+2. 감점으로 끝난 방문은 0.</summary>
         [DataMember(Name = "taste")] public int Taste { get; private set; }
         /// <summary>탐험 등급 점수(점).</summary>
         [DataMember(Name = "expedition")] public int Expedition { get; private set; }

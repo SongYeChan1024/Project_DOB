@@ -1,51 +1,38 @@
-// 귀환 보상 기준값. SettlementManager가 읽어 VisitResultLog에 등급별 전리품 개수, 층별 재료 목록, 희귀 재료와 확률을 넘긴다.
-// 💡 값은 시험값이다 (FeatureManagerMap F9 기본 전리품 3·2·1·0, 1층 일반 재료 4종, 희귀 재료 30%).
-// 전리품은 손님이 다녀온 층의 일반 재료에서 나온다 (2026-11-24 송예찬 확인, PR #29). 그중 무엇을 줄지는 💡 균등 추첨이다.
-// 대성공일 때만 정해진 확률로 그 층의 희귀 재료 1개를 더 준다 (MainPlanning 5장, FirstPlayEconomy).
-// 💡 희귀 재료는 기본 전리품에 더한다. 대신하는지 더하는지는 FeatureManagerMap에 미정으로 남아 있다.
+// 귀환 보상 기준값. SettlementManager가 읽어 마감 정산 때 VisitResultLog.WithGifts에 자격 호감·개수·층별 희귀 재료를 넘긴다.
+// 전리품·선물은 누적 개인 호감이 기준 이상인 손님만, 다녀온 던전 층의 희귀 재료로 받는다 (2026-11-25 사용자 정정, FeatureManagerMap F9).
+// 기준 9는 확정값이다. 💡 받는 개수(1)와 등급 무관(부상 귀환도 지급)은 김언호 가안이며 송예찬 확인 전이다.
+// 호감과 무관한 등급별 일반 재료 3·2·1·0과 대성공 30% 희귀 재료는 정정 전 구안이라 지급하지 않는다.
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace DOB.Define
 {
-    /// <summary>한 층에서 전리품으로 나오는 재료 목록.</summary>
+    /// <summary>한 층에서 나오는 던전 재료 목록.</summary>
     [Serializable]
     public struct FloorLoot
     {
         /// <summary>층 번호. 1부터.</summary>
         public int floor;
-        /// <summary>그 층의 일반 재료 이름. 희귀 재료는 넣지 않는다.</summary>
+        /// <summary>그 층의 일반 재료 이름. 희귀 재료는 넣지 않는다. 지금은 전리품으로 주지 않는다(정정 전 구안).</summary>
         public string[] materials;
         /// <summary>그 층의 희귀 재료 이름. 없으면 비워 둔다.</summary>
         public string rareMaterial;
     }
 
-    /// <summary>탐험 등급별 전리품 개수, 층별 재료 목록, 희귀 재료 확률.</summary>
+    /// <summary>전리품·선물 자격 호감, 받는 개수, 층별 재료 목록.</summary>
     [CreateAssetMenu(menuName = "DOB/귀환 보상 기준", fileName = "SO_ExpeditionRewards")]
     public sealed class ExpeditionRewards : ScriptableObject
     {
-        /// <summary>ExpeditionGrade 순서(대성공·성공·실패·대실패)의 전리품 개수.</summary>
-        [SerializeField] private int[] lootByGrade = new int[4];
-        /// <summary>대성공일 때 그 층의 희귀 재료 1개를 더 받을 확률. 0부터 1.</summary>
-        [SerializeField, Range(0f, 1f)] private float rareLootChance;
+        /// <summary>전리품·선물 자격이 생기는 누적 개인 호감(점, 이상).</summary>
+        [SerializeField, Min(0)] private int giftAffinityMin = 9;
+        /// <summary>자격이 있는 손님이 받는 희귀 재료 개수. 0 이상.</summary>
+        [SerializeField, Min(0)] private int giftCount = 1;
         [SerializeField] private FloorLoot[] floors = Array.Empty<FloorLoot>();
 
-        /// <summary>대성공일 때 희귀 재료를 받을 확률. 0부터 1.</summary>
-        public float RareLootChance => rareLootChance;
-
-        /// <summary>등급에 해당하는 전리품 개수. 값이 비어 있으면 0.</summary>
-        public int LootCount(ExpeditionGrade grade) =>
-            (int)grade < lootByGrade.Length ? Mathf.Max(0, lootByGrade[(int)grade]) : 0;
-
-        /// <summary>층의 일반 재료 목록. 등록되지 않은 층은 빈 목록.</summary>
-        public IReadOnlyList<string> Materials(int floor)
-        {
-            foreach (var entry in floors)
-                if (entry.floor == floor && entry.materials != null)
-                    return entry.materials;
-            return Array.Empty<string>();
-        }
+        /// <summary>전리품·선물 자격이 생기는 누적 개인 호감(점, 이상).</summary>
+        public int GiftAffinityMin => giftAffinityMin;
+        /// <summary>자격이 있는 손님이 받는 희귀 재료 개수.</summary>
+        public int GiftCount => Mathf.Max(0, giftCount);
 
         /// <summary>층의 희귀 재료 이름. 등록되지 않았으면 null.</summary>
         public string RareMaterial(int floor)

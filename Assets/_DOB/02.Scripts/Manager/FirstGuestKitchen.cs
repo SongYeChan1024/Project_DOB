@@ -51,8 +51,6 @@ namespace DOB.Manager
         }
         /// <summary>플레이어가 완성된 접시를 들고 있다.</summary>
         public bool IsCarrying => book?.Carried != null;
-        /// <summary>레시피(재료 선택) 패널이 열려 있다. 손님 입장·대기 시계를 멈추는 사유다.</summary>
-        public bool IsChoosingIngredients => recipePanel && recipePanel.activeSelf;
         /// <summary>서빙이 성공한 한 끼. 축별 부족·실제 위험·요리가 막은 칸은 RiskAxes.All 순서다.</summary>
         public readonly struct ServedMeal
         {
@@ -61,18 +59,22 @@ namespace DOB.Manager
             public readonly string Line;
             public readonly string Dish;
             public readonly bool UsedSeasoning;
+            /// <summary>넣은 양념 이름(입맛 기준의 이름과 같다). 없으면 빈 목록.</summary>
+            public readonly IReadOnlyList<string> Seasonings;
             public readonly IReadOnlyList<int> Shortfalls;
             public readonly IReadOnlyList<int> Risks;
             public readonly IReadOnlyList<int> Protections;
 
             public ServedMeal(string visitId, string guestName, string line, string dish, bool usedSeasoning,
-                IReadOnlyList<int> shortfalls, IReadOnlyList<int> risks, IReadOnlyList<int> protections)
+                IReadOnlyList<int> shortfalls, IReadOnlyList<int> risks, IReadOnlyList<int> protections,
+                IReadOnlyList<string> seasonings = null)
             {
                 VisitId = visitId;
                 GuestName = guestName;
                 Line = line;
                 Dish = dish;
                 UsedSeasoning = usedSeasoning;
+                Seasonings = seasonings ?? System.Array.Empty<string>();
                 Shortfalls = shortfalls;
                 Risks = risks;
                 Protections = protections;
@@ -80,6 +82,8 @@ namespace DOB.Manager
         }
 
         private const string Dish = "구운 빵";
+        // 입맛 기준(SO_TasteRules)의 양념 이름과 같아야 접시 맛에 들어간다.
+        private const string Garlic = "마늘";
         /// <summary>서빙이 성공할 때 한 번 알린다 (방명록 등록·방문 결과 확정·파견 종료용).</summary>
         public event System.Action<ServedMeal> Served;
         // 양념이 부족하면 무료 기본 재료로 굽는다 (첫 플레이 E11). 재고는 주문 사이에서 공유한다.
@@ -104,6 +108,18 @@ namespace DOB.Manager
             receipt = hud.Receipt;
             confirm = hud.Confirm;
             cancel = hud.Cancel;
+        }
+
+        /// <summary>연 순서의 주문(취소·서빙 포함). 주방이 꺼져 있으면 빈 목록.</summary>
+        public IReadOnlyList<FirstGuestOrder> Orders => book != null ? book.Orders : (IReadOnlyList<FirstGuestOrder>)System.Array.Empty<FirstGuestOrder>();
+
+        /// <summary>수동 저장을 불러올 때 영업 중 금화·마늘·주문을 되살린다. 주방이 켜진 뒤에만, 주문이 비어 있을 때만 된다. 착석 알림은 다시 보내지 않는다.</summary>
+        public bool RestoreProgress(int savedGold, int garlic, IEnumerable<OrderProgress> orders)
+        {
+            if (book == null || savedGold < 0 || !book.Restore(garlic, orders))
+                return false;
+            gold = savedGold;
+            return true;
         }
 
         /// <summary>조리 시계가 허용한 경과 시간을 조리 중인 주문에 넘긴다. GameManager가 영업 중에만 부른다.</summary>
@@ -210,7 +226,8 @@ namespace DOB.Manager
             receipt.text = $"{name}   “{line}”{resolve}\n서빙 +{payment}금화   ·   보유 {gold}금화   ·   남은 마늘 {GarlicStock}개";
             if (receipt.preferredHeight > receipt.rectTransform.rect.height)
                 receipt.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, receipt.preferredHeight);
-            Served?.Invoke(new ServedMeal(order.VisitId, name, line, Dish, hasGarlic, shortfalls, risks, protections));
+            Served?.Invoke(new ServedMeal(order.VisitId, name, line, Dish, hasGarlic, shortfalls, risks, protections,
+                hasGarlic ? new[] { Garlic } : null));
         }
 
         private void Confirm()

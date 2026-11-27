@@ -72,7 +72,7 @@ namespace DOB.Manager
                 if (visit.Stage == ServiceVisitStage.Ended)
                     continue;
                 text.Append($"\n  {NameOf(visit.VisitId)} {visit.Stage} 대기 {visit.WaitSeconds:0.0}초 · 인내심 {roster.PatienceLeft(visit):0.0}초 남음" +
-                    $" · 대기 점수 {roster.WaitScoreNow(visit)} · 입맛 {RelationshipManager.TasteScore}");
+                    $" · 대기 점수 {roster.WaitScoreNow(visit)} · 입맛 {visit.TasteScore?.ToString() ?? "-"}");
             }
             Debug.Log(text.ToString(), this);
         }
