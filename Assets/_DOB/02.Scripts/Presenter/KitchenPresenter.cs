@@ -22,11 +22,11 @@
 //             안 고르고 조리하면 다른 화구가 안 잡은 대기 주문 중 먼저 온 손님 것으로 만든다
 // [재료]      비어 있는 화구면 빈 접시 칸에 넣고 개수를 하나 줄인다 (칸이 꽉 차면 무시)
 // [빼기]      냄비 접시를 누르면 그 재료를 빼고 개수를 돌려준다
-// [조리]      재료가 레시피와 딱 맞고 주문이 골라져 있으면 뚜껑을 닫고 6초를 센다 (화면을 닫아도 계속 흐름)
+// [조리]      재료가 레시피와 딱 맞고 주문이 골라져 있으면 조리를 시작하고 바로 창을 닫는다 (시간은 화면을 닫아도 계속 흐르고 화구 배지가 보여 줌)
 // [완성]      시간이 다 되면 완성 → [접시 들기]로 주문 손님 접시를 든다 → 화구를 비운다
 // [Esc]       열려 있으면 닫는다
 // [실제 연결] 매 프레임 주문 상태를 읽어 화구 상태(비어 있음 · 조리 중 · 완성)를 맞추고, 바뀌면 다시 그린다
-// [실제 요청] 조리 시작 · 접시 들기에 orderId를 넣어 보낸다 → 거절되면 사유에 맞는 안내를 결과 카드에 보이고, 재료를 바꾸면 지운다
+// [실제 요청] 조리 시작 · 접시 들기에 orderId를 넣어 보낸다 → 시작되면 바로 닫고, 거절되면 사유에 맞는 안내를 결과 카드에 보이고, 재료를 바꾸면 지운다
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -229,8 +229,8 @@ namespace DOB.Manager
             var b = Editable;
             if (b != null && Real != null)
             {
-                // 실제 게임: 마늘 재고가 있을 때만 (양념 칸 하나)
-                if (id != Garlic || b.spice == Garlic || Real.GarlicStock <= 0) return;
+                // 실제 게임: 레시피만큼 마늘이 있을 때만 (양념 칸 하나). 모자라면 주방 쪽이 필요 개수를 0으로 알려 준다
+                if (id != Garlic || b.spice == Garlic || Real.GarlicRequired <= 0) return;
                 b.spice = Garlic;
                 Refresh();
                 return;
@@ -270,8 +270,15 @@ namespace DOB.Manager
                 }
                 else if (b.state == BurnerState.Empty)
                 {
-                    var started = Real.TryStartCooking(id, b.pot.Count(p => p == Flour), b.spice == Garlic ? 1 : 0);
-                    if (started != CookStartResult.Started) rejectLine = CookLine(started);
+                    var started = Real.TryStartCooking(id, b.pot.Count(p => p == Flour), b.spice == Garlic ? Real.GarlicRequired : 0);
+                    if (started == CookStartResult.Started)
+                    {
+                        // 조리가 시작되면 기다릴 일만 남으므로 바로 창을 닫는다 (남은 시간은 화구 배지가 보여 준다)
+                        SyncReal();
+                        Close();
+                        return;
+                    }
+                    rejectLine = CookLine(started);
                 }
                 SyncReal();
                 if (rejectLine != null && IsOpen) view.Show(BuildData());
@@ -295,7 +302,7 @@ namespace DOB.Manager
             b.state = BurnerState.Cooking;
             b.remaining = cookSeconds;
             SetOrderStatus(b.orderId, OrderStatus.Cooking);
-            Refresh();
+            Close(); // 조리를 시작하면 바로 닫는다 (실제 게임과 같게)
         }
 
         private void Refresh()
@@ -465,7 +472,8 @@ namespace DOB.Manager
         {
             var b = burners[current];
             bool hasOrder = real.GuestName != null;
-            int reserved = b.state == BurnerState.Empty && b.spice == Garlic ? 1 : 0;
+            // 양념 칸의 마늘 한 그림 = 레시피가 요구하는 마늘 전부 (주방 쪽은 0개 또는 필요 개수만 받는다)
+            int reserved = b.state == BurnerState.Empty && b.spice == Garlic ? real.GarlicRequired : 0;
             var garlicRow = PrepScreenPresenter.SpiceTable.First(t => t.id == Garlic);
             var garlic = SpiceItem(garlicRow);
             garlic.count = Mathf.Max(0, real.GarlicStock - reserved);
@@ -497,7 +505,7 @@ namespace DOB.Manager
             int flour = b.pot.Count(id => id == Flour);
             bool garlic = b.spice == Garlic;
             string need = $"밀가루 {flour} / {real.FlourRequired}"
-                        + (real.GarlicRequired > 0 ? $" · 마늘 {(garlic ? 1 : 0)} / {real.GarlicRequired}" : " · 마늘이 없어 양념 없이 굽기");
+                        + (real.GarlicRequired > 0 ? $" · 마늘 {(garlic ? real.GarlicRequired : 0)} / {real.GarlicRequired}" : " · 마늘이 없어 양념 없이 굽기");
             if (flour > real.FlourRequired) need += " · 밀가루가 너무 많아요";
             if (rejectLine != null) need = rejectLine;
             var effects = RiskEffects.Select(e => new EffectAmount { name = e.effect, value = real.Protection(e.axis, garlic) })
@@ -512,7 +520,7 @@ namespace DOB.Manager
                 taste = 2, // 첫 영업은 맛 점수 2 고정 (FirstGuestOrder.TryServe)
                 flavor = garlic ? "고소 · 담백 · 향긋" : "고소 · 담백",
                 priceText = $"금화 {real.Price(garlic)}개 예상",
-                canCook = b.state == BurnerState.Empty && flour == real.FlourRequired && (garlic ? 1 : 0) == real.GarlicRequired,
+                canCook = b.state == BurnerState.Empty && flour == real.FlourRequired && garlic == (real.GarlicRequired > 0),
             };
         }
 

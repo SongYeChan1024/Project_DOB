@@ -2,6 +2,7 @@
 // ItemTooltip — 양념 · 재료에 마우스를 올리면 뜨는 작은 설명 상자
 // 역할   : 이름(굵게)과 효과 한두 줄을 보여 준다. 가리킨 그림 바로 위에 뜨고,
 //          화면 밖으로 나가면 아래로 내리거나 옆으로 민다.
+//          툭 나타나지 않고 살짝 아래에서 떠오르며 서서히 보인다 (시안 22 ④)
 // 호출자 : HoverInfo (Show, Hide)
 // 상태   : 없음 (보이기 / 숨기기만)
 // 비고   : 클릭을 막지 않도록 글자 · 바탕 모두 raycast를 끈다.
@@ -19,6 +20,9 @@ namespace DOB.UI
         [SerializeField] private TMP_Text bodyText;
         /// <summary>가리킨 그림과 상자 사이 간격.</summary>
         [SerializeField] private float gap = 8f;
+        /// <summary>나타날 때 떠오르는 시간 (초) · 아래에서 시작하는 거리 (캔버스 단위).</summary>
+        [SerializeField] private float riseSeconds = 0.12f;
+        [SerializeField] private float riseDistance = 6f;
 
         // 처음엔 빌더가 꺼 둔다 (여기서 Awake로 끄면 처음 Show 때 바로 다시 꺼져 버림)
 
@@ -52,6 +56,29 @@ namespace DOB.UI
             float x = Mathf.Clamp(top.x, area.xMin + size.x / 2f, area.xMax - size.x / 2f);
             rect.anchoredPosition = new Vector2(x, y);
             rect.SetAsLastSibling(); // 다른 칸보다 위에 그리기
+
+            // 툭 나타나지 않고 살짝 아래에서 떠오르며 보인다 (시안 22 ④)
+            if (rise != null) StopCoroutine(rise);
+            rise = StartCoroutine(Rise(rect, new Vector2(x, y)));
+        }
+
+        private Coroutine rise;
+
+        private System.Collections.IEnumerator Rise(RectTransform rect, Vector2 home)
+        {
+            var group = GetComponent<CanvasGroup>();
+            if (!group) { group = gameObject.AddComponent<CanvasGroup>(); group.blocksRaycasts = false; }
+            for (float t = 0f; t < riseSeconds; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                float k = t / riseSeconds;
+                float e = 1f - (1f - k) * (1f - k);
+                group.alpha = e;
+                rect.anchoredPosition = home + new Vector2(0f, -riseDistance * (1f - e));
+                yield return null;
+            }
+            group.alpha = 1f;
+            rect.anchoredPosition = home;
+            rise = null;
         }
 
         public void Hide() => gameObject.SetActive(false);

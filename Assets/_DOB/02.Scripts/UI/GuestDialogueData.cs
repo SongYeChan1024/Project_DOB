@@ -63,6 +63,8 @@ namespace DOB.UI
     public sealed class ClueKeywordData
     {
         public string key;
+        /// <summary>원인ID. 같은 원인을 가리키는 표현끼리 같은 값 (수첩에서 첫 표현 아래에 묶는다). 비면 묶지 않음.</summary>
+        public string cause;
         public int delta;
         /// <summary>대사의 [[ ]] 안 글자와 똑같아야 한다 (예: 슬라임 점액).</summary>
         public string phrase;
@@ -77,6 +79,8 @@ namespace DOB.UI
     public sealed class ClueMarkerData
     {
         public string key;
+        /// <summary>원인ID. 같은 원인을 가리키는 표현끼리 같은 값 (수첩에서 첫 표현 아래에 묶는다). 비면 묶지 않음.</summary>
+        public string cause;
         public int delta;
         /// <summary>찾은 뒤 마우스를 올리면 보이는 생김새 설명.</summary>
         public string description;

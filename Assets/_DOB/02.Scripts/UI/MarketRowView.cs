@@ -1,8 +1,8 @@
 // =====================================================================
 // MarketRowView — 시장의 양념 한 줄
 // 역할   : 양념 그림 · 이름 · 효과 · 맛 · 가격 · 보유 개수와 살 개수(-/+)를 보여 주고,
-//          -/+ 누름을 알린다. 살 개수를 정하는 건 MarketView가 한다.
-// 호출자 : MarketView (Bind, SetQuantity)
+//          -/+ 누름을 알린다. 살 개수를 정하는 건 MarketView가 한다. 방금 산 양념은 보유 숫자가 톡 (PopOwned)
+// 호출자 : MarketView (Bind, SetQuantity, PopOwned)
 // 호출   : EffectChipView
 // 상태   : 없음
 // =====================================================================
@@ -56,6 +56,24 @@ namespace DOB.UI
             priceText.text = $"금화 {spice.price}개";
             ownedText.text = spice.owned.ToString();
             if (iconHover) iconHover.Set(spice.name, $"{spice.effect} +1 · {spice.flavor}");
+        }
+
+        /// <summary>방금 산 양념: 보유 숫자를 톡 키웠다 돌려놓는다 (시안 16 ②).</summary>
+        public void PopOwned()
+        {
+            if (isActiveAndEnabled) StartCoroutine(Pop());
+        }
+
+        private System.Collections.IEnumerator Pop()
+        {
+            var r = ownedText.rectTransform;
+            const float seconds = 0.35f;
+            for (float t = 0f; t < seconds; t += Mathf.Min(Time.unscaledDeltaTime, 0.05f))
+            {
+                r.localScale = Vector3.one * (1f + 0.35f * Mathf.Sin(Mathf.PI * t / seconds));
+                yield return null;
+            }
+            r.localScale = Vector3.one;
         }
 
         /// <summary>살 개수와 소계를 보여 준다.</summary>

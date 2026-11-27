@@ -3,13 +3,14 @@
 // 역할   : 양념 목록을 보여 주고, 줄마다 살 개수를 고르게 한 뒤 [결제] 한 번으로 구매 요청을 알린다.
 //          합계 · 남는 금화는 미리보기일 뿐이고, 실제 차감과 성공 여부는 Presenter(백엔드)가 정한다.
 // 호출자 : PrepScreensView (Show), PrepScreenPresenter (이벤트 구독, ShowNotice)
-// 호출   : MarketRowView
+// 호출   : MarketRowView, GoldCounter (결제 뒤 지갑 카운트다운)
 // 상태   : 고른 개수(장바구니)만 가진다. 화면을 다시 열거나 결제가 끝나면 비운다.
 //
 // 의사코드
 // [보이기]  양념마다 줄을 만들고 살 개수 0으로 시작한다
 // [-/+]     0 아래로 내려가지 않는다. 합계가 가진 금화를 넘으면 [+]를 잠근다
 // [결제]    고른 게 있을 때만 누를 수 있다. 누르면 (양념 id → 개수) 목록을 알린다
+// [결제 뒤]  (시안 16 ②) 다시 그려질 때 금화가 줄었으면 지갑 숫자가 하나씩 줄고 −N이 떠오르며, 보유가 늘어난 양념 숫자가 톡
 // [닫기]    닫기 요청만 알린다
 // =====================================================================
 using System;
@@ -38,6 +39,8 @@ namespace DOB.UI
         [SerializeField] private Button closeButton;
         /// <summary>실패 사유 등 짧은 안내 (예: 금화가 모자라요).</summary>
         [SerializeField] private TMP_Text noticeText;
+        /// <summary>결제 뒤 금화가 줄어드는 시간 (초).</summary>
+        [SerializeField] private float paySeconds = 0.6f;
 
         private readonly List<MarketRowView> rows = new List<MarketRowView>();
         private readonly Dictionary<string, int> cart = new Dictionary<string, int>();
@@ -57,6 +60,10 @@ namespace DOB.UI
         /// <summary>시장 목록을 새로 그린다. 고른 개수는 비운다.</summary>
         public void Show(PrepViewData viewData)
         {
+            // 결제 뒤 다시 그려질 때: 금화가 줄었으면 줄어드는 카운트다운 + 보유가 늘어난 줄을 톡 (시안 16 ②)
+            int paidFrom = data != null && viewData != null && viewData.gold < data.gold ? data.gold : -1;
+            var ownedBefore = new Dictionary<string, int>();
+            if (paidFrom >= 0) foreach (var s in data.spices) ownedBefore[s.id] = s.owned;
             data = viewData;
             cart.Clear();
             ShowNotice(null);
@@ -78,8 +85,10 @@ namespace DOB.UI
                 row.Bind(spice, i % 2 == 0);
                 row.QuantityDelta += delta => ChangeQuantity(spice, delta);
                 rows.Add(row);
+                if (ownedBefore.TryGetValue(spice.id, out int before) && spice.owned > before) row.PopOwned();
             }
             RefreshTotals();
+            if (paidFrom >= 0 && isActiveAndEnabled) StartCoroutine(GoldCounter.PayOut(goldText, paidFrom, data.gold, paySeconds));
         }
 
         /// <summary>짧은 안내를 띄운다. null이면 숨긴다.</summary>
