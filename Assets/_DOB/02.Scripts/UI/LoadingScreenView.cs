@@ -142,6 +142,9 @@ namespace DOB.UI
             SetFade(alpha);
             // 로딩 화면이 떠 있는 동안에는 아래에 미리 열린 목적지 씬의 버튼이 눌리지 않게 계속 막는다.
             fadeOverlay.raycastTarget = true;
+            // 목표 투명도를 한 프레임 실제로 그린 뒤 끝낸다. 바로 끝내면 호출자(UIManager)가 같은 프레임에 로딩을 닫아
+            // 완전히 검은 화면이 한 번도 보이지 않고 0.99 상태에서 넘어간다 (Loading 페이드 테스트 간헐 실패 원인)
+            yield return null;
         }
 
         /// <summary>바로 덮개 투명도를 정한다 (화면이 처음 켜질 때 검은 상태로 시작하기 등).</summary>
