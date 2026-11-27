@@ -103,7 +103,7 @@ namespace DOB.Tests
             Assert.That(oldBalance.Gold, Is.Zero);
             File.WriteAllText(primary, valid + "unexpected");
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out _), Is.True);
-            string future = valid.Replace("\"schemaVersion\":4", "\"schemaVersion\":999");
+            string future = valid.Replace("\"schemaVersion\":" + FirstServiceSaveData.CurrentSchemaVersion, "\"schemaVersion\":999");
             Assert.That(future, Is.Not.EqualTo(valid));
             File.WriteAllText(primary, future);
             Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var recovered), Is.True);
@@ -220,7 +220,7 @@ namespace DOB.Tests
             string valid = File.ReadAllText(primary);
 
             foreach (var (from, to) in new[] { ("\"count\":2", "\"count\":-2"), ("\"visitId\":\"v1\"", "\"visitId\":\"\""),
-                         ("\"grade\":1", "\"grade\":9"), ("\"schemaVersion\":4", "\"schemaVersion\":5") })
+                         ("\"grade\":1", "\"grade\":9"), ("\"schemaVersion\":" + FirstServiceSaveData.CurrentSchemaVersion, "\"schemaVersion\":" + (FirstServiceSaveData.CurrentSchemaVersion + 1)) })
             {
                 string broken = valid.Replace(from, to);
                 Assert.That(broken, Is.Not.EqualTo(valid), from);
@@ -316,7 +316,7 @@ namespace DOB.Tests
         public void TheGuestLedgerAndDaySeedSurviveReopening()
         {
             var saved = store.SavePreparation(FirstServiceSaveSlot.Auto, 3, 59, 1, null, null, null, 0, Ledger(), 12345);
-            Assert.That(saved.SchemaVersion, Is.EqualTo(4));
+            Assert.That(saved.SchemaVersion, Is.EqualTo(FirstServiceSaveData.CurrentSchemaVersion));
             Assert.That(new FirstServiceSaveStore(directory).TryLoad(FirstServiceSaveSlot.Auto, out var loaded), Is.True);
             Assert.That(loaded.DaySeed, Is.EqualTo(12345));
             CollectionAssert.AreEqual(
@@ -360,6 +360,43 @@ namespace DOB.Tests
 
             var duplicate = new[] { Ledger()[0], Ledger()[0] };
             Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 3, 59, 1, null, null, null, 0, duplicate));
+        }
+
+        [Test]
+        public void TheDemoCompleteSlotIsReadOnlyOnPurpose()
+        {
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.DemoComplete, out _), Is.False, "엔딩을 본 적이 없으면 슬롯 없음");
+            store.SavePreparation(FirstServiceSaveSlot.Auto, 4, 50, 2);
+            store.SavePreparation(FirstServiceSaveSlot.DemoComplete, 5, 70, 1);
+            Assert.That(store.TryLoadLatest(out var latest), Is.True);
+            Assert.That(latest.Slot, Is.EqualTo(FirstServiceSaveSlot.Auto), "이어하기는 데모 완료 슬롯을 고르지 않는다");
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.DemoComplete, out var demo), Is.True);
+            Assert.That((demo.Day, demo.Slot), Is.EqualTo((5, FirstServiceSaveSlot.DemoComplete)));
+        }
+
+        [Test]
+        public void AServiceProgressSurvivesTheFileAndAMismatchedOneFallsBackToTheBackup()
+        {
+            var roster = new RosterProgress(3f, false, new[] { new VisitProgress("v1", "g1", ServiceVisitStage.Seated, ServiceVisitEnd.None, 2f, null, null, 1) });
+            var progress = new DayProgress(DayPhase.Service, null, 60, 1, roster, new[] { new OrderProgress("v1", FirstGuestOrderState.Cooking, 4f, 1) });
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, 2, progress: progress);
+            // 두 번째 쓰기에서 첫 파일이 백업이 된다.
+            store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, 2, progress: progress);
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var loaded), Is.True);
+            Assert.That(loaded.SchemaVersion, Is.EqualTo(5));
+            Assert.That(loaded.Progress.Phase, Is.EqualTo(DayPhase.Service));
+            Assert.That(loaded.Progress.Orders.Single().RemainingSeconds, Is.EqualTo(4f));
+            Assert.That(loaded.Progress.Roster.Visits.Single().Seat, Is.EqualTo(1));
+
+            string path = Path.Combine(directory, "manual.json");
+            string text = File.ReadAllText(path);
+            Assert.That(text, Does.Contain("\"usedGarlic\":1,\"visitId\":\"v1\""));
+            File.WriteAllText(path, text.Replace("\"usedGarlic\":1,\"visitId\":\"v1\"", "\"usedGarlic\":1,\"visitId\":\"v9\""));
+            Assert.That(store.TryLoad(FirstServiceSaveSlot.Manual, out var fallback), Is.True, "명단에 없는 주문이면 백업을 읽는다");
+            Assert.That(fallback.Progress.Orders.Single().VisitId, Is.EqualTo("v1"));
+
+            var orphan = new DayProgress(DayPhase.Service, null, 60, 1, roster, new[] { new OrderProgress("v9", FirstGuestOrderState.Waiting, 6f, 0) });
+            Assert.Throws<ArgumentException>(() => store.SavePreparation(FirstServiceSaveSlot.Manual, 1, 50, 2, progress: orphan));
         }
     }
 }

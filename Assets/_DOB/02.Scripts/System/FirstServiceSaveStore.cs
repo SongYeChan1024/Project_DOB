@@ -30,6 +30,7 @@ namespace DOB.Systems
             return TryRead(path, slot, out data) || TryRead(path + ".bak", slot, out data);
         }
 
+        /// <summary>자동·수동 슬롯 중 최신. 데모 완료 슬롯은 고르지 않는다(타이틀이 따로 보인다).</summary>
         public bool TryLoadLatest(out FirstServiceSaveData data)
         {
             bool hasAuto = TryLoad(FirstServiceSaveSlot.Auto, out var automatic);
@@ -39,15 +40,15 @@ namespace DOB.Systems
         }
 
         /// <summary>일차 시작 스냅샷을 쓴다. 재료·미처리 귀환 보고·전날 방문 호감을 생략하면 비어 있는 것으로,
-        /// 입소문 추가 인원을 생략하면 0으로 저장한다.</summary>
+        /// 입소문 추가 인원을 생략하면 0으로 저장한다. progress를 주면 수동 저장을 누른 시점의 진행을 함께 쓴다.</summary>
         public FirstServiceSaveData SavePreparation(FirstServiceSaveSlot slot, int day, int gold, int garlicStock,
             IEnumerable<MaterialCount> materials = null, IEnumerable<VisitResult> pendingReports = null,
             IEnumerable<VisitAffinity> visitAffinities = null, int wordOfMouthBonus = 0,
-            IEnumerable<GuestRecord> guests = null, int? daySeed = null)
+            IEnumerable<GuestRecord> guests = null, int? daySeed = null, DayProgress progress = null)
         {
             lock (WriteGate)
             using (LockDirectory())
-                return Write(slot, day, gold, garlicStock, materials, pendingReports, visitAffinities, wordOfMouthBonus, guests, daySeed);
+                return Write(slot, day, gold, garlicStock, materials, pendingReports, visitAffinities, wordOfMouthBonus, guests, daySeed, progress);
         }
 
         /// <summary>수입 대신 지급이 끝난 절대 잔액·재고와 그날의 방문 결과·방문 호감, 다음 영업의 입소문 추가 인원을 받아
@@ -64,7 +65,7 @@ namespace DOB.Systems
                 if (TryLoad(FirstServiceSaveSlot.Auto, out var previous) && previous.Day > completedDay)
                     return previous;
                 return Write(FirstServiceSaveSlot.Auto, completedDay + 1, goldAfterPayment, garlicAfterService,
-                    materialsAfterReports, visitResults, visitAffinities, wordOfMouthBonus, guests, daySeed);
+                    materialsAfterReports, visitResults, visitAffinities, wordOfMouthBonus, guests, daySeed, null);
             }
         }
 
@@ -102,13 +103,14 @@ namespace DOB.Systems
 
         private FirstServiceSaveData Write(FirstServiceSaveSlot slot, int day, int gold, int garlicStock,
             IEnumerable<MaterialCount> materials, IEnumerable<VisitResult> pendingReports,
-            IEnumerable<VisitAffinity> visitAffinities, int wordOfMouthBonus, IEnumerable<GuestRecord> guests, int? daySeed)
+            IEnumerable<VisitAffinity> visitAffinities, int wordOfMouthBonus, IEnumerable<GuestRecord> guests, int? daySeed,
+            DayProgress progress)
         {
             DateTime timestamp = DateTime.UtcNow;
             if (TryLoadLatest(out var latest) && timestamp <= latest.SavedAtUtc && latest.SavedAtUtc < DateTime.MaxValue)
                 timestamp = latest.SavedAtUtc.AddTicks(1);
             var data = new FirstServiceSaveData(slot, day, gold, garlicStock, timestamp, materials, pendingReports,
-                visitAffinities, wordOfMouthBonus, guests, daySeed);
+                visitAffinities, wordOfMouthBonus, guests, daySeed, progress);
             string path = SlotPath(slot);
             string backup = path + ".bak";
             string temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";

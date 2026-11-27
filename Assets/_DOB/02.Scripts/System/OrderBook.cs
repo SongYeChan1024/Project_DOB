@@ -87,6 +87,32 @@ namespace DOB.Systems
             return carried != null && carried.TryServe(visitId, out payment);
         }
 
+        /// <summary>저장 복원용. 주문이 하나도 없을 때만 저장된 주문들과 마늘 재고로 채운다. 이미 주문이 있거나 같은 방문·조리 중 주문이 겹치면 false.</summary>
+        public bool Restore(int garlicStock, IEnumerable<OrderProgress> saved)
+        {
+            if (orders.Count > 0 || garlicStock < 0)
+                return false;
+            var restored = new List<FirstGuestOrder>();
+            var seen = new HashSet<string>();
+            if (saved != null)
+                foreach (var entry in saved)
+                {
+                    if (entry == null || !seen.Add(entry.VisitId))
+                        return false;
+                    // 💡 들고 있던 접시는 저장하지 않는다. 불러오면 픽업대에 다시 놓인다.
+                    var state = entry.State == FirstGuestOrderState.Carrying ? FirstGuestOrderState.Ready : entry.State;
+                    // 조리 칸이 하나라 조리 중인 주문도 하나여야 한다.
+                    if (state == FirstGuestOrderState.Cooking && restored.Exists(o => o.State == FirstGuestOrderState.Cooking))
+                        return false;
+                    var order = new FirstGuestOrder(entry.VisitId, cookSeconds, flourRequired, breadBasePrice);
+                    order.Restore(state, entry.RemainingSeconds, entry.UsedGarlic);
+                    restored.Add(order);
+                }
+            orders.AddRange(restored);
+            GarlicStock = garlicStock;
+            return true;
+        }
+
         /// <summary>떠난 방문의 서빙 전 주문을 취소한다. 주문이 없거나 이미 서빙했으면 false.</summary>
         public bool Cancel(string visitId) => Find(visitId)?.TryCancel() == true;
 

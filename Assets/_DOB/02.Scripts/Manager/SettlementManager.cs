@@ -68,6 +68,12 @@ namespace DOB.Manager
         public ReportConfirmResult ConfirmReport(string visitId) =>
             reports != null ? reports.Confirm(visitId) : ReportConfirmResult.NotFound;
 
+        /// <summary>이미 확정한 귀환 보고의 방문 ID. 수동 저장이 진행으로 남긴다.</summary>
+        public IEnumerable<string> ConfirmedReports => reports != null ? reports.ConfirmedIds : System.Array.Empty<string>();
+
+        /// <summary>수동 저장을 불러올 때 오늘 확정했던 방문 결과를 다시 넣는다. 이미 있는 방문은 건너뛴다.</summary>
+        public void RestoreResults(IEnumerable<VisitResult> saved) => results?.Restore(saved);
+
         /// <summary>남은 귀환 보고를 모두 확정하고 이번에 처리한 건수를 돌려준다.</summary>
         public int ConfirmAllReports() => reports != null ? reports.ConfirmAll() : 0;
     }

@@ -38,8 +38,19 @@ namespace DOB.Tests
             return rules;
         }
 
+        /// <summary>데모 엔딩 기준(서빙 인원)만 바꾼 하루 기준을 쓴다.</summary>
+        public static void UseDemoEnding(int servedGuests)
+        {
+            var settings = ScriptableObject.CreateInstance<DayCycleSettings>();
+            JsonUtility.FromJsonOverwrite("{\"demoEndingServedGuests\":" + servedGuests + "}", settings);
+            GameManager.SettingsOverride = settings;
+        }
+
         public static void Clear()
         {
+            if (GameManager.SettingsOverride)
+                Object.DestroyImmediate(GameManager.SettingsOverride);
+            GameManager.SettingsOverride = null;
             if (GuestManager.SettingsOverride)
                 Object.DestroyImmediate(GuestManager.SettingsOverride);
             GuestManager.SettingsOverride = null;
@@ -181,11 +192,11 @@ namespace DOB.Tests
         [UnityTest]
         public IEnumerator WellServedGuestsBringMoreGuestsNextDayAndTheReloadedSaveAgrees()
         {
-            // 대기 점수가 2점에 머물도록 점수 간격을 길게 두고, 입맛 0점에서도 문턱에 닿도록 방문 최대를 4로 낮춘다.
-            // 탐험 등급은 손님 위험이 무작위라 고정할 수 없으므로, 테스트 기준에서는 실패·대실패도 +1로 두어 어떤 등급이든 방문당 3점 이상이 되게 한다.
+            // 대기 점수가 2점에 머물도록 점수 간격을 길게 두고, 방문 최대를 4로 낮춘다.
+            // 탐험 등급과 입맛(−2~+2)은 손님마다 무작위라 고정할 수 없으므로, 테스트 기준에서는 모든 등급을 +3으로 두어 방문당 3점 이상(75% 문턱)이 되게 한다.
             TestGuestRoster.Use(guests: 3, scoreStep: 600f);
             // 대실패한 손님이 부상으로 쉬면 다음 날 인원이 달라지므로 이 테스트에서는 휴식 일수를 0으로 둔다.
-            var rules = TestGuestRoster.UseAffinityRules("{\"visitMaxPoints\":4,\"failurePoints\":1,\"greatFailurePoints\":1,\"injuryRestDays\":0}");
+            var rules = TestGuestRoster.UseAffinityRules("{\"visitMaxPoints\":4,\"greatSuccessPoints\":3,\"successPoints\":3,\"failurePoints\":3,\"greatFailurePoints\":3,\"injuryRestDays\":0}");
             yield return StartFromTitle();
             var s = FindScene();
             yield return Until(() => s.Guests.Agents.Count == 3 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "세 손님 입장");
@@ -202,7 +213,9 @@ namespace DOB.Tests
             var grades = Object.FindAnyObjectByType<SettlementManager>().TodayResults.Select(r => r.Grade).ToArray();
             Assert.That(grades.Length, Is.EqualTo(3));
             Assert.That(s.Guests.Roster.Visits.Select(v => v.WaitScore), Has.All.EqualTo(2), "전제: 대기 점수 2");
-            int sum = grades.Sum(g => 2 + rules.GradePoints(g));
+            var tastes = s.Guests.Roster.Visits.Select(v => v.TasteScore).ToArray();
+            Assert.That(tastes, Has.All.Not.Null, "서빙한 방문마다 입맛 점수가 기록된다");
+            int sum = grades.Sum(g => 2 + rules.GradePoints(g)) + tastes.Sum(t => t.Value);
             int expected = AffinityJudge.ExtraGuests(rules, sum, 3);
             Assert.That(expected, Is.GreaterThanOrEqualTo(2), "방문 최대 4 × 3명 = 12점, 방문당 3점 이상이면 75% 문턱까지 도달");
 
@@ -320,6 +333,127 @@ namespace DOB.Tests
             yield return CookAndCarry(s);
             Place(s.Player, s.Service.SeatOf(guest.VisitId).position);
             Assert.That(s.Service.TryInteract(), Is.True, "서빙");
+        }
+
+        [UnityTest]
+        public IEnumerator AManualSaveDuringServiceResumesTheSameVisitsSeatAndCooking()
+        {
+            TestGuestRoster.Use(guests: 2);
+            yield return StartFromTitle();
+            var s = FindScene();
+            yield return Until(() => s.Guests.Agents.Count == 2 && s.Guests.Agents.All(a => a.Move == GuestAgent.Movement.Queued), "두 손님 입장");
+            var first = s.Guests.Agents[0];
+            var second = s.Guests.Agents[1];
+            yield return GreetAndSeat(s, first, 0);
+            yield return CookAndServe(s, first);
+            yield return GreetAndSeat(s, second, 2);
+            yield return StartCooking(s);
+
+            // 같은 프레임에서 저장하고 값을 적어 둔다(시계가 흐르기 전).
+            BasementComposition.Current.Game.SaveManual();
+            var cooking = s.Kitchen.Orders.Single(o => o.State == FirstGuestOrderState.Cooking);
+            Assert.That(cooking.VisitId, Is.EqualTo(second.VisitId));
+            float remaining = cooking.RemainingSeconds;
+            int gold = s.Kitchen.Gold, garlic = s.Kitchen.GarlicStock;
+            var visits = s.Guests.Roster.Visits.Select(v => v.VisitId).ToArray();
+
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(1) && FindScene().Kitchen.Orders.Count > 0, "수동 저장의 영업 진행 복원");
+            s = FindScene();
+            CollectionAssert.AreEqual(visits, s.Guests.Roster.Visits.Select(v => v.VisitId).ToArray(), "같은 방문 ID로 이어진다");
+            Assert.That(s.Guests.Roster.Find(visits[0]).End, Is.EqualTo(ServiceVisitEnd.Dispatched));
+            Assert.That(s.Guests.Find(visits[0]) == null || !s.Guests.Find(visits[0]).gameObject.activeSelf, Is.True, "떠난 손님은 다시 보이지 않는다");
+            var seated = s.Guests.Find(visits[1]);
+            Assert.That((seated.Move, seated.SeatIndex), Is.EqualTo((GuestAgent.Movement.Seated, 2)), "앉아 있던 손님은 같은 자리");
+            var order = s.Kitchen.Orders.Single(o => o.VisitId == visits[1]);
+            Assert.That(order.State, Is.EqualTo(FirstGuestOrderState.Cooking));
+            Assert.That(order.RemainingSeconds, Is.LessThanOrEqualTo(remaining).And.GreaterThan(remaining - 1f), "조리 남은 시간 이어짐");
+            Assert.That((s.Kitchen.Gold, s.Kitchen.GarlicStock), Is.EqualTo((gold, garlic)));
+
+            // 이어서 서빙하고 마감하면 앞서 파견한 방문은 한 번만 정산된다.
+            Place(s.Player, s.Layout.Kitchen.position);
+            yield return Until(() => s.Service.MealGuidance().Contains("접시 들기"), "조리 완료");
+            Assert.That(s.Service.TryInteract(), Is.True, "접시 들기");
+            Place(s.Player, s.Service.SeatOf(visits[1]).position);
+            Assert.That(s.Service.TryInteract(), Is.True, "서빙");
+            yield return Until(() => s.Hud.Settle.IsInteractable(), "마감");
+            CollectionAssert.AreEquivalent(visits, Object.FindAnyObjectByType<SettlementManager>().TodayResults.Select(r => r.VisitId));
+            Assert.That(s.Guests.Roster.ServedGuestCount, Is.EqualTo(2));
+        }
+
+        [UnityTest]
+        public IEnumerator AManualSaveDuringTheMorningReportKeepsWhatWasReceivedAndPaysEachReportOnce()
+        {
+            // FeatureManagerMap 「저장 · F13」 보고 A·B 사례 2·3.
+            var a = new VisitResult("guest-a", "visit-a", "하루", 1, "구운 빵", true, new[] { 0, 0, 0, 0, 0, 0 }, ExpeditionGrade.Success, new[] { "들풀", "들풀" });
+            var b = new VisitResult("guest-b", "visit-b", "바람", 1, "구운 빵", true, new[] { 0, 0, 0, 0, 0, 0 }, ExpeditionGrade.Success, new[] { "숲버섯" });
+            new FirstServiceSaveStore(directory).SavePreparation(FirstServiceSaveSlot.Auto, 2, 59, 1, null, new[] { a, b });
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(2), "2일차 아침");
+            var settlement = Object.FindAnyObjectByType<SettlementManager>();
+            Assert.That(settlement.ConfirmReport("visit-a"), Is.EqualTo(ReportConfirmResult.Confirmed));
+            BasementComposition.Current.Game.SaveManual();
+            Assert.That(settlement.ConfirmReport("visit-b"), Is.EqualTo(ReportConfirmResult.Confirmed), "저장 뒤 B까지 받는다");
+
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(2), "수동 저장으로 2일차 아침");
+            settlement = Object.FindAnyObjectByType<SettlementManager>();
+            var economy = Object.FindAnyObjectByType<EconomyManager>();
+            Assert.That(BasementComposition.Current.Game.Phase, Is.EqualTo(DayPhase.MorningReport));
+            Assert.That((settlement.IsReportConfirmed("visit-a"), settlement.IsReportConfirmed("visit-b")), Is.EqualTo((true, false)));
+            Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 0)), "A만 받은 재고");
+            yield return Click("ConfirmMorningReport");
+            Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 1)), "B는 한 번만 더해진다");
+
+            // 준비 단계에서 저장하고 불러오면 준비 단계에서 이어지고 다시 받지 않는다.
+            BasementComposition.Current.Game.SaveManual();
+            yield return LoadTitle();
+            yield return Click("ContinueButton");
+            yield return Until(() => ReadyDay(2), "수동 저장으로 2일차 준비");
+            economy = Object.FindAnyObjectByType<EconomyManager>();
+            Assert.That(BasementComposition.Current.Game.Phase, Is.EqualTo(DayPhase.Preparation));
+            Assert.That((economy.Materials.Count("들풀"), economy.Materials.Count("숲버섯")), Is.EqualTo((2, 1)));
+        }
+
+        [UnityTest]
+        public IEnumerator TheDemoEndingKeepsTheDayStartAndReplayingItOverwritesNoSlot()
+        {
+            TestGuestRoster.Use(guests: 1);
+            TestGuestRoster.UseDemoEnding(1);
+            yield return StartFromTitle();
+            yield return ServeTheOnlyGuestAndSettle();
+            yield return Until(() => BasementComposition.Current.Game.Phase == DayPhase.DemoEnding, "데모 엔딩");
+            var saves = new FirstServiceSaveStore(directory);
+            Assert.That(saves.TryLoad(FirstServiceSaveSlot.DemoComplete, out var demo), Is.True, "엔딩을 본 일차의 시작 보관");
+            Assert.That((demo.Day, demo.Gold, demo.Progress), Is.EqualTo((1, 50, (DayProgress)null)));
+            Assert.That(saves.TryLoad(FirstServiceSaveSlot.Auto, out var auto) && auto.Day == 2, Is.True, "정산은 평소처럼 다음 일차를 자동 저장");
+            string autosave = System.IO.Path.Combine(directory, "autosave.json");
+            byte[] autoBytes = System.IO.File.ReadAllBytes(autosave);
+
+            // 데모 완료 슬롯으로 그 하루를 다시 플레이하면 마감 뒤 다음 일차 없이 끝나고 어떤 슬롯도 바뀌지 않는다.
+            yield return LoadTitle();
+            Assert.That(BasementComposition.EnterDay(demo), Is.True);
+            yield return Until(() => ReadyDay(1), "데모 완료 슬롯으로 1일차");
+            Assert.That(FindScene().Kitchen.Gold, Is.EqualTo(50));
+            Assert.Throws<System.IO.IOException>(() => BasementComposition.Current.Game.SaveManual());
+            yield return ServeTheOnlyGuestAndSettle();
+            yield return Until(() => BasementComposition.Current.Game.Phase == DayPhase.DemoEnding, "다시 플레이한 하루도 엔딩");
+            CollectionAssert.AreEqual(autoBytes, System.IO.File.ReadAllBytes(autosave), "자동 슬롯 그대로");
+            Assert.That(System.IO.File.Exists(System.IO.Path.Combine(directory, "manual.json")), Is.False);
+            Assert.That(BasementComposition.Current.Game.Day, Is.EqualTo(1));
+        }
+
+        private IEnumerator ServeTheOnlyGuestAndSettle()
+        {
+            var s = FindScene();
+            yield return Until(() => s.Guests.Agents.Count == 1 && s.Guests.Agents[0].Move == GuestAgent.Movement.Queued, "손님 입장");
+            yield return GreetAndSeat(s, s.Guests.Agents[0], 0);
+            yield return CookAndServe(s, s.Guests.Agents[0]);
+            yield return Until(() => s.Hud.Settle.IsInteractable(), "마감");
+            yield return Click("SettleDay");
         }
 
         // 부수 효과가 있는 요청은 성공할 때까지 프레임마다 한 번씩만 보낸다.

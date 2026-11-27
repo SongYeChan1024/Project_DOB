@@ -454,6 +454,19 @@ namespace DOB.Manager
             return true;
         }
 
+        /// <summary>수동 저장을 불러올 때 앉아 있던 방문을 그 좌석에 바로 앉힌다. 좌석이 없거나 차 있으면 false. 착석 알림은 보내지 않는다.</summary>
+        public bool RestoreSeated(string visitId, int seatIndex)
+        {
+            var agent = guests.Find(visitId);
+            var seat = layout ? layout.GetSeat(seatIndex) : null;
+            if (!agent || !seat || !layout.TryAssign(seatIndex, visitId))
+                return false;
+            agent.SeatIndex = seatIndex;
+            agent.Move = GuestAgent.Movement.Seated;
+            agent.transform.SetPositionAndRotation(seat.position, seat.rotation);
+            return true;
+        }
+
         /// <summary>현재 플레이어가 지정된 주방·좌석의 월드 상호작용 반경에 있는지 검사한다.</summary>
         public bool IsNearPlayer(Transform target) => layout && target && Near(player, target, interactionRange);
 

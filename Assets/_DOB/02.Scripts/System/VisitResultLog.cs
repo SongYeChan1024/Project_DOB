@@ -62,6 +62,16 @@ namespace DOB.Systems
             return true;
         }
 
+        /// <summary>저장 복원용. 저장된 오늘의 결과를 그대로 다시 넣는다. 이미 있는 방문은 건너뛴다.</summary>
+        public void Restore(IEnumerable<VisitResult> saved)
+        {
+            if (saved == null)
+                return;
+            foreach (var result in saved)
+                if (result != null && !string.IsNullOrEmpty(result.VisitId) && visitIds.Add(result.VisitId))
+                    results.Add(result);
+        }
+
         /// <summary>정산 뒤 명부로 전리품·선물을 정한 사본 목록. 기록은 바꾸지 않는다.</summary>
         /// <param name="findGuest">손님 ID로 정산 뒤 명부 기록을 찾는다. 없으면 null.</param>
         /// <param name="minAffinity">전리품 자격이 생기는 누적 호감(점, 이상).</param>

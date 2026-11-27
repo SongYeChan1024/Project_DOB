@@ -2,9 +2,11 @@
 // 읽을 때 슬롯·스키마·단계·UTC 시각과 재료 수·보고 내용이 올바른지 검증한다.
 // 스키마 3에서 전날 방문 호감 기록과 이 일차의 입소문 추가 인원을 더했다.
 // 스키마 4에서 손님 명부(신원·누적 호감·영구 거절·복귀 일차)와 이 일차의 난수 시드를 더했다 (💡 홍준우와 저장 계약 합의 전).
-// 스키마 1(재료·보고 없음)·2(호감·입소문 없음)·3(명부·시드 없음)도 읽는다. 없는 항목은 빈 목록·0·시드 없음으로 본다.
-// 새로 쓰는 스냅샷은 항상 스키마 4이다.
-// 보고 도중에는 저장하지 않으므로 슬롯의 보고는 항상 미처리다 (2026-11-24 송예찬 확인: 정산 뒤 다음 일차 시작에서 자동 저장을 갱신).
+// 스키마 5에서 수동 저장을 누른 시점의 진행(DayProgress)을 선택 항목으로 더했다 (F13, 2026-11-25. 💡 홍준우와 저장 계약 합의 전).
+// 진행이 없으면 일차 시작 스냅샷이고, 있으면 시작 스냅샷으로 하루를 연 뒤 그 진행으로 복원한다. 손님 명부 줄에는 입맛 태그가 더해졌다.
+// 스키마 1(재료·보고 없음)·2(호감·입소문 없음)·3(명부·시드 없음)·4(진행 없음)도 읽는다. 없는 항목은 빈 목록·0·시드 없음·진행 없음으로 본다.
+// 새로 쓰는 스냅샷은 항상 스키마 5이다. 시작 스냅샷의 보고는 항상 미처리이고, 확정한 보고는 진행의 확정 ID로 남긴다.
+// 데모 완료 슬롯은 엔딩을 본 일차의 시작 스냅샷을 보관한다(진행 없음).
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -13,12 +15,12 @@ using DOB.Define;
 
 namespace DOB.Systems
 {
-    public enum FirstServiceSaveSlot { Auto, Manual }
+    public enum FirstServiceSaveSlot { Auto, Manual, DemoComplete }
 
     [DataContract]
     public sealed class FirstServiceSaveData
     {
-        public const int CurrentSchemaVersion = 4;
+        public const int CurrentSchemaVersion = 5;
         private const int OldestReadableSchemaVersion = 1;
         public const string PreparationStage = "Preparation";
 
@@ -38,6 +40,8 @@ namespace DOB.Systems
         // 스키마 1~3에는 없는 항목이라 필수로 두지 않는다.
         [DataMember(Name = "guests")] private GuestRecord[] guests;
         [DataMember(Name = "daySeed")] private int? daySeed;
+        // 스키마 1~4에는 없고, 스키마 5에서도 일차 시작 스냅샷이면 없다.
+        [DataMember(Name = "progress")] private DayProgress progress;
 
         /// <summary>일차 시작 때의 던전 재료 재고.</summary>
         public IReadOnlyList<MaterialCount> Materials => materials ?? Array.Empty<MaterialCount>();
@@ -51,14 +55,17 @@ namespace DOB.Systems
         public IReadOnlyList<GuestRecord> Guests => guests ?? Array.Empty<GuestRecord>();
         /// <summary>이 일차의 난수 시드. 없으면 null이고 영업을 열 때 새로 정한다.</summary>
         public int? DaySeed => daySeed;
+        /// <summary>수동 저장을 누른 시점의 진행. 일차 시작 스냅샷이면 null.</summary>
+        public DayProgress Progress => progress;
 
         public DateTime SavedAtUtc => DateTime.ParseExact(savedAtUtc, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-        public FirstServiceSaveSlot Slot => slot == "autosave" ? FirstServiceSaveSlot.Auto : FirstServiceSaveSlot.Manual;
+        public FirstServiceSaveSlot Slot => slot == "autosave" ? FirstServiceSaveSlot.Auto
+            : slot == "democomplete" ? FirstServiceSaveSlot.DemoComplete : FirstServiceSaveSlot.Manual;
 
         internal FirstServiceSaveData(FirstServiceSaveSlot destination, int day, int gold, int garlicStock, DateTime timestamp,
             IEnumerable<MaterialCount> materials = null, IEnumerable<VisitResult> pendingReports = null,
             IEnumerable<VisitAffinity> visitAffinities = null, int wordOfMouthBonus = 0,
-            IEnumerable<GuestRecord> guests = null, int? daySeed = null)
+            IEnumerable<GuestRecord> guests = null, int? daySeed = null, DayProgress progress = null)
         {
             if (day < 1) throw new ArgumentOutOfRangeException(nameof(day));
             if (gold < 0) throw new ArgumentOutOfRangeException(nameof(gold));
@@ -76,6 +83,7 @@ namespace DOB.Systems
             this.wordOfMouthBonus = wordOfMouthBonus;
             this.guests = guests == null ? null : new List<GuestRecord>(guests).ToArray();
             this.daySeed = daySeed;
+            this.progress = progress;
             if (!ContentIsValid())
                 throw new ArgumentException("재료 수량, 귀환 보고, 방문 호감, 입소문 인원 또는 손님 명부가 올바르지 않습니다.");
         }
@@ -92,7 +100,7 @@ namespace DOB.Systems
         // 손상된 파일의 재료·보고·호감이 재고, 보고 목록, 다음 영업 인원에 들어가지 않도록 읽을 때와 쓸 때 같은 기준으로 검사한다.
         private bool ContentIsValid()
         {
-            if (wordOfMouthBonus < 0)
+            if (wordOfMouthBonus < 0 || progress != null && !progress.Validate())
                 return false;
             var guestIds = new HashSet<string>();
             foreach (var guest in Guests)
@@ -136,6 +144,7 @@ namespace DOB.Systems
             {
                 case FirstServiceSaveSlot.Auto: return "autosave";
                 case FirstServiceSaveSlot.Manual: return "manual";
+                case FirstServiceSaveSlot.DemoComplete: return "democomplete";
                 default: throw new ArgumentOutOfRangeException(nameof(value));
             }
         }
