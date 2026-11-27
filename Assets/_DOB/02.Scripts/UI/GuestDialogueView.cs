@@ -14,7 +14,9 @@
 // [대사]        [[ ]] 키워드는 숨겨 둔다 (밑줄 없음, 마우스를 올려도 티 안 남)
 //               (시안 20 ①) 새 손님 · 다음 쪽 대사는 한 글자씩 나온다. 클릭하면 바로 다 보인다 (키워드를 누르면 다 보이면서 찾음)
 //               맞는 키워드를 누르면 → 그 말에 밑줄 + 수첩에 기록. 틀린 곳은 무반응
-// [초상화]      숨은 단서 자리를 누르면 → 동그라미 표시 + 수첩에 기록. 틀린 곳은 무반응
+// [초상화]      데이터에 기본 초상이 있으면 그 그림을, 없으면 프리팹의 「그림 대기」 상자를 보여 준다 (2026-11-27 추가)
+//               컨디션 레이어는 기본 초상과 같은 크기로 그 위에 겹친다. 숨은 단서 표시는 레이어보다 위에 남는다
+//               숨은 단서 자리를 누르면 → 동그라미 표시 + 수첩에 기록. 틀린 곳은 무반응
 // [수첩에 기록] · 위험 쪽: 빈 줄 6개 중 위에서부터 위험 이름이 적힘
 //                 같은 위험을 또 찾으면 그 줄의 작은 칸(최대 5칸)이 하나씩 참
 //               · 단서 사전: '대사 단서' / '초상화 단서' 줄에 [단서](위험) 태그
@@ -84,6 +86,10 @@ namespace DOB.UI
         [SerializeField] private TMP_Text noticeText;
         /// <summary>초상화의 숨은 단서 자리 (데이터보다 많으면 남는 것은 숨김).</summary>
         [SerializeField] private ClueTooltip[] clueMarkers;
+        /// <summary>손님 초상 그림 칸. 그림이 없으면 프리팹의 처음 모양(회색 상자)으로 둔다.</summary>
+        [SerializeField] private Image portraitImage;
+        /// <summary>그림이 없을 때 보이는 「그림 대기」 안내.</summary>
+        [SerializeField] private GameObject portraitPlaceholder;
 
         [Header("위험 종류 (이름 · 아이콘 · 색)"), SerializeField] private RiskKind[] riskKinds;
 
@@ -143,6 +149,11 @@ namespace DOB.UI
         private bool isNotebookOpen;
         private Coroutine notebookSlide;
         private Vector2 notebookClosedPos; // 에디터에서 놓아 둔 수첩 자리 = 닫힌 자리
+        private Sprite emptyPortraitSprite; // 그림이 없을 때 되돌릴 프리팹의 처음 초상 칸 모양
+        private Color emptyPortraitColor;
+        private bool emptyPortraitPreserve;
+        private Image.Type emptyPortraitType;
+        private readonly List<Image> portraitLayers = new List<Image>(); // 기본 초상 위에 겹친 컨디션 레이어 (재사용)
 
         private GuestDialogueData current;   // 지금 응대 중인 손님
         private NotebookRecord record;       // 수첩 기록 (손님이 바뀌어도 이어짐)
@@ -197,6 +208,13 @@ namespace DOB.UI
 
             dialogueText.overflowMode = TextOverflowModes.Page;
             notebookClosedPos = notebookPanel.anchoredPosition;
+            if (portraitImage != null)
+            {
+                emptyPortraitSprite = portraitImage.sprite;
+                emptyPortraitColor = portraitImage.color;
+                emptyPortraitPreserve = portraitImage.preserveAspect;
+                emptyPortraitType = portraitImage.type;
+            }
             if (tagTemplate != null) tagTemplate.gameObject.SetActive(false);
             if (rowTemplate != null) rowTemplate.gameObject.SetActive(false);
             // 응대 화면 전체를 한 번에 투명하게 하려고 CanvasGroup을 쓴다 (없으면 붙인다)
@@ -282,6 +300,7 @@ namespace DOB.UI
             nameText.text = data.guestName;
             regularTag.SetActive(data.isRegular);
             destinationText.text = data.destinationLabel;
+            ShowPortrait(data.portrait, data.portraitLayers);
             RefreshDialogueText(keepPage: false);
             ShowNotice(null);
 
@@ -313,6 +332,52 @@ namespace DOB.UI
         // =================================================================
         // 숨은 단서 찾기
         // =================================================================
+
+        // 화면을 다시 열 때 이전 손님 그림이 남지 않도록 매번 그림 또는 처음 모양으로 덮어쓴다.
+        private void ShowPortrait(Sprite portrait, Sprite[] layers)
+        {
+            if (portraitImage == null)
+                return;
+            bool hasPortrait = portrait != null;
+            ShowPortraitLayers(hasPortrait ? layers : null);
+            portraitImage.sprite = hasPortrait ? portrait : emptyPortraitSprite;
+            portraitImage.color = hasPortrait ? Color.white : emptyPortraitColor;
+            // 그림 비율이 칸과 달라도 얼굴이 늘어나지 않게 한다. 비율 유지는 Simple 방식에서만 적용된다
+            // (빈 상자는 Sliced라 그대로 두면 그림이 칸에 맞춰 늘어난다).
+            portraitImage.type = hasPortrait ? Image.Type.Simple : emptyPortraitType;
+            portraitImage.preserveAspect = hasPortrait || emptyPortraitPreserve;
+            if (portraitPlaceholder != null)
+                portraitPlaceholder.SetActive(!hasPortrait);
+        }
+
+        // 레이어는 기본 초상과 같은 크기 · 같은 비율 유지로 두어야 같은 자리에 정확히 겹친다.
+        // 초상 칸 자식의 맨 앞에 두어 기본 초상 위, 숨은 단서 표시 아래에 그려지게 한다.
+        private void ShowPortraitLayers(Sprite[] layers)
+        {
+            int count = layers?.Length ?? 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (i == portraitLayers.Count)
+                {
+                    var go = new GameObject("PortraitLayer", typeof(RectTransform), typeof(Image));
+                    var rect = (RectTransform)go.transform;
+                    rect.SetParent(portraitImage.transform, false);
+                    rect.anchorMin = Vector2.zero;
+                    rect.anchorMax = Vector2.one;
+                    rect.offsetMin = rect.offsetMax = Vector2.zero;
+                    var image = go.GetComponent<Image>();
+                    image.preserveAspect = true;
+                    image.raycastTarget = false; // 숨은 단서 클릭을 막지 않는다
+                    portraitLayers.Add(image);
+                }
+                var layer = portraitLayers[i];
+                layer.transform.SetSiblingIndex(i);
+                layer.sprite = layers[i];
+                layer.gameObject.SetActive(layers[i] != null);
+            }
+            for (int i = count; i < portraitLayers.Count; i++)
+                portraitLayers[i].gameObject.SetActive(false);
+        }
 
         private void BindMarker(int index) => clueMarkers[index].Clicked += () => OnPortraitClueClicked(index);
 

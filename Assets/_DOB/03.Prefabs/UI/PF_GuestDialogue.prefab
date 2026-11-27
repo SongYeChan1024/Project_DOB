@@ -913,6 +913,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &651357320916547431
 GameObject:
@@ -1530,6 +1532,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &957431160464437534
 GameObject:
@@ -1667,6 +1671,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &978940160914998716
 GameObject:
@@ -3108,6 +3114,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &1866273660318017469
 GameObject:
@@ -4884,6 +4892,8 @@ MonoBehaviour:
   - {fileID: 8352246547124390970}
   - {fileID: 8507852246824416363}
   - {fileID: 5443194238078022533}
+  portraitImage: {fileID: 8661999264428785358}
+  portraitPlaceholder: {fileID: 4096943554025262749}
   riskKinds:
   - name: "\uB3C5"
     icon: {fileID: 21300000, guid: ed1cf8379bd27294698f6498d5c8ce0b, type: 3}
@@ -4931,6 +4941,7 @@ MonoBehaviour:
   tagFlySeconds: 0.35
   tagFlyArc: 0.3
   tagLandSeconds: 0.25
+  typeCharsPerSecond: 30
   followButton: {fileID: 1034892229820290796}
   closeButton: {fileID: 5500485620928266647}
   sendHomeButton: {fileID: 897913021571332619}
@@ -5073,6 +5084,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &2734370898815798091
 GameObject:
@@ -6376,6 +6389,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &3544226501663417801
 GameObject:
@@ -8236,6 +8251,8 @@ MonoBehaviour:
   titleText: {fileID: 2019712870688841833}
   bodyText: {fileID: 4691222721846854651}
   gap: 8
+  riseSeconds: 0.12
+  riseDistance: 6
 --- !u!1 &4782507569825272506
 GameObject:
   m_ObjectHideFlags: 0
@@ -9672,6 +9689,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &5267772335302835158
 GameObject:
@@ -10185,6 +10204,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &5428672943930566816
 GameObject:
@@ -16622,6 +16643,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: DOB.UI::DOB.UI.ButtonFeel
   hoverScale: 1.06
   pressScale: 0.95
+  hoverShift: {x: 0, y: 0}
+  pressShift: {x: 0, y: 0}
   speed: 24
 --- !u!1 &8720812625420290230
 GameObject:

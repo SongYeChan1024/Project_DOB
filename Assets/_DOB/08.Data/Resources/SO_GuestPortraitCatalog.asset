@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 595fd529d90a07c4d86410c14aaec160, type: 3}
+  m_Name: SO_GuestPortraitCatalog
+  m_EditorClassIdentifier: DOB.Define::DOB.Define.GuestPortraitCatalog
+  entries:
+  - guestName: "\uD558\uB8E8"
+    basePortrait: {fileID: 21300000, guid: b2e0acd3683433d408ca9194646f17be, type: 3}
+    conditions:
+    - condition: "\uB3C5"
+      sprite: {fileID: 21300000, guid: e0a0cc6c24886e145a498c421b113dc7, type: 3}
+    - condition: "\uC5F4"
+      sprite: {fileID: 21300000, guid: 775b5efdad3ca74459c9d31033a04394, type: 3}
+    - condition: "\uB0C9\uAE30"
+      sprite: {fileID: 21300000, guid: ad9e7786f46c94d4cb9677d9b59ea7c6, type: 3}
+    - condition: "\uC5B4\uB460"
+      sprite: {fileID: 21300000, guid: fd86cc204c6912b4493e3a475ef3199e, type: 3}
+    - condition: "\uD568\uC815"
+      sprite: {fileID: 21300000, guid: fce6defd4bebbdd4c8fc1628194a02fd, type: 3}
+    - condition: "\uC9C0\uCE68"
+      sprite: {fileID: 21300000, guid: d2868039bb867644ca74562b1436ab1f, type: 3}
+  - guestName: "\uBCF4\uB9AC"
+    basePortrait: {fileID: 21300000, guid: a93abe9278c9b814590dc3c584d10353, type: 3}
+    conditions:
+    - condition: "\uB3C5"
+      sprite: {fileID: 21300000, guid: 2b521c783d3356741b9429778735f2f0, type: 3}
+    - condition: "\uC5F4"
+      sprite: {fileID: 21300000, guid: d094d5147e5d46b49a6c96eb537ede17, type: 3}
+    - condition: "\uB0C9\uAE30"
+      sprite: {fileID: 21300000, guid: 55afb0b1856cbed4883796e0360ee815, type: 3}
+    - condition: "\uC5B4\uB460"
+      sprite: {fileID: 21300000, guid: 58f79916ad4fb0143972492745e2a749, type: 3}
+    - condition: "\uD568\uC815"
+      sprite: {fileID: 21300000, guid: 7a53cba59f0f1794db2c952e2d15b482, type: 3}
+    - condition: "\uC9C0\uCE68"
+      sprite: {fileID: 21300000, guid: 8c186fc2e6e5cf5449723a03708365c5, type: 3}
+  - guestName: "\uC194"
+    basePortrait: {fileID: 21300000, guid: 722f4eb569f620b4191eaa774741e8e1, type: 3}
+    conditions:
+    - condition: "\uB3C5"
+      sprite: {fileID: 21300000, guid: 93821baaac4a2b34c9dd57559c6361db, type: 3}
+    - condition: "\uC5F4"
+      sprite: {fileID: 21300000, guid: 43c946c796f697e4b87579206d52a0bd, type: 3}
+    - condition: "\uB0C9\uAE30"
+      sprite: {fileID: 21300000, guid: dbbcea150c4215f4d931b73f37b94082, type: 3}
+    - condition: "\uC5B4\uB460"
+      sprite: {fileID: 21300000, guid: 0f10c52c823be894b97621ea5477c749, type: 3}
+    - condition: "\uD568\uC815"
+      sprite: {fileID: 21300000, guid: 9bb89262fd4fc8e46b6caf6bbbbfe6f7, type: 3}
+    - condition: "\uC9C0\uCE68"
+      sprite: {fileID: 21300000, guid: 1b540feb6a20ce744936e273d83ed285, type: 3}
