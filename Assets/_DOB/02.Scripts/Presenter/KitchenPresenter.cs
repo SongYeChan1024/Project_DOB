@@ -9,10 +9,11 @@
 //          주문 · 화구 · 조리 · 접시 → KitchenManager (OrderBook · CookingStation · PlateRegistry · TasteScore)
 //          재료 · 양념 재고 → EconomyManager (Inventory) / 손님 위험 → GuestManager · RelationshipManager
 //          레시피 · 재료 표는 PrepScreenPresenter의 더미 표를 같이 쓴다 (계약 후 08.Data로).
-//          🔴 미정: 레시피마다 조리 도구(왼쪽 · 오른쪽 도구)가 다른지. 지금은 모든 요리를 냄비 하나로 만든다.
-//          실제 게임 연결 (홍준우 2026-11-25): 주방 쪽(FirstGuestKitchen)이 UIManager.ConnectKitchenOrders로 IKitchenOrders를 붙이면
-//            주문 · 조리 상태 · 마늘 재고 · 효과 · 가격을 그쪽에서 읽고, 조리 시작 · 접시 들기를 그쪽에 요청한다 (판정은 다시 하지 않음).
-//            지금 실제 레시피는 구운 빵 하나라 재료 상자에는 밀가루, 양념 상자에는 마늘만 보인다.
+//          조리 도구는 냄비 하나로 모든 요리를 만든다 (홍준우 2026-11-27 결정). 주방 쪽에는 도구를 비워(null) 보내 재료만으로 레시피를 찾게 한다.
+//          실제 게임 연결: 주방 쪽(FirstGuestKitchen)이 UIManager.ConnectKitchenOrders로 IKitchenOrders를 붙이면
+//            주문 · 조리 상태 · 재료 · 양념 재고를 그쪽에서 읽고, 결과 카드는 그쪽 Preview(재료 · 양념)를 그대로 보여 주며,
+//            조리 시작(재료 · 양념) · 접시 들기를 그쪽에 요청한다 (판정은 다시 하지 않음, #63 계약).
+//            재료는 한글 이름(밀가루 …), 양념은 시장 id(garlic …)로 주고받고, 화면 안에서는 그림 이름(Flour …)을 쓴다.
 //            연결이 없으면(단독 테스트 씬) 아래 더미로 그린다.
 //
 // 의사코드
@@ -62,6 +63,8 @@ namespace DOB.Manager
             public BurnerState state;
             public float remaining;
             public string orderId;
+            // 실제 게임: 조리를 시작할 때의 결과 카드. 조리 중 · 완성 때 다시 열면 이걸 보여 준다 (그때는 주방 쪽 미리보기가 주문 없음으로 답함)
+            public RecipePreviewData cooked;
         }
 
         private sealed class Order
@@ -210,7 +213,13 @@ namespace DOB.Manager
             var b = Editable;
             if (b == null) return;
             int slot = Array.IndexOf(b.pot, null);
-            if (slot < 0 || !Take(ingredientStock, id, BasicIngredients.ContainsKey(id))) return; // 칸이 꽉 찼거나 재고 없음
+            if (slot < 0) return; // 칸이 꽉 참
+            if (Real != null)
+            {
+                // 실제 게임: 재고는 주방 쪽 것. 냄비에 이미 넣은 만큼을 뺀 남은 개수가 있을 때만 넣는다 (차감은 조리를 확정할 때)
+                if (RealLeft(Real, b, id) <= 0) return;
+            }
+            else if (!Take(ingredientStock, id, BasicIngredients.ContainsKey(id))) return; // 재고 없음
             b.pot[slot] = id;
             Refresh();
         }
@@ -219,7 +228,7 @@ namespace DOB.Manager
         {
             var b = Editable;
             if (b == null || slot < 0 || slot >= b.pot.Length || b.pot[slot] == null) return;
-            Give(ingredientStock, b.pot[slot], BasicIngredients.ContainsKey(b.pot[slot]));
+            if (Real == null) Give(ingredientStock, b.pot[slot], BasicIngredients.ContainsKey(b.pot[slot]));
             b.pot[slot] = null;
             Refresh();
         }
@@ -229,9 +238,9 @@ namespace DOB.Manager
             var b = Editable;
             if (b != null && Real != null)
             {
-                // 실제 게임: 레시피만큼 마늘이 있을 때만 (양념 칸 하나). 모자라면 주방 쪽이 필요 개수를 0으로 알려 준다
-                if (id != Garlic || b.spice == Garlic || Real.GarlicRequired <= 0) return;
-                b.spice = Garlic;
+                // 실제 게임: 그 양념이 하나라도 있으면 양념 칸에 둔다 (칸 하나라 바꿔 넣음, 차감은 조리를 확정할 때)
+                if (b.spice == id || Real.StockOf(id) <= 0) return;
+                b.spice = id;
                 Refresh();
                 return;
             }
@@ -270,9 +279,13 @@ namespace DOB.Manager
                 }
                 else if (b.state == BurnerState.Empty)
                 {
-                    var started = Real.TryStartCooking(id, b.pot.Count(p => p == Flour), b.spice == Garlic ? Real.GarlicRequired : 0);
+                    // 조리 도구는 냄비 하나라 비워 보낸다 (주방 쪽은 도구가 비면 재료만으로 레시피를 찾는다)
+                    var card = PreviewReal(Real, b);
+                    var started = Real.TryStartCooking(id, PotByName(b), b.spice, null);
                     if (started == CookStartResult.Started)
                     {
+                        card.canCook = false;
+                        b.cooked = card;
                         // 조리가 시작되면 기다릴 일만 남으므로 바로 창을 닫는다 (남은 시간은 화구 배지가 보여 준다)
                         SyncReal();
                         Close();
@@ -441,12 +454,22 @@ namespace DOB.Manager
         }
 
         // =================================================================
-        // 실제 게임 (IKitchenOrders) — 지금은 구운 빵 한 가지
+        // 실제 게임 (IKitchenOrders) — 재료 · 양념 조합으로 열린 레시피 전부 (#63 계약, 조리 도구는 냄비 하나)
+        // 재료 id는 주방 쪽 약속대로 한글 이름(밀가루 · 숲버섯 …), 양념은 시장 id(garlic …)로 주고받는다.
+        // 화면 안에서는 그림 이름(Flour · ForestMushroom …)을 쓰고, 요청할 때만 한글 이름으로 바꾼다.
         // =================================================================
 
-        private const string Flour = "Flour";
-        private const string Garlic = "garlic";
         private static readonly string[] Axes = { "독", "열", "냉기", "어둠", "체력", "함정" };
+
+        // 냄비 재료를 한글 이름별 개수로 (요청 · 미리보기에 그대로 쓴다)
+        private static Dictionary<string, int> PotByName(Burner b) => Count(b.pot.Where(id => id != null).Select(Name));
+
+        // 그 재료가 냄비에 넣고도 몇 개 남는지 (기본 재료는 무제한)
+        private static int RealLeft(IKitchenOrders real, Burner b, string id)
+        {
+            int stock = real.StockOf(Name(id));
+            return stock == int.MaxValue ? int.MaxValue : stock - b.pot.Count(p => p == id);
+        }
 
         // 주문 상태 → 화구 상태. 접시를 들었거나 주문이 없으면 화구를 비운다
         private void SyncReal()
@@ -472,11 +495,19 @@ namespace DOB.Manager
         {
             var b = burners[current];
             bool hasOrder = real.GuestName != null;
-            // 양념 칸의 마늘 한 그림 = 레시피가 요구하는 마늘 전부 (주방 쪽은 0개 또는 필요 개수만 받는다)
-            int reserved = b.state == BurnerState.Empty && b.spice == Garlic ? real.GarlicRequired : 0;
-            var garlicRow = PrepScreenPresenter.SpiceTable.First(t => t.id == Garlic);
-            var garlic = SpiceItem(garlicRow);
-            garlic.count = Mathf.Max(0, real.GarlicStock - reserved);
+            // 재료 상자: 기본 재료(무제한) + 가진 던전 재료. 개수는 냄비에 넣은 만큼 뺀 남은 수
+            var pantry = BasicIngredients.Keys.Select(id => Item(id, 0, true))
+                .Concat(PrepScreenPresenter.Ingredients.Keys
+                    .Where(id => real.StockOf(Name(id)) > 0)
+                    .Select(id => Item(id, Mathf.Max(0, RealLeft(real, b, id)), false)));
+            // 양념 상자: 시장 양념 전부, 개수는 실제 재고 (양념 칸에 둔 것은 하나 뺀다)
+            var spiceBox = PrepScreenPresenter.SpiceTable.Select(t =>
+            {
+                var item = SpiceItem(t);
+                item.count = Mathf.Max(0, real.StockOf(t.id) - (b.state == BurnerState.Empty && b.spice == t.id ? 1 : 0));
+                return item;
+            });
+            var slotSpice = PrepScreenPresenter.SpiceTable.FirstOrDefault(t => t.id == b.spice);
             return new KitchenViewData
             {
                 burnerName = "화구 " + (current + 1),
@@ -487,40 +518,49 @@ namespace DOB.Manager
                     ? new[] { new OrderTicketData { id = real.OrderId, guestName = real.GuestName, seatLabel = "주문", status = Status(real.State) } }
                     : Array.Empty<OrderTicketData>(),
                 selectedOrderId = hasOrder ? real.OrderId : null,
-                ingredients = new[] { Item(Flour, 0, true) },
-                spices = new[] { garlic },
+                ingredients = pantry.ToArray(),
+                spices = spiceBox.ToArray(),
                 potIngredients = b.pot.Select(id => id == null ? null : Item(id, 0, BasicIngredients.ContainsKey(id))).ToArray(),
-                potSpice = b.spice == null ? null : SpiceItem(garlicRow),
+                potSpice = b.spice == null || slotSpice.id == null ? null : SpiceItem(slotSpice),
                 preview = PreviewReal(real, b),
                 risks = Axes.Where(axis => (real.KnownRisk(axis) ?? 0) > 0)
                     .Select(axis => new GuestRiskData { risk = axis, amount = real.KnownRisk(axis).Value }).ToArray(),
             };
         }
 
-        // 결과 카드: 구운 빵 재료 진행 · 효과 · 가격 (값은 주방 쪽 레시피에서 읽는다)
+        // 결과 카드: 주방 쪽 미리보기(실제 조리 시작과 같은 계산)를 그대로 보여 준다. 화면은 다시 판정하지 않는다
         private RecipePreviewData PreviewReal(IKitchenOrders real, Burner b)
         {
             if (real.GuestName == null)
                 return new RecipePreviewData { title = "???", needLine = "아직 주문이 없어요" };
-            int flour = b.pot.Count(id => id == Flour);
-            bool garlic = b.spice == Garlic;
-            string need = $"밀가루 {flour} / {real.FlourRequired}"
-                        + (real.GarlicRequired > 0 ? $" · 마늘 {(garlic ? real.GarlicRequired : 0)} / {real.GarlicRequired}" : " · 마늘이 없어 양념 없이 굽기");
-            if (flour > real.FlourRequired) need += " · 밀가루가 너무 많아요";
-            if (rejectLine != null) need = rejectLine;
-            var effects = RiskEffects.Select(e => new EffectAmount { name = e.effect, value = real.Protection(e.axis, garlic) })
+            if (b.state != BurnerState.Empty)
+                return b.cooked ?? new RecipePreviewData { title = real.GuestName, needLine = rejectLine ?? string.Empty };
+            var pot = PotByName(b);
+            if (pot.Count == 0)
+                return new RecipePreviewData { title = "???", needLine = rejectLine ?? "재료를 눌러 냄비에 넣어요" };
+            var p = real.Preview(real.OrderId, pot, b.spice, null);
+            if (p.RecipeId == null)
+                return new RecipePreviewData { title = "???", needLine = rejectLine ?? "맞는 레시피가 없어요 · 재료를 바꿔 보세요" };
+
+            // 효과: 축별 보호 칸(RiskAxes 순서) → 그 축을 막는 효과 이름
+            var effects = RiskEffects.Select((e, i) => new EffectAmount { name = e.effect, value = i < p.Protections.Count ? p.Protections[i] : 0 })
                 .Where(e => e.value > 0).ToArray();
+            // 맛 표현은 화면 표시용 레시피 표에서 (판정에는 쓰지 않음)
+            var shown = PrepScreenPresenter.Recipes.FirstOrDefault(r => r.id == p.RecipeId);
+            var spice = PrepScreenPresenter.SpiceTable.FirstOrDefault(t => t.id == b.spice);
+            string flavor = shown?.flavor ?? string.Empty;
+            if (spice.id != null) flavor = string.IsNullOrEmpty(flavor) ? spice.flavor : $"{flavor} · {spice.flavor}";
             return new RecipePreviewData
             {
                 found = true,
-                title = $"구운 빵 · {real.GuestName}",
-                picture = Icon("DishBread"),
-                needLine = need,
+                title = $"{p.RecipeName} · {real.GuestName}",
+                picture = Icon("Dish" + p.RecipeId),
+                needLine = rejectLine ?? (p.Check == CookStartResult.Started ? "재료가 맞아요 · 조리를 시작할 수 있어요" : CookLine(p.Check)),
                 effects = effects,
-                taste = 2, // 첫 영업은 맛 점수 2 고정 (FirstGuestOrder.TryServe)
-                flavor = garlic ? "고소 · 담백 · 향긋" : "고소 · 담백",
-                priceText = $"금화 {real.Price(garlic)}개 예상",
-                canCook = b.state == BurnerState.Empty && flour == real.FlourRequired && garlic == (real.GarlicRequired > 0),
+                taste = p.Taste,
+                flavor = flavor,
+                priceText = $"금화 {p.Price}개 예상",
+                canCook = b.state == BurnerState.Empty && p.Check == CookStartResult.Started,
             };
         }
 
@@ -539,6 +579,9 @@ namespace DOB.Manager
                 case CookStartResult.Paused: return "잠시 멈춘 동안에는 만들 수 없어요";
                 case CookStartResult.BurnerBusy: return "이 화구는 이미 쓰는 중이에요";
                 case CookStartResult.WrongIngredients: return "재료가 레시피와 맞지 않아요";
+                case CookStartResult.RecipeLocked: return "아직 배우지 않은 레시피예요";
+                case CookStartResult.NotEnoughStock: return "재료나 양념이 모자라요";
+                case CookStartResult.WrongTool: return "이 요리는 냄비로 만들 수 없어요";
                 default: return null;
             }
         }
