@@ -13,10 +13,11 @@
 // [열기]      일차 제목을 쓰고 화면을 켠 뒤 Opened(일차)를 알린다 → Presenter가 ShowReport로 보고를 채운다
 // [보고 받기] 첫 손님을 고르고 꼬리표 · 일러스트 · 보고 한 장을 그린다
 // [넘기기]    꼬리표 · ◀ 이전 · 다음 ▶ 으로 손님을 바꾼다. 본 손님은 꼬리표의 빨간 점이 사라진다
+//             그리기 직전 GuestShowing(손님)을 알린다 → Presenter가 보고 확정을 요청하고 수첩 기록 칸을 채운다
 //             보고 한 장을 그릴 때마다 결과 도장을 그 색으로 「쾅」 찍는다 (간신히 · 부상은 더 크게 흔들림)
 //             다른 손님으로 넘기면 종이가 왼쪽으로 밀려나고 새 종이가 오른쪽에서 들어온다 (시안 19 ⑧)
 //             도장 다음 순서로 「신규」 뱃지가 톡 튀어나오고, 호감 숫자가 +0부터 오르며 게이지가 어제 위치에서 차오른다 (시안 13)
-// [최종 정산] 전날 정산 창을 띄운다 (시안 27). 결재란을 누르면 도장이 찍히고 확인을 알린다 (시안 28)
+// [최종 정산] SettlementOpening을 알린 뒤(Presenter가 정산 값을 갱신) 전날 정산 창을 띄운다 (시안 27). 결재란을 누르면 도장이 찍히고 확인을 알린다 (시안 28)
 //             안 본 보고가 남아도 확인할 수 있다 (보상은 백엔드가 이미 한 번씩 반영). 아래 「전날 정산 창」 의사코드 참고
 // [닫기]      DayFlowPresenter가 Hide를 부른다. 도장 연출 중이면 연출이 끝난 뒤 닫는다
 // 비고   : [최종 정산] 단추 이름은 OpenSettlement, 결재란 단추 이름은 ConfirmMorningReport (팀 테스트가 이 순서로 누른다).
@@ -147,6 +148,11 @@ namespace DOB.UI
 
         /// <summary>화면이 열렸다 (일차). Presenter가 그날 보고를 ShowReport로 채운다.</summary>
         public event Action<int> Opened;
+        /// <summary>손님 보고 한 장을 그리기 직전 (그 손님). Presenter가 보고 확정을 요청하고 수첩 기록 칸을 채울 수 있다.
+        /// 같은 손님을 다시 그려도 또 알린다 (확정은 백엔드가 한 번만 처리).</summary>
+        public event Action<ReturnGuestData> GuestShowing;
+        /// <summary>전날 정산 창을 채우기 직전. Presenter가 남은 보고를 확정하고 정산 값(층 개방 등)을 갱신할 수 있다.</summary>
+        public event Action SettlementOpening;
 
         private void Awake()
         {
@@ -177,6 +183,7 @@ namespace DOB.UI
 
         private void OpenSettlement()
         {
+            SettlementOpening?.Invoke();
             var s = report.settlement;
             if (s == null || !settlementRoot) { RaiseConfirmed(); return; }
             settleTitle.text = $"{s.day}일차 영업 정산";
@@ -352,6 +359,8 @@ namespace DOB.UI
 
             index = Mathf.Clamp(i, 0, report.guests.Length - 1);
             seen[index] = true;
+            // 그리기 전에 알린다 → Presenter가 같은 데이터에 수첩 기록을 채우면 이번에 바로 보인다
+            GuestShowing?.Invoke(report.guests[index]);
             prevButton.interactable = index > 0;
             nextButton.interactable = index < report.guests.Length - 1;
             RefreshChips();

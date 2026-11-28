@@ -13,6 +13,7 @@
 //               이름판에는 이름만 (종족 · 직업은 숨김 — 미리 보이면 정답 힌트가 됨)
 // [대사]        [[ ]] 키워드는 숨겨 둔다 (밑줄 없음, 마우스를 올려도 티 안 남)
 //               (시안 20 ①) 새 손님 · 다음 쪽 대사는 한 글자씩 나온다. 클릭하면 바로 다 보인다 (키워드를 누르면 다 보이면서 찾음)
+//               ESC 메뉴(timeScale 0) 중에는 글이 멈추고 클릭으로 넘기지 않는다 (홍준우 2026-11-28 입력 검수)
 //               맞는 키워드를 누르면 → 그 말에 밑줄 + 수첩에 기록. 틀린 곳은 무반응
 // [초상화]      데이터에 기본 초상이 있으면 그 그림을, 없으면 프리팹의 「그림 대기」 상자를 보여 준다 (2026-11-27 추가)
 //               컨디션 레이어는 기본 초상과 같은 크기로 그 위에 겹친다. 숨은 단서 표시는 레이어보다 위에 남는다
@@ -519,7 +520,8 @@ namespace DOB.UI
 
         private void Update()
         {
-            if (!typing) return;
+            // ESC 메뉴(timeScale 0) 동안은 글이 멈추고, 메뉴를 누른 클릭이 뒤 대사를 넘기지 않는다
+            if (!typing || Time.timeScale <= 0f) return;
             var mouse = UnityEngine.InputSystem.Mouse.current;
             if (mouse != null && mouse.leftButton.wasPressedThisFrame) { FinishTyping(); return; }
             if (typeTo < 0 && !MeasurePage()) return;

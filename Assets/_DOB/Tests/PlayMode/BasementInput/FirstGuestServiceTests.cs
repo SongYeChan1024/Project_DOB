@@ -216,6 +216,49 @@ namespace DOB.Tests
             yield return SceneManager.LoadSceneAsync(SceneComposition.Title);
         }
 
+        // 입력 검수 (홍준우 2026-11-28): 영업 중 방명록 책이 덮고 있으면 E 안내가 숨으므로 E·W가 뒤에서 응대·이동을 하지 않는다.
+        // Esc는 ESC 메뉴를 열지 않고 방명록만 닫고, 닫힌 뒤에는 E가 다시 응대를 연다.
+        [UnityTest]
+        public IEnumerator GuestbookOverServiceBlocksWorldInputAndEscClosesOnlyIt()
+        {
+            yield return LoadDemo();
+            var layout = FindLayout();
+            var player = SceneManager.GetSceneByName(BasementComposition.BaseScene).GetRootGameObjects().Single(root => root.name == "RuntimeCharacters")
+                .transform.Find("PF_Player");
+            var guest = player.parent.Find("PF_Guest");
+            var dialogue = UnityEngine.Object.FindAnyObjectByType<FirstGuestDialogue>();
+            var service = UnityEngine.Object.FindAnyObjectByType<FirstGuestService>();
+            PairWithTestDevices(player.GetComponent<PlayerInput>());
+            var book = UnityEngine.Object.Instantiate(AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_DOB/03.Prefabs/UI/PF_Guestbook.prefab"));
+            spawned.Add(book);
+            var bookView = book.GetComponentInChildren<DOB.UI.GuestbookBookView>(true);
+            bookView.Closed += bookView.Hide; // DayFlowPresenter와 같은 연결
+
+            yield return Until(() => service.IsWaitingToGreet && guest.position == layout.GreetingPoint.position, "입장");
+            PlacePlayer(player.GetComponent<CharacterController>(), guest.position + Vector3.right * 0.9f);
+            bookView.Show(new[] { new DOB.UI.GuestbookLineData("하루", "잘 먹었어요") });
+            Assert.That(UIManager.IsScreenOpen, Is.True, "방명록이 화면으로 잡힘");
+            Vector3 start = player.position;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.E, Key.W));
+            for (int i = 0; i < 5; i++)
+                yield return null;
+            Assert.That(dialogue.BlocksWorldInput, Is.False, "방명록 뒤 E 입력");
+            Assert.That(Vector3.Distance(start, player.position), Is.LessThan(StillTolerance), "방명록 뒤 W 입력");
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return null;
+
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.Escape));
+            yield return Until(() => !bookView.IsOpen, "Esc로 방명록 닫기");
+            Assert.That(BasementPauseMenu.IsPaused, Is.False, "같은 Esc로 ESC 메뉴를 열지 않음");
+            Assert.That(Time.timeScale, Is.EqualTo(initialTimeScale));
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return null;
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState(Key.E));
+            yield return Until(() => dialogue.BlocksWorldInput, "닫은 뒤 E로 응대 열기");
+            InputSystem.QueueStateEvent(keyboard, new KeyboardState());
+            yield return SceneManager.LoadSceneAsync(SceneComposition.Title);
+        }
+
         private static IEnumerator LoadDemo()
         {
             yield return EditorSceneManager.LoadSceneAsyncInPlayMode(DemoPath, new LoadSceneParameters(LoadSceneMode.Single));

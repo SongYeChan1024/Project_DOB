@@ -268,10 +268,12 @@ namespace DOB.UI
                 status.color = floor.opened ? visitedColor : faintColor;
                 card.GetComponent<CanvasGroup>().alpha = floor.opened ? 1f : lockedAlpha;
 
-                // 이 층에 적힌 단서와, 거기서 알게 된 위험 (찾은 순서, 겹치지 않게)
+                // 이 층에 적힌 단서와, 거기서 알게 된 위험 (단서로 찾은 순서 다음 귀환 보고로 공개된 위험, 겹치지 않게)
                 var entry = floor.opened ? record.Floors.FirstOrDefault(e => e.Name == FloorKey(floor)) : null;
                 var clues = entry != null ? entry.Clues : new List<FoundClue>();
-                var found = clues.Select(c => c.risk).Where(r => !string.IsNullOrEmpty(r)).Distinct().ToList();
+                var found = clues.Select(c => c.risk)
+                    .Concat(floor.opened ? floor.revealedRisks ?? Array.Empty<string>() : Array.Empty<string>())
+                    .Where(r => !string.IsNullOrEmpty(r)).Distinct().ToList();
 
                 // 위험 칸: 층의 위험 수만큼. 알게 된 것은 그림 + 이름, 나머지는 ?
                 var risks = (RectTransform)card.transform.Find("Risks");

@@ -158,6 +158,8 @@ namespace DOB.UI
         public bool opened;
         /// <summary>이 층의 기본 위험 개수. 수첩에 이만큼 칸을 그린다 (이름은 단서를 찾아야 보임).</summary>
         public int riskCount;
+        /// <summary>귀환 보고로 공개된 이 층의 위험 이름 (예: 독 · 체력). 단서로 찾은 위험과 함께 칸에 보인다.</summary>
+        public string[] revealedRisks = Array.Empty<string>();
         /// <summary>이 층에서 나오는 재료. seen = 손님이 가져와 본 적 있음.</summary>
         public FloorIngredientData[] ingredients = Array.Empty<FloorIngredientData>();
     }
