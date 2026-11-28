@@ -7,6 +7,8 @@
 // 호출   : PrepScreensView, UIManager (등록 · 해제 · 영업 시작 알림)
 // 상태   : 금화 · 양념 · 시장은 EconomyManager(UIManager.Economy)가 연결돼 있으면 그 값을 읽고 구매를 요청한다 (#64 프론트 1번).
 //          연결이 없으면(테스트 씬) 더미 금화 · 보유 양념을 쓴다. 재료 · 개량 단계는 아직 더미다.
+//          (홍준우 2026-11-28) UIManager.ConnectDay로 정산 · 손님 Manager가 이어지면 수첩 층별 위험(열린 층 · 이름 · 위험 수 ·
+//          귀환 보고로 공개된 위험)과 문패 「오늘 손님」을 실제 값으로 읽는다.
 // 비고   : TODO(계약) 표시된 곳이 백엔드 호출로 바뀔 자리 (Docs/개발/FeatureManagerMap.md 💡 구성안 기준).
 //          금화 · 재고 · 시장 · 개량 → EconomyManager (Wallet · Inventory · UpgradeState)
 //          층 개방 · 기록된 위험 → SettlementManager (FloorProgress) / 수첩 기록 → RelationshipManager (NotebookRecords)
@@ -205,10 +207,11 @@ namespace DOB.Manager
                 },
                 jobs = new[] { "전사", "마법사", "도적", "사제", "광부", "궁수" }
                     .Select(n => new CodexItemData { name = n }).ToArray(),
-                // TODO(계약): 손님 수 · 좌석 · 화구는 GameManager · GuestManager · KitchenManager, 가진 재료는 EconomyManager 값으로
+                // TODO(계약): 좌석은 좌석 개량 기능이 생기면 실제 값으로 (손님 수 · 화구 · 가진 재료는 연결됨)
                 doorStats = new[]
                 {
-                    new DoorStatData { label = "오늘 손님", value = "6명" },
+                    // 실제 게임: 오늘 명단(재방문 + 입소문 신규, GuestManager.PrepareDay가 정함)의 인원을 그대로 쓴다
+                    new DoorStatData { label = "오늘 손님", value = UIManager.Guests ? $"{UIManager.Guests.TodaysGuests.Count}명" : "6명" },
                     new DoorStatData { label = "좌석", value = $"{3 + upgradeLevels["seat"]}석" },
                     new DoorStatData { label = "화구", value = $"{Burners}개" },
                 },
@@ -218,7 +221,7 @@ namespace DOB.Manager
                         id = sp.id, name = sp.name, count = sp.owned, icon = sp.icon,
                         description = $"{sp.effect} +1 · {sp.flavor}",
                     }).ToArray(),
-                doorIngredients = ownedIngredients
+                doorIngredients = OwnedIngredients()
                     .Select(kv => new StockItemData
                     {
                         id = kv.Key, name = IngredientName(kv.Key), count = kv.Value, icon = Icon("Ing" + kv.Key),
@@ -227,9 +230,31 @@ namespace DOB.Manager
             };
         }
 
-        // 기획 10장 층 표 (기본 위험 수 · 나오는 재료). 지금은 1 · 2층만 다녀온 상태로 가정
+        // 가진 던전 재료 (그림 이름 → 개수). 실제 게임: EconomyManager.Materials의 한글 이름을 아래 재료 표로 그림 이름에 맞춘다
+        //   (표에 없는 재료는 뺀다). 연결 전이면 더미.
+        // shortcut: 「본 적 있음」을 지금 가진 재료로 본다 (다 쓰면 다시 ?), 백엔드가 본 재료 기록을 주면 그것으로 바꾼다
+        private static Dictionary<string, int> OwnedIngredients()
+        {
+            if (!(UIManager.Economy is EconomyManager economy) || economy.Materials == null)
+                return ownedIngredients;
+            var result = new Dictionary<string, int>();
+            foreach (var stock in economy.Materials.All())
+            {
+                if (stock == null || stock.Count <= 0) continue;
+                string id = Ingredients.FirstOrDefault(pair => pair.Value.name == stock.Id || pair.Key == stock.Id).Key;
+                if (id != null) result[id] = stock.Count;
+            }
+            return result;
+        }
+
+        // 기획 10장 층 표 (기본 위험 수 · 나오는 재료). 연결 전(테스트 씬)에는 1 · 2층만 다녀온 상태로 가정
+        // 실제 게임 (홍준우 2026-11-28): 정산 Manager가 이어져 있으면 열린 층 · 층 이름 · 위험 수는 SO_FloorProgress와 층 진행을,
+        //   귀환 보고로 공개된 위험은 IsRiskRevealed를 그대로 읽는다 (화면은 다시 판정하지 않는다)
         private FloorItemData[] BuildFloors()
         {
+            var settlement = UIManager.Settlement;
+            var rules = settlement ? Define.FloorProgressRules.Load() : null;
+            var owned = OwnedIngredients();
             (string name, int risks, string[] items)[] table =
             {
                 ("슬라임 숲", 2, new[] { "SlimeJelly", "ForestMushroom", "Herb", "ForestCarrot", "ForestTruffle" }),
@@ -242,12 +267,20 @@ namespace DOB.Manager
             for (int i = 0; i < table.Length; i++)
             {
                 var t = table[i];
+                int number = i + 1;
+                var axes = rules ? rules.AxesOf(number) : null;
                 result[i] = new FloorItemData
                 {
-                    number = i + 1, name = t.name, opened = i < 2, riskCount = t.risks,
+                    number = number,
+                    name = rules && !string.IsNullOrEmpty(rules.NameOf(number)) ? rules.NameOf(number) : t.name,
+                    opened = settlement ? number <= settlement.OpenFloors : i < 2,
+                    riskCount = axes != null && axes.Count > 0 ? axes.Count : t.risks,
+                    revealedRisks = settlement && axes != null
+                        ? axes.Where(axis => settlement.IsRiskRevealed(number, axis)).ToArray()
+                        : Array.Empty<string>(),
                     ingredients = t.items.Select(id => new FloorIngredientData
                     {
-                        id = id, icon = Icon("Ing" + id), seen = ownedIngredients.ContainsKey(id),
+                        id = id, icon = Icon("Ing" + id), seen = owned.ContainsKey(id),
                         name = IngredientName(id), description = IngredientInfo(id),
                     }).ToArray(),
                 };

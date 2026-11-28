@@ -3,6 +3,7 @@
 // 호출자 : FloorProgress(개방·공개 판정), SettlementManager(하루를 열 때 불러옴)
 // 의사코드: 값은 인스펙터에서만 정한다.
 //   AxesOf(층)  — 1부터 센 층의 위험 축 이름. 없는 층이면 빈 목록.
+//   NameOf(층)  — 1부터 센 층의 이름. 없는 층이면 null.
 //   Validate    — 개방 승수·공개 수가 1 이상이고, 층이 하나 이상이며 축이 RiskAxes 이름 안에서 겹치지 않는지 검사한다.
 // 💡 값은 기획 3-3 「던전 층과 재료」의 기본 위험 축과 판정·경제 상수 floorOpenWins를 옮긴 것이며 송예찬 확인 전이다.
 // =====================================================================
@@ -44,6 +45,9 @@ namespace DOB.Define
         /// <summary>1부터 센 층의 위험 축. 없는 층이면 빈 목록.</summary>
         public IReadOnlyList<string> AxesOf(int floor) =>
             floor >= 1 && floor <= floors.Length && floors[floor - 1].axes != null ? floors[floor - 1].axes : (IReadOnlyList<string>)Array.Empty<string>();
+
+        /// <summary>1부터 센 층의 이름 (예: 슬라임 숲). 없는 층이면 null. 보고 · 수첩 화면 표시용 (홍준우 2026-11-28).</summary>
+        public string NameOf(int floor) => floor >= 1 && floor <= floors.Length ? floors[floor - 1].name : null;
 
         /// <summary>기준값 오류. 문제가 없으면 null.</summary>
         public string Validate()

@@ -18,12 +18,22 @@
 //            VisitId로 보고와 짝을 지어 Total → 변화량, Wait · Taste · Expedition → "대기 · 맛 · 던전" 내역을 채운다
 //            단골까지 남은 값 · 막대는 단골 기준값이 계약에 없어 비워 둔다. 3단계 PR에서 GameManager가 세 번째 인자를 넘긴다 (김언호)
 //            확정: 화면은 확정하지 않아도 된다 (준비로 넘어갈 때 백엔드가 남은 보고를 모두 한 번씩 확정)
+//          층 공개 · 개방 (홍준우 2026-11-28, FeatureManagerMap F9 홍준우 인계): UIManager.ConnectDay로 정산 · 호감 Manager가 이어지면
+//            손님 보고를 펼칠 때 그 보고의 확정을 요청하고(SettlementManager.ConfirmReport — 다시 요청해도 한 번만 처리),
+//            FloorOutcomeOf의 공개 축 → 「수첩에 적은 층 위험」, 새로 연 층 → 정산 창 첫 줄로 옮긴다.
+//            호감은 Bind 세 번째 인자가 없으면 RelationshipManager.YesterdayAffinities를, 「오늘 새 손님」은 WordOfMouthBonus를 읽는다.
 //
 // 의사코드
-// [켜질 때]   화면의 Opened를 구독한다 / [꺼질 때] 구독을 푼다
+// [켜질 때]   화면의 Opened · GuestShowing · SettlementOpening을 구독한다 / [꺼질 때] 구독을 푼다
 // [연결]      보고 조회 함수와 신규 재료 판별 함수, (있으면) 방문 호감 조회 함수를 받아 둔다
 // [호감]      보고마다 같은 VisitId의 호감을 찾아 합계와 내역만 옮긴다. 없으면 호감 칸을 비운다 (다시 계산하지 않는다)
+//             호감 조회 함수가 없고 호감 Manager가 이어져 있으면 그 전날 방문 호감을 쓴다
 // [열림]      연결 전이면 더미 보고를, 연결됐으면 전날 방문 결과를 화면 데이터로 옮겨 넘긴다 (판정은 다시 계산하지 않는다)
+//             이미 확정된 보고(다시 연 화면 · 불러온 저장)는 층 공개 결과를 미리 채운다
+// [손님 펼침] 정산 Manager가 없거나 방문 ID가 없으면 그대로 둔다
+//             → 확정을 요청한다 (결과와 상관없이) → 층 공개 결과가 있으면 수첩 칸(층 이름 · 공개 축)을 채운다
+// [정산 창]   정산 Manager가 없으면 그대로 둔다 → 보고를 모두 확정 요청하고 수첩 칸을 채운다
+//             → 정산 값을 다시 모은다 (새로 연 층은 맨 위 줄, 오늘 새 손님 +N명, 지금 금화)
 // =====================================================================
 using System;
 using System.Collections.Generic;
@@ -45,13 +55,25 @@ namespace DOB.Manager
 
         private void OnEnable()
         {
-            if (view) view.Opened += OnOpened;
+            if (!view) return;
+            view.Opened += OnOpened;
+            view.GuestShowing += OnGuestShowing;
+            view.SettlementOpening += OnSettlementOpening;
         }
 
         private void OnDisable()
         {
-            if (view) view.Opened -= OnOpened;
+            if (!view) return;
+            view.Opened -= OnOpened;
+            view.GuestShowing -= OnGuestShowing;
+            view.SettlementOpening -= OnSettlementOpening;
         }
+
+        // 지금 화면에 보낸 실제 보고 (손님 펼침 · 정산 창이 다시 쓴다). 더미이거나 열기 전이면 비어 있다
+        private readonly Dictionary<string, VisitResult> shownVisits = new Dictionary<string, VisitResult>();
+        private ReturnGuestData[] shownGuests = Array.Empty<ReturnGuestData>();
+        private DaySettlementData shownSettlement;
+        private int shownDay;
 
         // 보고 화면(BasementUI 씬)과 정산 총괄(Basement 씬)은 서로 다른 씬이라 참조를 직렬화할 수 없다.
         // GameManager가 하루를 준비할 때 조회 함수를 넘겨 준다 (2026-11-24 김언호, 실행 연결).
@@ -71,6 +93,9 @@ namespace DOB.Manager
 
         private void OnOpened(int day)
         {
+            shownVisits.Clear();
+            shownGuests = Array.Empty<ReturnGuestData>();
+            shownSettlement = null;
             // 연결되지 않은 단독 테스트 씬에서는 시안과 같은 더미 손님을 보여 준다.
             if (readReports == null)
             {
@@ -91,18 +116,98 @@ namespace DOB.Manager
             }
 
             // 실제 게임: 전날 파견한 손님별 확정 결과를 그대로 옮긴다. 판정은 다시 계산하지 않는다.
-            var affinities = readAffinities?.Invoke() ?? Array.Empty<VisitAffinity>();
-            var guests = (readReports() ?? Array.Empty<VisitResult>())
+            var affinities = readAffinities?.Invoke() ?? UIManager.Relationship?.YesterdayAffinities ?? Array.Empty<VisitAffinity>();
+            var visits = (readReports() ?? Array.Empty<VisitResult>()).Where(v => v != null).ToArray();
+            foreach (var visit in visits)
+                if (!string.IsNullOrEmpty(visit.VisitId)) shownVisits[visit.VisitId] = visit;
+            var guests = visits
                 .Select(visit => WithAffinity(ToGuest(visit), affinities.FirstOrDefault(a => a != null && a.VisitId == visit.VisitId)))
                 .ToArray();
-            var settle = Settle(day - 1, guests);
-            if (UIManager.Economy is EconomyManager economy) settle.goldNow = economy.Gold.ToString();
+            // 이미 확정된 보고(다시 연 화면 · 불러온 저장)는 확정 요청 없이 층 공개 결과만 채운다
+            foreach (var guest in guests) FillNote(guest);
+            shownGuests = guests;
+            shownDay = day;
+            shownSettlement = RealSettle();
             view.ShowReport(new ReturnReportViewData
             {
                 illustrationTier = 0, // 🔴 그날 총합 점수 계산식이 정해지기 전에는 일러스트를 비운다
                 guests = guests,
-                settlement = settle,
+                settlement = shownSettlement,
             });
+        }
+
+        // ---------------- 손님 펼침 · 정산 창 (층 공개 · 개방, FeatureManagerMap F9 홍준우 인계) ----------------
+
+        // 손님 보고를 펼칠 때: 확정을 요청하고(다시 요청해도 백엔드가 한 번만 처리) 공개된 층 위험을 수첩 칸에 채운다
+        private void OnGuestShowing(ReturnGuestData guest)
+        {
+            if (guest == null || !shownVisits.ContainsKey(guest.visitId ?? string.Empty)) return;
+            if (!(UIManager.Settlement is SettlementManager settlement)) return;
+            settlement.ConfirmReport(guest.visitId);
+            FillNote(guest);
+        }
+
+        // [최종 정산] 직전: 안 펼친 보고도 확정을 요청하고, 정산 값을 같은 객체에 다시 채운다 (화면이 이 객체를 그린다)
+        private void OnSettlementOpening()
+        {
+            if (shownSettlement == null || !(UIManager.Settlement is SettlementManager settlement)) return;
+            foreach (var guest in shownGuests)
+            {
+                settlement.ConfirmReport(guest.visitId);
+                FillNote(guest);
+            }
+            var fresh = RealSettle();
+            shownSettlement.summary = fresh.summary;
+            shownSettlement.news = fresh.news;
+            shownSettlement.newGuests = fresh.newGuests;
+            shownSettlement.goldNow = fresh.goldNow;
+        }
+
+        // 실제 정산 창 값: 손님 보고에서 모은 값 + 새로 연 층(맨 위) · 오늘 새 손님 · 지금 금화
+        private DaySettlementData RealSettle()
+        {
+            var settle = Settle(shownDay - 1, shownGuests);
+            if (UIManager.Economy is EconomyManager economy) settle.goldNow = economy.Gold.ToString();
+            if (UIManager.Relationship is RelationshipManager relationship) settle.newGuests = $"+{relationship.WordOfMouthBonus}명";
+            var opened = OpenedFloors();
+            if (opened.Length > 0) settle.news = opened.Concat(settle.news).ToArray();
+            return settle;
+        }
+
+        // 확정된 보고가 새로 연 층 → 「N층 이름에 갈 수 있게 됐어요!」 (확정 전이면 없음)
+        private string[] OpenedFloors()
+        {
+            if (!(UIManager.Settlement is SettlementManager settlement)) return Array.Empty<string>();
+            return shownGuests
+                .Select(g => settlement.FloorOutcomeOf(g.visitId)?.OpenedFloor)
+                .Where(floor => floor.HasValue).Select(floor => floor.Value).Distinct()
+                .Select(floor => $"<color=#2F7A3A>{FloorName(floor)}</color>에 갈 수 있게 됐어요!")
+                .ToArray();
+        }
+
+        // 그 보고가 공개한 층 위험을 수첩 칸으로 옮긴다. 확정 전 · 공개한 축이 없으면 칸을 비운다
+        private void FillNote(ReturnGuestData guest)
+        {
+            if (!(UIManager.Settlement is SettlementManager settlement)) return;
+            if (!shownVisits.TryGetValue(guest.visitId ?? string.Empty, out var visit)) return;
+            var outcome = settlement.FloorOutcomeOf(guest.visitId);
+            if (outcome == null || outcome.Revealed == null || outcome.Revealed.Count == 0)
+            {
+                guest.noteFloor = null;
+                guest.noteAxes = Array.Empty<NoteAxisData>();
+                return;
+            }
+            guest.noteFloor = FloorName(visit.Floor);
+            // 층 위험은 「있다 · 없다」만 공개하므로 한 칸으로 적는다 (칸 수는 그날 손님마다 다른 실제 위험이라 수첩에 옮기지 않는다)
+            guest.noteAxes = outcome.Revealed.Select(axis => Note(axis, 1)).ToArray();
+        }
+
+        // 1부터 센 층 → 「1층 슬라임 숲」 (이름은 SO_FloorProgress. 없으면 「1층」)
+        private static string FloorName(int floor)
+        {
+            var rules = FloorProgressRules.Load();
+            string name = rules && floor >= 1 && floor <= rules.FloorCount ? rules.NameOf(floor) : null;
+            return string.IsNullOrEmpty(name) ? $"{floor}층" : $"{floor}층 {name}";
         }
 
         // ---------------- 전날 정산 창 (시안 27 · 28) ----------------

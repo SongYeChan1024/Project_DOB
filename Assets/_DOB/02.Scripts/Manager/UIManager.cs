@@ -43,6 +43,8 @@
 // [화구 표시] 주방이 ConnectKitchenBurners로 IKitchenBurners를 붙이면 조리 중인 화구 위에 요리 그림 · 남은 초가 뜬다
 // [영업 HUD] 영업 쪽이 ConnectServiceStatus로 IServiceStatus를 붙이면 일차 · 금화 · 손님 수 · 주문서 · 든 접시가 뜬다
 // [상호작용 표시] 상호작용하는 쪽이 ConnectInteractionPrompt로 IInteractionPrompt를 붙이면 대상 위에 [E] 동작 표시가 뜬다
+// [하루 연결] (홍준우 2026-11-28) GameManager가 하루를 열 때 ConnectDay(정산 · 호감 · 손님 Manager)로 잇는다.
+//             귀환 보고 화면은 보고 확정 · 층 공개/개방 · 입소문 인원을, 준비 화면은 층 진행 · 오늘 손님 수를 읽는다. 연결 전이면 더미
 // [Esc 순서] IsScreenOpen: 준비 · 요리 · 방명록 화면이 열려 있으면 Esc는 그 화면을 닫는 데 쓰고 ESC 메뉴는 열지 않는다 (BasementPauseInput)
 // =====================================================================
 using System;
@@ -96,6 +98,17 @@ namespace DOB.Manager
         internal static EconomyManager Economy => instance ? instance.economy : null;
         /// <summary>실제 화구 수 · 화구 구매. Economy와 함께 연결된다. 없으면 null.</summary>
         internal static KitchenManager KitchenRules => instance ? instance.kitchenRules : null;
+
+        // 귀환 보고 · 층 진행 · 호감 · 오늘 명단 (하루를 열 때 GameManager가 ConnectDay로 잇는다). 없으면 화면은 더미 · 빈 칸
+        private SettlementManager settlement;
+        private RelationshipManager relationship;
+        private GuestManager guests;
+        /// <summary>귀환 보고 확정 · 층 공개/개방 조회. 연결 전이면 null.</summary>
+        internal static SettlementManager Settlement => instance ? instance.settlement : null;
+        /// <summary>전날 방문 호감 · 입소문 신규 인원. 연결 전이면 null.</summary>
+        internal static RelationshipManager Relationship => instance ? instance.relationship : null;
+        /// <summary>오늘 올 손님 명단. 연결 전이면 null.</summary>
+        internal static GuestManager Guests => instance ? instance.guests : null;
 
         // 지금 상호작용할 대상 (FirstGuestService 💡). 없으면 상호작용 표시를 숨긴다
         private IInteractionPrompt interactionPrompt;
@@ -295,6 +308,24 @@ namespace DOB.Manager
             if (!instance || instance.economy != economy) return;
             instance.economy = null;
             instance.kitchenRules = null;
+        }
+
+        /// <summary>귀환 보고 · 층 진행 · 호감 · 오늘 명단을 보고 화면과 준비 화면에 잇는다 (하루를 열 때, 세 Manager의 BeginDay · PrepareDay 뒤).
+        /// 화면은 조회와 보고 확정 요청만 하고 값을 바꾸거나 다시 계산하지 않는다.</summary>
+        internal static void ConnectDay(SettlementManager settlement, RelationshipManager relationship, GuestManager guests)
+        {
+            Instance.settlement = settlement;
+            Instance.relationship = relationship;
+            Instance.guests = guests;
+        }
+
+        /// <summary>ConnectDay로 이은 것을 푼다 (꺼질 때). 다른 하루가 이미 이었으면 건드리지 않는다. 종료 중에 새 인스턴스를 만들지 않는다.</summary>
+        internal static void DisconnectDay(SettlementManager settlement)
+        {
+            if (!instance || instance.settlement != settlement) return;
+            instance.settlement = null;
+            instance.relationship = null;
+            instance.guests = null;
         }
 
         /// <summary>화구 하나(0부터)의 요리 화면을 연다. 등록된 화면이 없으면 경고하고 false.</summary>
