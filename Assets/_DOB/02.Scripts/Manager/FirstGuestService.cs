@@ -11,6 +11,8 @@
 //   E: ① 따라오는 손님이 빈 자리 가까이 있으면 자리를 선점하고 의자로 보낸다. ② 줄에 선 가장 가까운 손님을 명단에서
 //   응대로 바꾸고, 그 얼굴 정면으로 줌인한 뒤 응대를 연다. ③ 그 밖은 주방(MealInteraction)에 맡긴다.
 //   응대가 안내·돌려보냄 없이 닫히면 그 손님을 입구 대기로 되돌리고 전경으로 줌아웃한다. 줌·응대·전환 동안 이동과 E를 잠근다.
+//   (홍준우 2026-11-28 입력 검수) 준비·요리·방명록 화면(UIManager.IsScreenOpen)이 덮고 있어도 이동과 E를 잠근다.
+//   E 안내가 숨은 채 뒤에서 응대·서빙이 실행되지 않게 한다. 손님 걸음·대기 시간은 그대로 흐른다.
 //   동행은 다른 손님이 따라오는 중이면 거절한다. 착석하면 명단에 알리고 GuestSeated를 한 번 보낸다.
 //   명단이 방문을 끝내면(서빙 후 파견·돌려보냄·대기 이탈) 좌석을 풀고 계단 또는 문으로 보낸다.
 //   전경 카메라는 씬에 둔 추적 카메라(overview)를 쓴다. 연결이 없으면 메인 카메라 자리에 고정 전경 카메라를 만든다.
@@ -293,7 +295,7 @@ namespace DOB.Manager
             AdvanceGuests(Time.deltaTime);
             RefreshGuidance();
 
-            if (controls.InteractPressed)
+            if (controls.InteractPressed && !UIManager.IsScreenOpen)
                 TryInteract();
         }
 
@@ -308,7 +310,7 @@ namespace DOB.Manager
         // 이동 방향이 카메라 정면 기준이라 카메라가 블렌드되는 동안에도 이동을 막는다.
         private bool CanMovePlayer() =>
             layout && !SceneLoadService.IsLoading && zoomTimer <= 0f && !observing && !dialogue.BlocksWorldInput
-            && KitchenIsOpen?.Invoke() != true;
+            && KitchenIsOpen?.Invoke() != true && !UIManager.IsScreenOpen;
 
         private void AdvanceGuests(float dt)
         {
